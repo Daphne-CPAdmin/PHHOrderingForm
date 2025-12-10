@@ -289,7 +289,11 @@ def get_order_by_id(order_id):
     return order
 
 def save_order_to_sheets(order_data, order_id=None):
-    """Save order to PepHaul Entry tab"""
+    """Save order to PepHaul Entry tab
+    
+    Format: All rows have Order ID, Date, Customer info (for easy lookup).
+    Only first row has Grand Total, Admin Fee, Order Status, Payment columns.
+    """
     if not sheets_client:
         return None
     
@@ -307,15 +311,15 @@ def save_order_to_sheets(order_data, order_id=None):
         all_values = worksheet.get_all_values()
         next_row = len(all_values) + 1
         
-        # Prepare rows
+        # Prepare rows - ALL rows have Order ID, Date, Customer info for easy lookup
         rows_to_add = []
         for i, item in enumerate(order_data['items']):
             row = [
-                order_id if i == 0 else '',
-                order_date if i == 0 else '',
-                order_data['full_name'] if i == 0 else '',
-                order_data['email'] if i == 0 else '',
-                order_data['telegram'] if i == 0 else '',
+                order_id,                           # All rows have Order ID
+                order_date,                         # All rows have Order Date
+                order_data['full_name'],            # All rows have Full Name
+                order_data['email'],                # All rows have Email
+                order_data['telegram'],             # All rows have Telegram
                 item['product_code'],
                 item.get('product_name', ''),
                 item['order_type'],
@@ -324,14 +328,14 @@ def save_order_to_sheets(order_data, order_id=None):
                 item.get('line_total_usd', 0),
                 order_data.get('exchange_rate', FALLBACK_EXCHANGE_RATE),
                 item.get('line_total_php', 0),
-                ADMIN_FEE_PHP if i == 0 else '',
-                order_data.get('grand_total_php', 0) if i == 0 else '',
-                'Pending',
-                'No',
-                'Unpaid',
-                '',
-                '',
-                ''
+                ADMIN_FEE_PHP if i == 0 else '',             # Only first row
+                order_data.get('grand_total_php', 0) if i == 0 else '',  # Only first row
+                'Pending' if i == 0 else '',                 # Only first row
+                'No' if i == 0 else '',                      # Only first row (Locked)
+                'Unpaid' if i == 0 else '',                  # Only first row (Confirmed Paid?)
+                '',                                          # Payment Screenshot - only first row
+                '',                                          # Payment Date
+                ''                                           # Notes
             ]
             rows_to_add.append(row)
         
@@ -430,17 +434,33 @@ def add_items_to_order(order_id, new_items, exchange_rate):
                 # New item - add to list
                 items_to_add.append(item)
         
-        # Add any truly new items
+        # Add any truly new items (with full customer info for easy lookup)
         if items_to_add:
             next_row = len(all_values) + 1
+            
+            # Get customer info from the first row of this order
+            order_info = {'full_name': '', 'email': '', 'telegram': '', 'order_date': ''}
+            col_full_name = headers.index('Full Name') if 'Full Name' in headers else 2
+            col_email = headers.index('Email') if 'Email' in headers else 3
+            col_telegram = headers.index('Telegram Username') if 'Telegram Username' in headers else 4
+            col_order_date = headers.index('Order Date') if 'Order Date' in headers else 1
+            
+            for row in all_values[1:]:
+                if len(row) > col_indices['order_id'] and row[col_indices['order_id']] == order_id:
+                    order_info['full_name'] = row[col_full_name] if len(row) > col_full_name else ''
+                    order_info['email'] = row[col_email] if len(row) > col_email else ''
+                    order_info['telegram'] = row[col_telegram] if len(row) > col_telegram else ''
+                    order_info['order_date'] = row[col_order_date] if len(row) > col_order_date else ''
+                    break
+            
             rows_to_add = []
             for item in items_to_add:
                 row = [
-                    '',  # Order ID already exists in first row
-                    '',
-                    '',
-                    '',
-                    '',
+                    order_id,                           # All rows have Order ID
+                    order_info['order_date'],           # All rows have Order Date
+                    order_info['full_name'],            # All rows have Full Name
+                    order_info['email'],                # All rows have Email
+                    order_info['telegram'],             # All rows have Telegram
                     item['product_code'],
                     item.get('product_name', ''),
                     item['order_type'],
@@ -449,14 +469,14 @@ def add_items_to_order(order_id, new_items, exchange_rate):
                     item.get('line_total_usd', 0),
                     exchange_rate,
                     item.get('line_total_php', 0),
-                    '',
-                    '',
-                    'Pending',
-                    'No',
-                    'Unpaid',
-                    '',
-                    '',
-                    f'Added to {order_id}'
+                    '',                                 # Admin Fee - only on first row
+                    '',                                 # Grand Total - only on first row
+                    '',                                 # Order Status - only on first row
+                    '',                                 # Locked - only on first row
+                    '',                                 # Confirmed Paid? - only on first row
+                    '',                                 # Payment Screenshot
+                    '',                                 # Payment Date
+                    f'Added to {order_id}'              # Notes
                 ]
                 rows_to_add.append(row)
             
