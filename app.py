@@ -269,7 +269,7 @@ def get_order_by_id(order_id):
         'grand_total_php': float(first_item.get('Grand Total PHP', 0) or 0),
         'status': first_item.get('Order Status', 'Pending'),
         'locked': str(first_item.get('Locked', 'No')).lower() == 'yes',
-        'payment_status': first_item.get('Payment Status', 'Unpaid'),
+        'payment_status': first_item.get('Confirmed Paid?', first_item.get('Payment Status', 'Unpaid')),
         'payment_screenshot': first_item.get('Payment Screenshot', ''),
         'items': []
     }
@@ -913,7 +913,7 @@ def api_orders():
                 'grand_total_php': float(order.get('Grand Total PHP', 0) or 0),
                 'status': order.get('Order Status', 'Pending'),
                 'locked': str(order.get('Locked', 'No')).lower() == 'yes',
-                'payment_status': order.get('Payment Status', 'Unpaid'),
+                'payment_status': order.get('Confirmed Paid?', order.get('Payment Status', 'Unpaid')),
                 'items': []
             }
         
@@ -958,7 +958,7 @@ def api_search_orders():
                     'full_name': order.get('Full Name', ''),
                     'email': order.get('Email', ''),
                     'status': order.get('Order Status', 'Pending'),
-                    'payment_status': order.get('Payment Status', 'Unpaid'),
+                    'payment_status': order.get('Confirmed Paid?', order.get('Payment Status', 'Unpaid')),
                     'grand_total_php': float(order.get('Grand Total PHP', 0) or 0)
                 }
     
@@ -1117,6 +1117,86 @@ def api_upload_payment(order_id):
         return jsonify({'success': True, 'link': drive_link})
     
     return jsonify({'error': 'Failed to upload'}), 500
+
+@app.route('/api/admin/orders')
+def api_admin_orders():
+    """Get all orders for admin panel"""
+    if not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    orders = get_orders_from_sheets()
+    
+    # Group by Order ID with full details
+    grouped = {}
+    for order in orders:
+        order_id = order.get('Order ID', '')
+        if not order_id:
+            continue
+            
+        if order_id not in grouped:
+            grouped[order_id] = {
+                'order_id': order_id,
+                'order_date': order.get('Order Date', ''),
+                'full_name': order.get('Full Name', ''),
+                'email': order.get('Email', ''),
+                'telegram': order.get('Telegram Username', ''),
+                'grand_total_php': float(order.get('Grand Total PHP', 0) or 0),
+                'status': order.get('Order Status', 'Pending'),
+                'locked': str(order.get('Locked', 'No')).lower() == 'yes',
+                'payment_status': order.get('Confirmed Paid?', order.get('Payment Status', 'Unpaid')),
+                'payment_screenshot': order.get('Payment Screenshot', ''),
+                'items': []
+            }
+        
+        if order.get('Product Code'):
+            grouped[order_id]['items'].append({
+                'product_code': order.get('Product Code', ''),
+                'product_name': order.get('Product Name', ''),
+                'order_type': order.get('Order Type', ''),
+                'qty': int(order.get('QTY', 0) or 0),
+                'unit_price_usd': float(order.get('Unit Price USD', 0) or 0),
+                'line_total_php': float(order.get('Line Total PHP', 0) or 0)
+            })
+    
+    # Sort by date (newest first)
+    sorted_orders = sorted(grouped.values(), key=lambda x: x['order_date'], reverse=True)
+    return jsonify(sorted_orders)
+
+@app.route('/api/admin/orders/<order_id>/confirm-payment', methods=['POST'])
+def api_admin_confirm_payment(order_id):
+    """Admin: Confirm payment for an order"""
+    if not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    if update_order_status(order_id, payment_status='Paid'):
+        return jsonify({'success': True})
+    return jsonify({'error': 'Failed to confirm payment'}), 500
+
+@app.route('/api/admin/confirm-payment', methods=['POST'])
+def api_admin_confirm_payment_post():
+    """Admin: Confirm payment for an order (POST with body)"""
+    if not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    data = request.json
+    order_id = data.get('order_id')
+    
+    if not order_id:
+        return jsonify({'error': 'Order ID required'}), 400
+    
+    if update_order_status(order_id, payment_status='Paid'):
+        return jsonify({'success': True})
+    return jsonify({'error': 'Failed to confirm payment'}), 500
+
+@app.route('/api/admin/orders/<order_id>/mark-unpaid', methods=['POST'])
+def api_admin_mark_unpaid(order_id):
+    """Admin: Mark order as unpaid"""
+    if not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    if update_order_status(order_id, payment_status='Unpaid'):
+        return jsonify({'success': True})
+    return jsonify({'error': 'Failed to update payment status'}), 500
 
 # Initialize on startup
 init_google_services()
