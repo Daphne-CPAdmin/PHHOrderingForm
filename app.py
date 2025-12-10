@@ -74,22 +74,34 @@ def init_google_services():
             'https://www.googleapis.com/auth/drive.file'
         ]
         
+        print(f"GOOGLE_CREDENTIALS_JSON exists: {bool(creds_json)}")
+        print(f"GOOGLE_CREDENTIALS_JSON length: {len(creds_json) if creds_json else 0}")
+        
         if creds_json:
-            creds_dict = json.loads(creds_json)
-            creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
-            sheets_client = gspread.authorize(creds)
-            drive_service = build('drive', 'v3', credentials=creds)
-            print("Google services initialized from environment variable")
+            try:
+                creds_dict = json.loads(creds_json)
+                print(f"Credentials parsed successfully. Service account: {creds_dict.get('client_email', 'unknown')}")
+                creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+                sheets_client = gspread.authorize(creds)
+                print("Sheets client initialized")
+                drive_service = build('drive', 'v3', credentials=creds)
+                print("Drive service initialized")
+                print("✅ Google services initialized from environment variable")
+            except json.JSONDecodeError as je:
+                print(f"❌ JSON parse error: {je}")
+                print(f"First 100 chars of creds: {creds_json[:100] if creds_json else 'empty'}")
         elif os.path.exists('credentials.json'):
             creds = Credentials.from_service_account_file('credentials.json', scopes=scopes)
             sheets_client = gspread.authorize(creds)
             drive_service = build('drive', 'v3', credentials=creds)
-            print("Google services initialized from credentials.json")
+            print("✅ Google services initialized from credentials.json")
         else:
-            print("No Google credentials found")
+            print("❌ No Google credentials found - set GOOGLE_CREDENTIALS_JSON env variable")
             
     except Exception as e:
-        print(f"Error initializing Google services: {e}")
+        import traceback
+        print(f"❌ Error initializing Google services: {e}")
+        traceback.print_exc()
 
 def ensure_worksheets_exist():
     """Ensure all required worksheets exist"""
@@ -542,7 +554,11 @@ def recalculate_order_total(order_id):
 def upload_to_drive(file_data, filename, order_id):
     """Upload payment screenshot to Google Drive"""
     if not drive_service:
-        print("Drive service not initialized - check GOOGLE_CREDENTIALS_JSON env variable")
+        print("❌ Drive service not initialized!")
+        print(f"  - sheets_client exists: {sheets_client is not None}")
+        print(f"  - drive_service exists: {drive_service is not None}")
+        print("  - Check GOOGLE_CREDENTIALS_JSON env variable on Render")
+        print("  - Make sure the JSON is properly formatted (single line, escaped)")
         return None
     
     try:
@@ -932,6 +948,20 @@ def index():
 def admin_panel():
     """Admin panel for managing products and orders"""
     return render_template('admin.html')
+
+@app.route('/api/admin/status')
+def admin_status():
+    """Check status of services (for debugging)"""
+    creds_json = os.getenv('GOOGLE_CREDENTIALS_JSON', '')
+    return jsonify({
+        'sheets_configured': sheets_client is not None,
+        'drive_configured': drive_service is not None,
+        'google_creds_set': bool(creds_json),
+        'google_creds_length': len(creds_json) if creds_json else 0,
+        'telegram_bot_configured': bool(TELEGRAM_BOT_TOKEN),
+        'telegram_admin_configured': bool(TELEGRAM_ADMIN_CHAT_ID),
+        'payment_folder_id': os.getenv('PAYMENT_DRIVE_FOLDER_ID', '1HOt6b11IWp9CIazujHJMkbyCxQSrwFgg')
+    })
 
 @app.route('/api/admin/login', methods=['POST'])
 def admin_login():
