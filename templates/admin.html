@@ -324,6 +324,32 @@
                 <a href="/" class="back-link">← Back to Order Form</a>
             </div>
 
+            <!-- Order Form Lock Control -->
+            <div class="card" style="margin-bottom: 2rem; border: 2px solid var(--accent-rose);">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                    <div>
+                        <h2 style="font-size: 1.25rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                            <span id="form-lock-icon">🔓</span> Order Form Status
+                        </h2>
+                        <p style="color: var(--text-muted); font-size: 0.9rem;">
+                            Lock the entire order form to prevent new orders when finalizing.
+                        </p>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <span id="form-lock-status" style="padding: 0.5rem 1rem; border-radius: 8px; font-weight: 600; font-size: 0.9rem;">
+                            Loading...
+                        </span>
+                        <button id="toggle-form-lock" class="btn" style="padding: 0.75rem 1.5rem; background: var(--accent-rose);">
+                            Toggle Lock
+                        </button>
+                    </div>
+                </div>
+                <div style="margin-top: 1rem; display: none;" id="lock-message-container">
+                    <label style="display: block; font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem;">Lock Message (shown to customers)</label>
+                    <textarea id="lock-message" class="form-input" rows="2" style="resize: vertical;" placeholder="Orders are currently closed. Thank you for your patience!"></textarea>
+                </div>
+            </div>
+
             <!-- Stats -->
             <div class="stats-grid">
                 <div class="stat-card">
@@ -402,6 +428,7 @@
                     document.getElementById('login-section').style.display = 'none';
                     document.getElementById('admin-content').classList.add('show');
                     loadProducts();
+                    loadOrderFormStatus();
                 } else {
                     document.getElementById('login-error').textContent = 'Invalid password';
                     document.getElementById('login-error').style.display = 'block';
@@ -415,6 +442,75 @@
         // Enter key for login
         document.getElementById('admin-password').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') login();
+        });
+
+        // Order Form Lock State
+        let orderFormLocked = false;
+
+        async function loadOrderFormStatus() {
+            try {
+                const response = await fetch('/api/admin/order-form-status');
+                const data = await response.json();
+                orderFormLocked = data.is_locked;
+                updateFormLockUI(data.is_locked, data.message);
+            } catch (error) {
+                console.error('Error loading order form status:', error);
+            }
+        }
+
+        function updateFormLockUI(isLocked, message) {
+            const statusEl = document.getElementById('form-lock-status');
+            const iconEl = document.getElementById('form-lock-icon');
+            const messageContainer = document.getElementById('lock-message-container');
+            const messageInput = document.getElementById('lock-message');
+            const toggleBtn = document.getElementById('toggle-form-lock');
+
+            if (isLocked) {
+                statusEl.textContent = 'LOCKED';
+                statusEl.style.background = 'rgba(239, 68, 68, 0.2)';
+                statusEl.style.color = '#ef4444';
+                iconEl.textContent = '🔒';
+                toggleBtn.textContent = 'Unlock Form';
+                toggleBtn.style.background = 'var(--accent-emerald)';
+                messageContainer.style.display = 'block';
+            } else {
+                statusEl.textContent = 'OPEN';
+                statusEl.style.background = 'rgba(16, 185, 129, 0.2)';
+                statusEl.style.color = '#10b981';
+                iconEl.textContent = '🔓';
+                toggleBtn.textContent = 'Lock Form';
+                toggleBtn.style.background = 'var(--accent-rose)';
+                messageContainer.style.display = 'none';
+            }
+
+            if (message) {
+                messageInput.value = message;
+            }
+        }
+
+        document.getElementById('toggle-form-lock').addEventListener('click', async () => {
+            const newLockState = !orderFormLocked;
+            const message = document.getElementById('lock-message').value || 'Orders are currently closed. Thank you for your patience!';
+            
+            try {
+                const response = await fetch('/api/admin/lock-order-form', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ is_locked: newLockState, message: message })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    orderFormLocked = newLockState;
+                    updateFormLockUI(newLockState, message);
+                    showToast(newLockState ? 'Order form is now LOCKED!' : 'Order form is now OPEN!');
+                } else {
+                    showToast('Failed to update lock status');
+                }
+            } catch (error) {
+                console.error('Error toggling form lock:', error);
+                showToast('Error updating lock status');
+            }
         });
 
         // Load Products

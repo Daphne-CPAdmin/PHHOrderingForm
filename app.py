@@ -149,6 +149,91 @@ def set_product_lock(product_code, is_locked, max_kits=None, admin_name='Admin')
         print(f"Error setting product lock: {e}")
         return False
 
+# In-memory order form lock (persists while server runs, or use Google Sheets for persistence)
+_order_form_locked = False
+_order_form_lock_message = ""
+
+def get_order_form_lock():
+    """Get order form lock status"""
+    global _order_form_locked, _order_form_lock_message
+    
+    # Try to get from Google Sheets for persistence
+    if sheets_client:
+        try:
+            spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
+            
+            # Check if Settings sheet exists
+            try:
+                worksheet = spreadsheet.worksheet('Settings')
+            except:
+                # Create Settings sheet if doesn't exist
+                worksheet = spreadsheet.add_worksheet(title='Settings', rows=10, cols=5)
+                worksheet.update('A1:C1', [['Setting', 'Value', 'Updated']])
+                worksheet.update('A2:C2', [['Order Form Locked', 'No', '']])
+                worksheet.update('A3:C3', [['Lock Message', '', '']])
+                return {'is_locked': False, 'message': ''}
+            
+            records = worksheet.get_all_records()
+            for record in records:
+                if record.get('Setting') == 'Order Form Locked':
+                    _order_form_locked = str(record.get('Value', '')).lower() == 'yes'
+                if record.get('Setting') == 'Lock Message':
+                    _order_form_lock_message = record.get('Value', '')
+                    
+        except Exception as e:
+            print(f"Error getting order form lock: {e}")
+    
+    return {'is_locked': _order_form_locked, 'message': _order_form_lock_message}
+
+def set_order_form_lock(is_locked, message=''):
+    """Set order form lock status"""
+    global _order_form_locked, _order_form_lock_message
+    _order_form_locked = is_locked
+    _order_form_lock_message = message
+    
+    if sheets_client:
+        try:
+            spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
+            
+            # Ensure Settings sheet exists
+            try:
+                worksheet = spreadsheet.worksheet('Settings')
+            except:
+                worksheet = spreadsheet.add_worksheet(title='Settings', rows=10, cols=5)
+                worksheet.update('A1:C1', [['Setting', 'Value', 'Updated']])
+            
+            # Find or create the lock setting row
+            all_values = worksheet.get_all_values()
+            lock_row = None
+            message_row = None
+            
+            for i, row in enumerate(all_values):
+                if row and row[0] == 'Order Form Locked':
+                    lock_row = i + 1
+                if row and row[0] == 'Lock Message':
+                    message_row = i + 1
+            
+            if lock_row is None:
+                lock_row = len(all_values) + 1
+                worksheet.update_cell(lock_row, 1, 'Order Form Locked')
+            
+            if message_row is None:
+                message_row = len(all_values) + 2
+                worksheet.update_cell(message_row, 1, 'Lock Message')
+            
+            # Update values
+            worksheet.update_cell(lock_row, 2, 'Yes' if is_locked else 'No')
+            worksheet.update_cell(lock_row, 3, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+            worksheet.update_cell(message_row, 2, message)
+            worksheet.update_cell(message_row, 3, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+            
+            return True
+        except Exception as e:
+            print(f"Error setting order form lock: {e}")
+            return False
+    
+    return True
+
 def get_orders_from_sheets():
     """Read existing orders from PepHaul Entry tab"""
     if not sheets_client:
@@ -723,6 +808,7 @@ def index():
     exchange_rate = get_exchange_rate()
     products = get_products()
     inventory = get_inventory_stats()
+    order_form_lock = get_order_form_lock()
     
     for product in products:
         stats = inventory.get(product['code'], {
@@ -735,7 +821,9 @@ def index():
                          products=products, 
                          exchange_rate=exchange_rate,
                          admin_fee=ADMIN_FEE_PHP,
-                         vials_per_kit=VIALS_PER_KIT)
+                         vials_per_kit=VIALS_PER_KIT,
+                         order_form_locked=order_form_lock['is_locked'],
+                         order_form_lock_message=order_form_lock['message'])
 
 @app.route('/admin')
 def admin_panel():
@@ -784,6 +872,26 @@ def api_lock_product():
     if set_product_lock(product_code, is_locked, max_kits):
         return jsonify({'success': True})
     return jsonify({'error': 'Failed to update'}), 500
+
+@app.route('/api/admin/lock-order-form', methods=['POST'])
+def api_lock_order_form():
+    """Lock/unlock the entire order form"""
+    if not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    data = request.json
+    is_locked = data.get('is_locked', True)
+    message = data.get('message', 'Orders are currently closed. Thank you for your patience!')
+    
+    if set_order_form_lock(is_locked, message):
+        return jsonify({'success': True, 'is_locked': is_locked, 'message': message})
+    return jsonify({'error': 'Failed to update'}), 500
+
+@app.route('/api/admin/order-form-status')
+def api_order_form_status():
+    """Get order form lock status"""
+    lock_status = get_order_form_lock()
+    return jsonify(lock_status)
 
 @app.route('/api/exchange-rate')
 def api_exchange_rate():
