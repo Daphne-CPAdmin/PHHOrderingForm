@@ -1,0 +1,27 @@
+# Render Blueprint - PepHaul Order Form
+# Deploy to Render: https://render.com
+
+services:
+  - type: web
+    name: pephaul-order-form
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.6
+      - key: FLASK_DEBUG
+        value: false
+      - key: ADMIN_FEE_PHP
+        value: 300
+      - key: FALLBACK_EXCHANGE_RATE
+        value: 59.20
+      - key: GOOGLE_SHEETS_ID
+        value: 18Q3A7pmgj7WNi3GL8cgoLiD1gPmxGu_rMqzM3ohBo5s
+      # Add this in Render Dashboard (not here for security):
+      # - key: GOOGLE_CREDENTIALS_JSON
+      #   value: <paste your entire credentials.json content here>
+    plan: free
+    region: singapore
+    healthCheckPath: /
+

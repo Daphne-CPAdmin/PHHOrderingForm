@@ -1,0 +1,1184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PepHaul Order Form</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0a0f1a;
+            --bg-secondary: #111827;
+            --bg-card: #1a2332;
+            --bg-input: #0d1422;
+            --accent-teal: #14b8a6;
+            --accent-teal-dim: #0d9488;
+            --accent-amber: #f59e0b;
+            --accent-rose: #f43f5e;
+            --accent-violet: #8b5cf6;
+            --accent-emerald: #10b981;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --border: #1e293b;
+            --border-focus: #14b8a6;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            background-image: 
+                radial-gradient(ellipse at 20% 0%, rgba(20, 184, 166, 0.08) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 100%, rgba(139, 92, 246, 0.06) 0%, transparent 50%);
+        }
+
+        .container { max-width: 1400px; margin: 0 auto; padding: 2rem; }
+
+        /* Navigation */
+        .nav-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 0;
+            margin-bottom: 2rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .nav-tabs {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .nav-tab {
+            padding: 0.75rem 1.5rem;
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-secondary);
+            font-family: 'Outfit', sans-serif;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .nav-tab:hover, .nav-tab.active {
+            background: var(--accent-teal);
+            color: var(--bg-primary);
+            border-color: var(--accent-teal);
+        }
+
+        .nav-tab.admin {
+            background: rgba(139, 92, 246, 0.1);
+            border-color: var(--accent-violet);
+            color: var(--accent-violet);
+        }
+
+        .nav-tab.admin:hover {
+            background: var(--accent-violet);
+            color: white;
+        }
+
+        /* Header */
+        .header { text-align: center; margin-bottom: 2rem; }
+        .header h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent-teal) 0%, var(--accent-violet) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* Rate Banner */
+        .rate-banner {
+            background: linear-gradient(135deg, var(--bg-card) 0%, rgba(20, 184, 166, 0.1) 100%);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1rem 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .rate-item { display: flex; align-items: center; gap: 0.75rem; }
+        .rate-label { font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; }
+        .rate-value { font-family: 'JetBrains Mono', monospace; font-size: 1.25rem; font-weight: 600; color: var(--accent-teal); }
+        .rate-value.amber { color: var(--accent-amber); }
+
+        /* Main Grid */
+        .main-grid { display: grid; grid-template-columns: 1fr 400px; gap: 2rem; }
+        @media (max-width: 1024px) { .main-grid { grid-template-columns: 1fr; } }
+
+        /* Cards */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 1.5rem;
+        }
+
+        .card-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .card-title .icon {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, var(--accent-teal) 0%, var(--accent-teal-dim) 100%);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Forms */
+        .form-group { margin-bottom: 1.25rem; }
+        .form-label { display: block; font-size: 0.85rem; font-weight: 500; color: var(--text-secondary); margin-bottom: 0.5rem; text-transform: uppercase; }
+        .form-input {
+            width: 100%;
+            padding: 0.875rem 1rem;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: var(--text-primary);
+            font-family: 'Outfit', sans-serif;
+            font-size: 1rem;
+        }
+        .form-input:focus { outline: none; border-color: var(--accent-teal); }
+        .form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; }
+
+        /* Toggle */
+        .order-type-toggle { display: flex; background: var(--bg-input); border-radius: 10px; padding: 4px; }
+        .toggle-btn {
+            flex: 1;
+            padding: 0.75rem;
+            border: none;
+            background: transparent;
+            color: var(--text-muted);
+            font-family: 'Outfit', sans-serif;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        .toggle-btn.active { background: var(--accent-teal); color: var(--bg-primary); }
+
+        /* Buttons */
+        .btn {
+            padding: 1rem 1.5rem;
+            border: none;
+            border-radius: 10px;
+            font-family: 'Outfit', sans-serif;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .btn-primary { background: linear-gradient(135deg, var(--accent-teal) 0%, var(--accent-teal-dim) 100%); color: var(--bg-primary); }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(20, 184, 166, 0.3); }
+        .btn-secondary { background: var(--bg-input); border: 1px solid var(--border); color: var(--text-primary); }
+        .btn-violet { background: linear-gradient(135deg, var(--accent-violet) 0%, #7c3aed 100%); color: white; }
+        .btn-rose { background: rgba(244, 63, 94, 0.15); border: 1px solid var(--accent-rose); color: var(--accent-rose); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-full { width: 100%; }
+
+        /* Product Dropdown */
+        .product-search-container { position: relative; }
+        .product-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            max-height: 350px;
+            overflow-y: auto;
+            z-index: 100;
+            display: none;
+            margin-top: 4px;
+        }
+        .product-dropdown.show { display: block; }
+        .product-option {
+            padding: 0.875rem 1rem;
+            cursor: pointer;
+            border-bottom: 1px solid var(--border);
+        }
+        .product-option:hover { background: rgba(20, 184, 166, 0.1); }
+        .product-option.locked { opacity: 0.5; pointer-events: none; }
+        .product-option-name { font-weight: 500; margin-bottom: 0.25rem; }
+        .product-option-meta { font-size: 0.8rem; color: var(--text-muted); display: flex; gap: 1rem; }
+        .product-option-meta span { font-family: 'JetBrains Mono', monospace; }
+        .locked-badge { background: var(--accent-rose); color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; }
+
+        /* Inventory Stats */
+        .inventory-stats {
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(20, 184, 166, 0.05) 100%);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            border-radius: 10px;
+            padding: 1rem;
+            margin-top: 1rem;
+        }
+        .inventory-title { font-size: 0.75rem; font-weight: 600; color: var(--accent-emerald); text-transform: uppercase; margin-bottom: 0.75rem; }
+        .inventory-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem; }
+        .inventory-item { text-align: center; }
+        .inventory-value { font-family: 'JetBrains Mono', monospace; font-size: 1.5rem; font-weight: 700; }
+        .inventory-value.highlight { color: var(--accent-amber); }
+        .inventory-label { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; }
+
+        /* Cart */
+        .cart-empty { text-align: center; padding: 3rem 1rem; color: var(--text-muted); }
+        .cart-items { max-height: 300px; overflow-y: auto; }
+        .cart-item {
+            background: var(--bg-input);
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+            position: relative;
+        }
+        .cart-item-header { display: flex; justify-content: space-between; margin-bottom: 0.5rem; }
+        .cart-item-name { font-weight: 500; }
+        .cart-item-code { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--accent-teal); background: rgba(20, 184, 166, 0.1); padding: 2px 8px; border-radius: 4px; }
+        .cart-item-details { display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--text-secondary); }
+        .cart-item-price { font-family: 'JetBrains Mono', monospace; color: var(--accent-amber); }
+        .cart-item-remove {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            width: 24px;
+            height: 24px;
+            border: none;
+            background: rgba(244, 63, 94, 0.1);
+            color: var(--accent-rose);
+            border-radius: 6px;
+            cursor: pointer;
+            opacity: 0;
+        }
+        .cart-item:hover .cart-item-remove { opacity: 1; }
+
+        .cart-summary {
+            background: var(--bg-input);
+            border-radius: 12px;
+            padding: 1rem;
+            margin-top: 1rem;
+        }
+        .summary-row { display: flex; justify-content: space-between; padding: 0.5rem 0; font-size: 0.9rem; }
+        .summary-row.grand-total { font-size: 1.25rem; font-weight: 700; color: var(--accent-teal); border-top: 2px solid var(--border); margin-top: 0.5rem; padding-top: 1rem; }
+        .summary-label { color: var(--text-secondary); }
+        .summary-value { font-family: 'JetBrains Mono', monospace; }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal.show { display: flex; }
+        .modal-content {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 2rem;
+            max-width: 600px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+        .modal-title { font-size: 1.5rem; font-weight: 600; }
+        .modal-close {
+            width: 32px;
+            height: 32px;
+            border: none;
+            background: var(--bg-input);
+            color: var(--text-primary);
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1.25rem;
+        }
+        .modal-body { margin-bottom: 1.5rem; }
+        .modal-footer { display: flex; gap: 1rem; justify-content: flex-end; }
+
+        /* Order Summary in Modal */
+        .order-summary-header { text-align: center; padding: 1.5rem; background: linear-gradient(135deg, var(--accent-teal), var(--accent-violet)); border-radius: 12px; margin-bottom: 1.5rem; }
+        .order-summary-header h2 { color: white; margin-bottom: 0.5rem; }
+        .order-id { font-family: 'JetBrains Mono', monospace; font-size: 1.25rem; color: rgba(255,255,255,0.9); }
+
+        .order-items-list { margin-bottom: 1.5rem; }
+        .order-item-row { display: flex; justify-content: space-between; padding: 0.75rem 0; border-bottom: 1px solid var(--border); }
+        .order-item-info { flex: 1; }
+        .order-item-qty { color: var(--text-muted); font-size: 0.85rem; }
+
+        /* Payment Upload */
+        .payment-section { margin-top: 1.5rem; padding-top: 1.5rem; border-top: 2px dashed var(--border); }
+        .upload-area {
+            border: 2px dashed var(--border);
+            border-radius: 12px;
+            padding: 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .upload-area:hover { border-color: var(--accent-teal); background: rgba(20, 184, 166, 0.05); }
+        .upload-area.has-file { border-color: var(--accent-emerald); background: rgba(16, 185, 129, 0.1); }
+        .upload-preview { max-width: 200px; max-height: 150px; margin-top: 1rem; border-radius: 8px; }
+
+        /* Orders List */
+        .orders-section { margin-top: 2rem; }
+        .orders-search { margin-bottom: 1rem; }
+        .orders-list { max-height: 400px; overflow-y: auto; }
+        .order-card {
+            background: var(--bg-input);
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .order-card:hover { border-color: var(--accent-teal); transform: translateX(4px); }
+        .order-card-header { display: flex; justify-content: space-between; margin-bottom: 0.5rem; }
+        .order-card-id { font-family: 'JetBrains Mono', monospace; color: var(--accent-teal); }
+        .order-card-date { font-size: 0.8rem; color: var(--text-muted); }
+        .order-card-customer { font-weight: 500; margin-bottom: 0.25rem; }
+        .order-card-total { font-family: 'JetBrains Mono', monospace; color: var(--accent-amber); }
+
+        .status-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+        .status-badge.pending { background: rgba(245, 158, 11, 0.15); color: var(--accent-amber); }
+        .status-badge.paid { background: rgba(16, 185, 129, 0.15); color: var(--accent-emerald); }
+        .status-badge.unpaid { background: rgba(244, 63, 94, 0.15); color: var(--accent-rose); }
+        .status-badge.locked { background: rgba(139, 92, 246, 0.15); color: var(--accent-violet); }
+        .status-badge.cancelled { background: rgba(100, 116, 139, 0.15); color: var(--text-muted); }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            background: var(--bg-card);
+            border: 1px solid var(--accent-teal);
+            border-radius: 12px;
+            padding: 1rem 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.3s ease;
+            z-index: 1001;
+        }
+        .toast.show { transform: translateY(0); opacity: 1; }
+        .toast-icon { width: 32px; height: 32px; background: var(--accent-teal); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--bg-primary); }
+
+        /* Quantity Controls */
+        .qty-input-group { display: flex; align-items: center; gap: 0.5rem; }
+        .qty-btn {
+            width: 44px;
+            height: 44px;
+            border: 1px solid var(--border);
+            background: var(--bg-input);
+            color: var(--text-primary);
+            border-radius: 10px;
+            font-size: 1.25rem;
+            cursor: pointer;
+        }
+        .qty-btn:hover { border-color: var(--accent-teal); color: var(--accent-teal); }
+        .qty-input { width: 80px; text-align: center; font-family: 'JetBrains Mono', monospace; font-weight: 600; }
+
+        /* Price Display */
+        .price-display { background: var(--bg-input); border-radius: 10px; padding: 1rem; margin-top: 1rem; }
+        .price-row { display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid var(--border); }
+        .price-row:last-child { border-bottom: none; }
+        .price-label { color: var(--text-secondary); }
+        .price-value { font-family: 'JetBrains Mono', monospace; font-weight: 500; }
+
+        /* Progress Bar */
+        .kit-progress { margin-top: 0.75rem; }
+        .kit-progress-label { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.25rem; }
+        .kit-progress-bar { height: 8px; background: var(--bg-input); border-radius: 4px; overflow: hidden; }
+        .kit-progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent-teal), var(--accent-emerald)); border-radius: 4px; }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: var(--bg-input); }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Navigation -->
+        <nav class="nav-bar">
+            <div class="nav-tabs">
+                <button class="nav-tab active" data-view="new-order">New Order</button>
+                <button class="nav-tab" data-view="my-orders">View Orders</button>
+            </div>
+            <a href="/admin" class="nav-tab admin">Admin Panel</a>
+        </nav>
+
+        <!-- Header -->
+        <header class="header">
+            <h1>PepHaul Order Form</h1>
+        </header>
+
+        <!-- Rate Banner -->
+        <div class="rate-banner">
+            <div class="rate-item">
+                <span class="rate-label">USD to PHP</span>
+                <span class="rate-value">₱{{ "%.2f"|format(exchange_rate) }}</span>
+            </div>
+            <div class="rate-item">
+                <span class="rate-label">Admin Fee</span>
+                <span class="rate-value amber">₱{{ "%.2f"|format(admin_fee) }}</span>
+            </div>
+            <div class="rate-item">
+                <span class="rate-label">Vials/Kit</span>
+                <span class="rate-value" style="color: var(--accent-violet);">{{ vials_per_kit }}</span>
+            </div>
+        </div>
+
+        <!-- View: New Order -->
+        <div id="view-new-order" class="view-content">
+            <div class="main-grid">
+                <!-- Order Form -->
+                <div class="card">
+                    <h2 class="card-title"><span class="icon">📦</span> New Order</h2>
+
+                    <div class="form-row" style="margin-bottom: 1.5rem;">
+                        <div class="form-group">
+                            <label class="form-label">Full Name</label>
+                            <input type="text" class="form-input" id="full-name" placeholder="Juan Dela Cruz">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Email</label>
+                            <input type="email" class="form-input" id="email" placeholder="juan@email.com">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Telegram</label>
+                            <input type="text" class="form-input" id="telegram" placeholder="@username">
+                        </div>
+                    </div>
+
+                    <div class="form-group product-search-container">
+                        <label class="form-label">Select Product</label>
+                        <input type="text" class="form-input" id="product-search" placeholder="Search products..." autocomplete="off">
+                        <div class="product-dropdown" id="product-dropdown">
+                            {% for product in products %}
+                            <div class="product-option {% if product.inventory.is_locked %}locked{% endif %}"
+                                 data-code="{{ product.code }}" 
+                                 data-name="{{ product.name }}" 
+                                 data-kit="{{ product.kit_price }}" 
+                                 data-vial="{{ product.vial_price }}"
+                                 data-vials-per-kit="{{ product.vials_per_kit|default(10) }}"
+                                 data-locked="{{ product.inventory.is_locked }}"
+                                 data-total-vials="{{ product.inventory.total_vials }}"
+                                 data-kits="{{ product.inventory.kits_generated }}"
+                                 data-remaining="{{ product.inventory.remaining_vials }}"
+                                 data-slots="{{ product.inventory.slots_to_next_kit }}">
+                                <div class="product-option-name">
+                                    {{ product.name }}
+                                    {% if product.inventory.is_locked %}<span class="locked-badge">LOCKED</span>{% endif %}
+                                </div>
+                                <div class="product-option-meta">
+                                    <span>{{ product.code }}</span>
+                                    <span>Kit: ${{ "%.2f"|format(product.kit_price) }}</span>
+                                    <span>Vial: ${{ "%.2f"|format(product.vial_price) }}</span>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div id="selected-product" style="display: none;">
+                        <div class="form-group">
+                            <label class="form-label">Selected</label>
+                            <div class="form-input" style="background: rgba(20, 184, 166, 0.1); border-color: var(--accent-teal);">
+                                <span id="selected-name"></span>
+                                <span id="selected-code" style="float: right; font-family: 'JetBrains Mono', monospace; color: var(--accent-teal);"></span>
+                            </div>
+                        </div>
+
+                        <div class="inventory-stats">
+                            <div class="inventory-title">📊 Inventory</div>
+                            <div class="inventory-grid">
+                                <div class="inventory-item">
+                                    <div class="inventory-value" id="inv-total-vials">0</div>
+                                    <div class="inventory-label">Total Vials</div>
+                                </div>
+                                <div class="inventory-item">
+                                    <div class="inventory-value" id="inv-kits">0</div>
+                                    <div class="inventory-label">Kits Generated</div>
+                                </div>
+                                <div class="inventory-item">
+                                    <div class="inventory-value" id="inv-remaining">0</div>
+                                    <div class="inventory-label">Extra Vials</div>
+                                </div>
+                                <div class="inventory-item">
+                                    <div class="inventory-value highlight" id="inv-slots">0</div>
+                                    <div class="inventory-label">Slots Left</div>
+                                </div>
+                            </div>
+                            <div class="kit-progress">
+                                <div class="kit-progress-label">
+                                    <span>Progress to Next Kit</span>
+                                    <span id="progress-text">0/{{ vials_per_kit }}</span>
+                                </div>
+                                <div class="kit-progress-bar">
+                                    <div class="kit-progress-fill" id="progress-fill" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group" style="margin-top: 1.25rem;">
+                            <label class="form-label">Order Type</label>
+                            <div class="order-type-toggle">
+                                <button type="button" class="toggle-btn active" data-type="Kit">Kit ({{ vials_per_kit }} vials)</button>
+                                <button type="button" class="toggle-btn" data-type="Vial">Per Vial</button>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Quantity</label>
+                            <div class="qty-input-group">
+                                <button type="button" class="qty-btn" id="qty-minus">−</button>
+                                <input type="number" class="form-input qty-input" id="quantity" value="1" min="1">
+                                <button type="button" class="qty-btn" id="qty-plus">+</button>
+                            </div>
+                        </div>
+
+                        <div class="price-display">
+                            <div class="price-row">
+                                <span class="price-label">Unit Price (USD)</span>
+                                <span class="price-value" id="unit-price-usd">$0.00</span>
+                            </div>
+                            <div class="price-row">
+                                <span class="price-label">Line Total (USD)</span>
+                                <span class="price-value" id="line-total-usd">$0.00</span>
+                            </div>
+                            <div class="price-row">
+                                <span class="price-label">Line Total (PHP)</span>
+                                <span class="price-value" id="line-total-php">₱0.00</span>
+                            </div>
+                        </div>
+
+                        <button type="button" class="btn btn-primary btn-full" style="margin-top: 1.5rem;" id="add-to-cart">Add to Order</button>
+                    </div>
+                </div>
+
+                <!-- Cart -->
+                <div class="card">
+                    <h2 class="card-title"><span class="icon">🛒</span> Order Summary</h2>
+
+                    <div id="cart-empty" class="cart-empty">
+                        <p>No items yet</p>
+                    </div>
+
+                    <div id="cart-items" class="cart-items" style="display: none;"></div>
+
+                    <div id="cart-summary" class="cart-summary" style="display: none;">
+                        <div class="summary-row">
+                            <span class="summary-label">Subtotal (USD)</span>
+                            <span class="summary-value" id="summary-usd">$0.00</span>
+                        </div>
+                        <div class="summary-row">
+                            <span class="summary-label">Subtotal (PHP)</span>
+                            <span class="summary-value" id="summary-php">₱0.00</span>
+                        </div>
+                        <div class="summary-row">
+                            <span class="summary-label">Admin Fee</span>
+                            <span class="summary-value">₱{{ "%.2f"|format(admin_fee) }}</span>
+                        </div>
+                        <div class="summary-row grand-total">
+                            <span class="summary-label">Grand Total</span>
+                            <span class="summary-value" id="grand-total">₱0.00</span>
+                        </div>
+                    </div>
+
+                    <button type="button" class="btn btn-violet btn-full" style="margin-top: 1.5rem;" id="submit-order" disabled>Submit Order</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- View: My Orders -->
+        <div id="view-my-orders" class="view-content" style="display: none;">
+            <div class="card">
+                <h2 class="card-title"><span class="icon">📋</span> My Orders</h2>
+                
+                <div class="orders-search">
+                    <input type="text" class="form-input" id="order-search" placeholder="Search by name, email, or order ID...">
+                </div>
+
+                <div id="orders-list" class="orders-list">
+                    <div class="cart-empty">Loading orders...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Order Summary Modal -->
+    <div class="modal" id="order-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Order Submitted!</h3>
+                <button class="modal-close" onclick="closeModal('order-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="order-summary-header">
+                    <h2>Thank You!</h2>
+                    <div class="order-id" id="modal-order-id">ORD-123456</div>
+                </div>
+
+                <div class="order-items-list" id="modal-items"></div>
+
+                <div class="cart-summary">
+                    <div class="summary-row">
+                        <span class="summary-label">Subtotal (USD)</span>
+                        <span class="summary-value" id="modal-subtotal-usd">$0.00</span>
+                    </div>
+                    <div class="summary-row">
+                        <span class="summary-label">Subtotal (PHP)</span>
+                        <span class="summary-value" id="modal-subtotal-php">₱0.00</span>
+                    </div>
+                    <div class="summary-row">
+                        <span class="summary-label">Admin Fee</span>
+                        <span class="summary-value">₱{{ "%.2f"|format(admin_fee) }}</span>
+                    </div>
+                    <div class="summary-row grand-total">
+                        <span class="summary-label">Grand Total</span>
+                        <span class="summary-value" id="modal-grand-total">₱0.00</span>
+                    </div>
+                </div>
+
+                <div class="payment-section">
+                    <h4 style="margin-bottom: 1rem;">Upload Payment Screenshot</h4>
+                    <div class="upload-area" id="upload-area" onclick="document.getElementById('payment-file').click()">
+                        <div>📸 Click to upload payment screenshot</div>
+                        <img id="upload-preview" class="upload-preview" style="display: none;">
+                    </div>
+                    <input type="file" id="payment-file" accept="image/*" style="display: none;" onchange="handleFileSelect(event)">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('order-modal')">Close</button>
+                <button class="btn btn-primary" id="upload-payment-btn" onclick="uploadPayment()" disabled>Upload Payment</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Order Details Modal -->
+    <div class="modal" id="order-details-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Order Details</h3>
+                <button class="modal-close" onclick="closeModal('order-details-modal')">&times;</button>
+            </div>
+            <div class="modal-body" id="order-details-body">
+                <!-- Populated by JS -->
+            </div>
+            <div class="modal-footer" id="order-details-footer">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast">
+        <div class="toast-icon">✓</div>
+        <span id="toast-message">Success!</span>
+    </div>
+
+    <script>
+        // Config
+        const EXCHANGE_RATE = {{ exchange_rate }};
+        const ADMIN_FEE = {{ admin_fee }};
+        const VIALS_PER_KIT = {{ vials_per_kit }};
+        
+        // State
+        let selectedProduct = null;
+        let orderType = 'Kit';
+        let cartItems = [];
+        let currentOrderId = null;
+        let paymentFile = null;
+
+        // DOM Elements
+        const productSearch = document.getElementById('product-search');
+        const productDropdown = document.getElementById('product-dropdown');
+        const selectedProductDiv = document.getElementById('selected-product');
+        const quantityInput = document.getElementById('quantity');
+
+        // Navigation
+        document.querySelectorAll('.nav-tab[data-view]').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.nav-tab[data-view]').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                
+                document.querySelectorAll('.view-content').forEach(v => v.style.display = 'none');
+                document.getElementById('view-' + tab.dataset.view).style.display = 'block';
+                
+                if (tab.dataset.view === 'my-orders') loadOrders();
+            });
+        });
+
+        // Product Search
+        productSearch.addEventListener('focus', () => productDropdown.classList.add('show'));
+        productSearch.addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase();
+            productDropdown.querySelectorAll('.product-option').forEach(option => {
+                const match = option.dataset.name.toLowerCase().includes(query) || option.dataset.code.toLowerCase().includes(query);
+                option.style.display = match ? 'block' : 'none';
+            });
+        });
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.product-search-container')) productDropdown.classList.remove('show');
+        });
+
+        // Product Selection
+        productDropdown.querySelectorAll('.product-option:not(.locked)').forEach(option => {
+            option.addEventListener('click', () => {
+                const productVialsPerKit = parseInt(option.dataset.vialsPerKit) || VIALS_PER_KIT;
+                selectedProduct = {
+                    code: option.dataset.code,
+                    name: option.dataset.name,
+                    kit_price: parseFloat(option.dataset.kit),
+                    vial_price: parseFloat(option.dataset.vial),
+                    vials_per_kit: productVialsPerKit,
+                    inventory: {
+                        total_vials: parseInt(option.dataset.totalVials) || 0,
+                        kits_generated: parseInt(option.dataset.kits) || 0,
+                        remaining_vials: parseInt(option.dataset.remaining) || 0,
+                        slots_to_next_kit: parseInt(option.dataset.slots) || productVialsPerKit,
+                        vials_per_kit: productVialsPerKit
+                    }
+                };
+                
+                document.getElementById('selected-name').textContent = selectedProduct.name;
+                document.getElementById('selected-code').textContent = selectedProduct.code;
+                selectedProductDiv.style.display = 'block';
+                productSearch.value = selectedProduct.name;
+                productDropdown.classList.remove('show');
+                
+                updateInventoryDisplay();
+                updatePricePreview();
+            });
+        });
+
+        function updateInventoryDisplay() {
+            if (!selectedProduct) return;
+            const inv = selectedProduct.inventory;
+            const vialsPerKit = selectedProduct.vials_per_kit || VIALS_PER_KIT;
+            document.getElementById('inv-total-vials').textContent = inv.total_vials;
+            document.getElementById('inv-kits').textContent = inv.kits_generated;
+            document.getElementById('inv-remaining').textContent = inv.remaining_vials;
+            document.getElementById('inv-slots').textContent = inv.slots_to_next_kit;
+            
+            const progressPercent = (inv.remaining_vials / vialsPerKit) * 100;
+            document.getElementById('progress-fill').style.width = progressPercent + '%';
+            document.getElementById('progress-text').textContent = `${inv.remaining_vials}/${vialsPerKit}`;
+        }
+
+        // Order Type Toggle
+        document.querySelectorAll('.toggle-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                orderType = btn.dataset.type;
+                updatePricePreview();
+            });
+        });
+
+        // Quantity Controls
+        document.getElementById('qty-minus').addEventListener('click', () => {
+            const current = parseInt(quantityInput.value) || 1;
+            if (current > 1) { quantityInput.value = current - 1; updatePricePreview(); }
+        });
+        document.getElementById('qty-plus').addEventListener('click', () => {
+            quantityInput.value = (parseInt(quantityInput.value) || 1) + 1;
+            updatePricePreview();
+        });
+        quantityInput.addEventListener('input', updatePricePreview);
+
+        function updatePricePreview() {
+            if (!selectedProduct) return;
+            const qty = parseInt(quantityInput.value) || 1;
+            const unitPrice = orderType === 'Kit' ? selectedProduct.kit_price : selectedProduct.vial_price;
+            const lineTotalUsd = unitPrice * qty;
+            const lineTotalPhp = lineTotalUsd * EXCHANGE_RATE;
+            
+            document.getElementById('unit-price-usd').textContent = `$${unitPrice.toFixed(2)}`;
+            document.getElementById('line-total-usd').textContent = `$${lineTotalUsd.toFixed(2)}`;
+            document.getElementById('line-total-php').textContent = `₱${lineTotalPhp.toFixed(2)}`;
+        }
+
+        // Add to Cart
+        document.getElementById('add-to-cart').addEventListener('click', () => {
+            if (!selectedProduct) return;
+            const qty = parseInt(quantityInput.value) || 1;
+            const unitPrice = orderType === 'Kit' ? selectedProduct.kit_price : selectedProduct.vial_price;
+            
+            cartItems.push({
+                product_code: selectedProduct.code,
+                product_name: selectedProduct.name,
+                order_type: orderType,
+                qty: qty,
+                unit_price_usd: unitPrice,
+                line_total_usd: unitPrice * qty,
+                line_total_php: unitPrice * qty * EXCHANGE_RATE
+            });
+            
+            updateCart();
+            showToast('Item added!');
+            resetSelection();
+        });
+
+        function resetSelection() {
+            selectedProduct = null;
+            selectedProductDiv.style.display = 'none';
+            productSearch.value = '';
+            quantityInput.value = 1;
+            document.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
+            document.querySelector('.toggle-btn[data-type="Kit"]').classList.add('active');
+            orderType = 'Kit';
+        }
+
+        function updateCart() {
+            const empty = document.getElementById('cart-empty');
+            const items = document.getElementById('cart-items');
+            const summary = document.getElementById('cart-summary');
+            const submit = document.getElementById('submit-order');
+            
+            if (cartItems.length === 0) {
+                empty.style.display = 'block';
+                items.style.display = 'none';
+                summary.style.display = 'none';
+                submit.disabled = true;
+                return;
+            }
+            
+            empty.style.display = 'none';
+            items.style.display = 'block';
+            summary.style.display = 'block';
+            submit.disabled = false;
+            
+            items.innerHTML = cartItems.map((item, i) => `
+                <div class="cart-item">
+                    <button class="cart-item-remove" onclick="removeItem(${i})">×</button>
+                    <div class="cart-item-header">
+                        <span class="cart-item-name">${item.product_name}</span>
+                        <span class="cart-item-code">${item.product_code}</span>
+                    </div>
+                    <div class="cart-item-details">
+                        <span>${item.order_type} × ${item.qty}</span>
+                        <span class="cart-item-price">₱${item.line_total_php.toFixed(2)}</span>
+                    </div>
+                </div>
+            `).join('');
+            
+            const totalUsd = cartItems.reduce((sum, item) => sum + item.line_total_usd, 0);
+            const totalPhp = totalUsd * EXCHANGE_RATE;
+            const grandTotal = totalPhp + ADMIN_FEE;
+            
+            document.getElementById('summary-usd').textContent = `$${totalUsd.toFixed(2)}`;
+            document.getElementById('summary-php').textContent = `₱${totalPhp.toFixed(2)}`;
+            document.getElementById('grand-total').textContent = `₱${grandTotal.toFixed(2)}`;
+        }
+
+        function removeItem(index) {
+            cartItems.splice(index, 1);
+            updateCart();
+        }
+
+        // Submit Order
+        document.getElementById('submit-order').addEventListener('click', async () => {
+            const fullName = document.getElementById('full-name').value.trim();
+            const email = document.getElementById('email').value.trim();
+            const telegram = document.getElementById('telegram').value.trim();
+            
+            if (!fullName || !email) {
+                showToast('Please fill in name and email');
+                return;
+            }
+            
+            const btn = document.getElementById('submit-order');
+            btn.disabled = true;
+            btn.textContent = 'Submitting...';
+            
+            try {
+                const response = await fetch('/api/submit-order', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ full_name: fullName, email, telegram, items: cartItems })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    currentOrderId = result.order_id;
+                    showOrderModal(result.order);
+                    cartItems = [];
+                    updateCart();
+                    document.getElementById('full-name').value = '';
+                    document.getElementById('email').value = '';
+                    document.getElementById('telegram').value = '';
+                } else {
+                    showToast(result.error || 'Failed to submit');
+                }
+            } catch (error) {
+                showToast('Error submitting order');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Submit Order';
+            }
+        });
+
+        function showOrderModal(order) {
+            document.getElementById('modal-order-id').textContent = order.order_id;
+            document.getElementById('modal-subtotal-usd').textContent = `$${order.subtotal_usd.toFixed(2)}`;
+            document.getElementById('modal-subtotal-php').textContent = `₱${order.subtotal_php.toFixed(2)}`;
+            document.getElementById('modal-grand-total').textContent = `₱${order.grand_total_php.toFixed(2)}`;
+            
+            document.getElementById('modal-items').innerHTML = order.items.map(item => `
+                <div class="order-item-row">
+                    <div class="order-item-info">
+                        <div>${item.product_name}</div>
+                        <div class="order-item-qty">${item.order_type} × ${item.qty}</div>
+                    </div>
+                    <div>₱${item.line_total_php.toFixed(2)}</div>
+                </div>
+            `).join('');
+            
+            document.getElementById('order-modal').classList.add('show');
+        }
+
+        // Payment Upload
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                paymentFile = file;
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    document.getElementById('upload-preview').src = e.target.result;
+                    document.getElementById('upload-preview').style.display = 'block';
+                    document.getElementById('upload-area').classList.add('has-file');
+                    document.getElementById('upload-payment-btn').disabled = false;
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        async function uploadPayment() {
+            if (!paymentFile || !currentOrderId) return;
+            
+            const btn = document.getElementById('upload-payment-btn');
+            btn.disabled = true;
+            btn.textContent = 'Uploading...';
+            
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const response = await fetch(`/api/orders/${currentOrderId}/payment`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ screenshot: e.target.result })
+                    });
+                    
+                    const result = await response.json();
+                    if (result.success) {
+                        showToast('Payment uploaded successfully!');
+                        closeModal('order-modal');
+                    } else {
+                        showToast('Failed to upload');
+                    }
+                } catch (error) {
+                    showToast('Upload error');
+                } finally {
+                    btn.disabled = false;
+                    btn.textContent = 'Upload Payment';
+                }
+            };
+            reader.readAsDataURL(paymentFile);
+        }
+
+        // Load Orders
+        async function loadOrders() {
+            const list = document.getElementById('orders-list');
+            list.innerHTML = '<div class="cart-empty">Loading...</div>';
+            
+            try {
+                const response = await fetch('/api/orders');
+                const orders = await response.json();
+                
+                if (orders.length === 0) {
+                    list.innerHTML = '<div class="cart-empty">No orders found</div>';
+                    return;
+                }
+                
+                list.innerHTML = orders.map(order => `
+                    <div class="order-card" onclick="viewOrder('${order.order_id}')">
+                        <div class="order-card-header">
+                            <span class="order-card-id">${order.order_id}</span>
+                            <span class="order-card-date">${order.order_date}</span>
+                        </div>
+                        <div class="order-card-customer">${order.full_name}</div>
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <span class="status-badge ${order.status.toLowerCase()}">${order.status}</span>
+                                <span class="status-badge ${order.payment_status.toLowerCase()}">${order.payment_status}</span>
+                            </div>
+                            <span class="order-card-total">₱${order.grand_total_php.toFixed(2)}</span>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                list.innerHTML = '<div class="cart-empty">Error loading orders</div>';
+            }
+        }
+
+        // Search Orders
+        document.getElementById('order-search').addEventListener('input', async (e) => {
+            const query = e.target.value.trim();
+            if (query.length < 2) { loadOrders(); return; }
+            
+            try {
+                const response = await fetch(`/api/orders/search?q=${encodeURIComponent(query)}`);
+                const orders = await response.json();
+                const list = document.getElementById('orders-list');
+                
+                list.innerHTML = orders.length === 0 
+                    ? '<div class="cart-empty">No matching orders</div>'
+                    : orders.map(order => `
+                        <div class="order-card" onclick="viewOrder('${order.order_id}')">
+                            <div class="order-card-header">
+                                <span class="order-card-id">${order.order_id}</span>
+                            </div>
+                            <div class="order-card-customer">${order.full_name}</div>
+                            <div style="display: flex; justify-content: space-between;">
+                                <span class="status-badge ${order.payment_status.toLowerCase()}">${order.payment_status}</span>
+                                <span class="order-card-total">₱${order.grand_total_php.toFixed(2)}</span>
+                            </div>
+                        </div>
+                    `).join('');
+            } catch (error) {}
+        });
+
+        // View Order Details
+        async function viewOrder(orderId) {
+            try {
+                const response = await fetch(`/api/orders/${orderId}`);
+                const order = await response.json();
+                
+                const body = document.getElementById('order-details-body');
+                body.innerHTML = `
+                    <div style="margin-bottom: 1rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-family: 'JetBrains Mono', monospace; color: var(--accent-teal); font-size: 1.25rem;">${order.order_id}</span>
+                            <span class="status-badge ${order.status.toLowerCase()}">${order.status}</span>
+                        </div>
+                        <div style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.5rem;">${order.order_date}</div>
+                    </div>
+                    
+                    <div style="background: var(--bg-input); padding: 1rem; border-radius: 10px; margin-bottom: 1rem;">
+                        <div style="font-weight: 500;">${order.full_name}</div>
+                        <div style="color: var(--text-muted); font-size: 0.85rem;">${order.email}</div>
+                        ${order.telegram ? `<div style="color: var(--text-muted); font-size: 0.85rem;">${order.telegram}</div>` : ''}
+                    </div>
+                    
+                    <h4 style="margin-bottom: 0.75rem;">Items</h4>
+                    ${order.items.map(item => `
+                        <div class="order-item-row">
+                            <div class="order-item-info">
+                                <div>${item.product_name}</div>
+                                <div class="order-item-qty">${item.order_type} × ${item.qty}</div>
+                            </div>
+                            <div>₱${item.line_total_php.toFixed(2)}</div>
+                        </div>
+                    `).join('')}
+                    
+                    <div class="cart-summary" style="margin-top: 1rem;">
+                        <div class="summary-row grand-total">
+                            <span class="summary-label">Grand Total</span>
+                            <span class="summary-value">₱${order.grand_total_php.toFixed(2)}</span>
+                        </div>
+                    </div>
+                    
+                    <div style="margin-top: 1rem; display: flex; gap: 0.5rem; align-items: center;">
+                        <span class="status-badge ${order.payment_status.toLowerCase()}">${order.payment_status}</span>
+                        ${order.payment_screenshot ? `<a href="${order.payment_screenshot}" target="_blank" style="color: var(--accent-teal); font-size: 0.85rem;">View Receipt</a>` : ''}
+                    </div>
+                `;
+                
+                const footer = document.getElementById('order-details-footer');
+                if (!order.locked && order.status !== 'Cancelled') {
+                    footer.innerHTML = `
+                        <button class="btn btn-rose" onclick="cancelOrder('${order.order_id}')">Cancel Order</button>
+                        <button class="btn btn-secondary" onclick="closeModal('order-details-modal')">Close</button>
+                    `;
+                } else {
+                    footer.innerHTML = `<button class="btn btn-secondary" onclick="closeModal('order-details-modal')">Close</button>`;
+                }
+                
+                document.getElementById('order-details-modal').classList.add('show');
+            } catch (error) {
+                showToast('Error loading order');
+            }
+        }
+
+        async function cancelOrder(orderId) {
+            if (!confirm('Are you sure you want to cancel this order?')) return;
+            
+            try {
+                const response = await fetch(`/api/orders/${orderId}/cancel`, { method: 'POST' });
+                const result = await response.json();
+                
+                if (result.success) {
+                    showToast('Order cancelled');
+                    closeModal('order-details-modal');
+                    loadOrders();
+                } else {
+                    showToast(result.error || 'Failed to cancel');
+                }
+            } catch (error) {
+                showToast('Error cancelling order');
+            }
+        }
+
+        // Modals
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('show');
+            paymentFile = null;
+            document.getElementById('upload-preview').style.display = 'none';
+            document.getElementById('upload-area').classList.remove('has-file');
+            document.getElementById('upload-payment-btn').disabled = true;
+        }
+
+        // Toast
+        function showToast(message) {
+            document.getElementById('toast-message').textContent = message;
+            document.getElementById('toast').classList.add('show');
+            setTimeout(() => document.getElementById('toast').classList.remove('show'), 3000);
+        }
+
+        // Initialize
+        updateCart();
+    </script>
+</body>
+</html>

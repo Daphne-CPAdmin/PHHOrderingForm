@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PepHaul Admin Panel</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0a0f1a;
+            --bg-card: #1a2332;
+            --bg-input: #0d1422;
+            --accent-teal: #14b8a6;
+            --accent-amber: #f59e0b;
+            --accent-rose: #f43f5e;
+            --accent-violet: #8b5cf6;
+            --accent-emerald: #10b981;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --border: #1e293b;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            background-image: 
+                radial-gradient(ellipse at 20% 0%, rgba(139, 92, 246, 0.08) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 100%, rgba(244, 63, 94, 0.06) 0%, transparent 50%);
+        }
+
+        .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .header h1 {
+            font-size: 2rem;
+            background: linear-gradient(135deg, var(--accent-violet) 0%, var(--accent-rose) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .back-link {
+            color: var(--accent-teal);
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        /* Login */
+        .login-container {
+            max-width: 400px;
+            margin: 4rem auto;
+        }
+
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 2rem;
+        }
+
+        .card-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+
+        .form-group { margin-bottom: 1.25rem; }
+        .form-label { display: block; font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem; text-transform: uppercase; }
+        .form-input {
+            width: 100%;
+            padding: 0.875rem 1rem;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: var(--text-primary);
+            font-family: 'Outfit', sans-serif;
+            font-size: 1rem;
+        }
+        .form-input:focus { outline: none; border-color: var(--accent-violet); }
+
+        .btn {
+            width: 100%;
+            padding: 1rem;
+            border: none;
+            border-radius: 10px;
+            font-family: 'Outfit', sans-serif;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .btn-violet { background: linear-gradient(135deg, var(--accent-violet) 0%, #7c3aed 100%); color: white; }
+        .btn:hover { transform: translateY(-2px); }
+
+        /* Admin Content */
+        .admin-content { display: none; }
+        .admin-content.show { display: block; }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--accent-violet);
+        }
+
+        .stat-label {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            margin-top: 0.5rem;
+        }
+
+        /* Products Table */
+        .products-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .products-table th,
+        .products-table td {
+            padding: 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .products-table th {
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            font-weight: 500;
+        }
+
+        .products-table tr:hover {
+            background: rgba(139, 92, 246, 0.05);
+        }
+
+        .product-code {
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--accent-teal);
+        }
+
+        .kits-badge {
+            font-family: 'JetBrains Mono', monospace;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.85rem;
+        }
+
+        .kits-badge.normal {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--accent-emerald);
+        }
+
+        .kits-badge.warning {
+            background: rgba(245, 158, 11, 0.15);
+            color: var(--accent-amber);
+        }
+
+        .kits-badge.danger {
+            background: rgba(244, 63, 94, 0.15);
+            color: var(--accent-rose);
+        }
+
+        .lock-toggle {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 50px;
+            height: 26px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 26px;
+            transition: all 0.3s ease;
+        }
+
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 20px;
+            width: 20px;
+            left: 2px;
+            bottom: 2px;
+            background: var(--text-muted);
+            border-radius: 50%;
+            transition: all 0.3s ease;
+        }
+
+        .toggle-switch input:checked + .toggle-slider {
+            background: var(--accent-rose);
+            border-color: var(--accent-rose);
+        }
+
+        .toggle-switch input:checked + .toggle-slider:before {
+            transform: translateX(24px);
+            background: white;
+        }
+
+        .max-kits-input {
+            width: 80px;
+            padding: 0.5rem;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-family: 'JetBrains Mono', monospace;
+            text-align: center;
+        }
+
+        .max-kits-input:focus {
+            outline: none;
+            border-color: var(--accent-violet);
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            background: var(--bg-card);
+            border: 1px solid var(--accent-emerald);
+            border-radius: 12px;
+            padding: 1rem 1.5rem;
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.3s ease;
+            z-index: 1000;
+        }
+        .toast.show { transform: translateY(0); opacity: 1; }
+
+        .search-bar {
+            margin-bottom: 1.5rem;
+        }
+
+        .search-input {
+            width: 100%;
+            max-width: 400px;
+            padding: 0.875rem 1rem;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: var(--text-primary);
+            font-family: 'Outfit', sans-serif;
+        }
+
+        .table-container {
+            overflow-x: auto;
+        }
+
+        .error-msg {
+            color: var(--accent-rose);
+            font-size: 0.85rem;
+            margin-top: 0.5rem;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Login Form -->
+        <div id="login-section" class="login-container">
+            <div class="card">
+                <h2 class="card-title">🔐 Admin Login</h2>
+                <div class="form-group">
+                    <label class="form-label">Password</label>
+                    <input type="password" class="form-input" id="admin-password" placeholder="Enter admin password">
+                </div>
+                <div id="login-error" class="error-msg" style="display: none;"></div>
+                <button class="btn btn-violet" onclick="login()">Login</button>
+            </div>
+        </div>
+
+        <!-- Admin Content -->
+        <div id="admin-content" class="admin-content">
+            <div class="header">
+                <h1>Admin Panel</h1>
+                <a href="/" class="back-link">← Back to Order Form</a>
+            </div>
+
+            <!-- Stats -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="total-products">0</div>
+                    <div class="stat-label">Total Products</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="locked-products">0</div>
+                    <div class="stat-label">Locked Products</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="total-kits">0</div>
+                    <div class="stat-label">Total Kits Generated</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="total-vials">0</div>
+                    <div class="stat-label">Total Vials Ordered</div>
+                </div>
+            </div>
+
+            <!-- Products Management -->
+            <div class="card">
+                <h2 class="card-title" style="text-align: left; margin-bottom: 1rem;">Product Management</h2>
+                <p style="color: var(--text-muted); margin-bottom: 1.5rem;">
+                    Lock products when they reach maximum kits or manually lock/unlock products.
+                </p>
+
+                <div class="search-bar">
+                    <input type="text" class="search-input" id="product-search" placeholder="Search products...">
+                </div>
+
+                <div class="table-container">
+                    <table class="products-table">
+                        <thead>
+                            <tr>
+                                <th>Product</th>
+                                <th>Code</th>
+                                <th>Kits Generated</th>
+                                <th>Total Vials</th>
+                                <th>Max Kits</th>
+                                <th>Lock Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="products-tbody">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast">
+        <span id="toast-message">Success!</span>
+    </div>
+
+    <script>
+        let isLoggedIn = false;
+
+        // Login
+        async function login() {
+            const password = document.getElementById('admin-password').value;
+            
+            try {
+                const response = await fetch('/api/admin/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    isLoggedIn = true;
+                    document.getElementById('login-section').style.display = 'none';
+                    document.getElementById('admin-content').classList.add('show');
+                    loadProducts();
+                } else {
+                    document.getElementById('login-error').textContent = 'Invalid password';
+                    document.getElementById('login-error').style.display = 'block';
+                }
+            } catch (error) {
+                document.getElementById('login-error').textContent = 'Login error';
+                document.getElementById('login-error').style.display = 'block';
+            }
+        }
+
+        // Enter key for login
+        document.getElementById('admin-password').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') login();
+        });
+
+        // Load Products
+        async function loadProducts() {
+            try {
+                const response = await fetch('/api/admin/products');
+                const products = await response.json();
+                
+                // Update stats
+                let totalKits = 0;
+                let totalVials = 0;
+                let lockedCount = 0;
+                
+                products.forEach(p => {
+                    totalKits += p.kits_generated || 0;
+                    totalVials += p.total_vials || 0;
+                    if (p.is_locked) lockedCount++;
+                });
+                
+                document.getElementById('total-products').textContent = products.length;
+                document.getElementById('locked-products').textContent = lockedCount;
+                document.getElementById('total-kits').textContent = totalKits;
+                document.getElementById('total-vials').textContent = totalVials;
+                
+                // Render table
+                const tbody = document.getElementById('products-tbody');
+                tbody.innerHTML = products.map(product => {
+                    const kitsPercent = product.max_kits > 0 ? (product.kits_generated / product.max_kits) * 100 : 0;
+                    let badgeClass = 'normal';
+                    if (kitsPercent >= 90) badgeClass = 'danger';
+                    else if (kitsPercent >= 70) badgeClass = 'warning';
+                    
+                    return `
+                        <tr data-code="${product.code}">
+                            <td>${product.name}</td>
+                            <td><span class="product-code">${product.code}</span></td>
+                            <td><span class="kits-badge ${badgeClass}">${product.kits_generated} / ${product.max_kits}</span></td>
+                            <td>${product.total_vials}</td>
+                            <td>
+                                <input type="number" class="max-kits-input" 
+                                       value="${product.max_kits}" 
+                                       onchange="updateMaxKits('${product.code}', this.value)"
+                                       min="1">
+                            </td>
+                            <td>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" 
+                                           ${product.is_locked ? 'checked' : ''} 
+                                           onchange="toggleLock('${product.code}', this.checked)">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+                
+            } catch (error) {
+                console.error('Error loading products:', error);
+            }
+        }
+
+        // Toggle Lock
+        async function toggleLock(productCode, isLocked) {
+            try {
+                const response = await fetch('/api/admin/lock-product', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ product_code: productCode, is_locked: isLocked })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    showToast(isLocked ? 'Product locked' : 'Product unlocked');
+                    loadProducts();
+                } else {
+                    showToast('Failed to update');
+                }
+            } catch (error) {
+                showToast('Error updating lock status');
+            }
+        }
+
+        // Update Max Kits
+        async function updateMaxKits(productCode, maxKits) {
+            try {
+                const response = await fetch('/api/admin/lock-product', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ product_code: productCode, is_locked: false, max_kits: parseInt(maxKits) })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    showToast('Max kits updated');
+                    loadProducts();
+                }
+            } catch (error) {
+                showToast('Error updating max kits');
+            }
+        }
+
+        // Search
+        document.getElementById('product-search').addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase();
+            document.querySelectorAll('#products-tbody tr').forEach(row => {
+                const code = row.dataset.code.toLowerCase();
+                const name = row.querySelector('td').textContent.toLowerCase();
+                row.style.display = (code.includes(query) || name.includes(query)) ? '' : 'none';
+            });
+        });
+
+        // Toast
+        function showToast(message) {
+            document.getElementById('toast-message').textContent = message;
+            document.getElementById('toast').classList.add('show');
+            setTimeout(() => document.getElementById('toast').classList.remove('show'), 3000);
+        }
+    </script>
+</body>
+</html>
+
