@@ -25,6 +25,32 @@ ADMIN_FEE_PHP = float(os.getenv('ADMIN_FEE_PHP', 300))
 FALLBACK_EXCHANGE_RATE = float(os.getenv('FALLBACK_EXCHANGE_RATE', 59.20))
 GOOGLE_SHEETS_ID = os.getenv('GOOGLE_SHEETS_ID', '18Q3A7pmgj7WNi3GL8cgoLiD1gPmxGu_rMqzM3ohBo5s')
 ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD', 'pephaul2024')  # Change in production!
+TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '')  # Create bot via @BotFather
+TELEGRAM_ADMIN_CHAT_ID = os.getenv('TELEGRAM_ADMIN_CHAT_ID', '')  # Admin's Telegram chat ID
+
+def send_telegram_notification(message, parse_mode='HTML'):
+    """Send notification to admin via Telegram bot"""
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_ADMIN_CHAT_ID:
+        print("Telegram not configured - skipping notification")
+        return False
+    
+    try:
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+        data = {
+            'chat_id': TELEGRAM_ADMIN_CHAT_ID,
+            'text': message,
+            'parse_mode': parse_mode
+        }
+        response = requests.post(url, data=data, timeout=10)
+        if response.status_code == 200:
+            print(f"Telegram notification sent successfully")
+            return True
+        else:
+            print(f"Telegram notification failed: {response.text}")
+            return False
+    except Exception as e:
+        print(f"Error sending Telegram notification: {e}")
+        return False
 VIALS_PER_KIT = 10
 MAX_KITS_DEFAULT = 100  # Default max kits per product
 
@@ -582,7 +608,6 @@ def upload_to_drive(file_data, filename, order_id):
         print(f"Error uploading to Drive: {e}")
         import traceback
         traceback.print_exc()
-        return None
         return None
 
 def get_inventory_stats():
@@ -1180,6 +1205,22 @@ def api_submit_order():
     order_id = save_order_to_sheets(order_data)
     
     if order_id:
+        # Send Telegram notification
+        items_text = '\n'.join([f"• {item['product_name']} ({item['order_type']} x{item['qty']}) - ₱{item['line_total_php']:.2f}" for item in items_with_prices])
+        telegram_msg = f"""🛒 <b>New Order!</b>
+
+<b>Order ID:</b> {order_id}
+<b>Customer:</b> {order_data['full_name']}
+<b>Email:</b> {order_data['email']}
+<b>Telegram:</b> {order_data.get('telegram', 'N/A')}
+
+<b>Items:</b>
+{items_text}
+
+<b>Grand Total:</b> ₱{grand_total_php:,.2f}
+<b>Status:</b> Pending Payment"""
+        send_telegram_notification(telegram_msg)
+        
         return jsonify({
             'success': True,
             'order_id': order_id,
@@ -1458,6 +1499,22 @@ def api_upload_payment(order_id):
     
     if drive_link:
         update_order_status(order_id, payment_status='Paid', payment_screenshot=drive_link)
+        
+        # Get order details for notification
+        order = get_order_by_id(order_id)
+        if order:
+            telegram_msg = f"""💰 <b>Payment Uploaded!</b>
+
+<b>Order ID:</b> {order_id}
+<b>Customer:</b> {order.get('full_name', 'N/A')}
+<b>Telegram:</b> {order.get('telegram', 'N/A')}
+<b>Amount:</b> ₱{order.get('grand_total_php', 0):,.2f}
+
+<b>Screenshot:</b> <a href="{drive_link}">View Payment</a>
+
+⚠️ Please verify and confirm payment in Admin Panel."""
+            send_telegram_notification(telegram_msg)
+        
         return jsonify({'success': True, 'link': drive_link})
     
     return jsonify({'error': 'Failed to upload'}), 500
@@ -1481,6 +1538,22 @@ def api_upload_payment_generic():
     
     if drive_link:
         update_order_status(order_id, payment_status='Paid', payment_screenshot=drive_link)
+        
+        # Get order details for notification
+        order = get_order_by_id(order_id)
+        if order:
+            telegram_msg = f"""💰 <b>Payment Uploaded!</b>
+
+<b>Order ID:</b> {order_id}
+<b>Customer:</b> {order.get('full_name', 'N/A')}
+<b>Telegram:</b> {order.get('telegram', 'N/A')}
+<b>Amount:</b> ₱{order.get('grand_total_php', 0):,.2f}
+
+<b>Screenshot:</b> <a href="{drive_link}">View Payment</a>
+
+⚠️ Please verify and confirm payment in Admin Panel."""
+            send_telegram_notification(telegram_msg)
+        
         return jsonify({'success': True, 'link': drive_link})
     
     return jsonify({'error': 'Failed to upload - Drive service may not be configured'}), 500

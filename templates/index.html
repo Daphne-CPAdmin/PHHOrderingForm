@@ -609,6 +609,24 @@
             box-shadow: 0 8px 25px rgba(232, 121, 169, 0.15);
             border-color: var(--accent-primary);
         }
+        
+        .inventory-card.clickable {
+            cursor: pointer;
+        }
+        
+        .inventory-card.clickable:not(.card-locked):hover {
+            background: rgba(232, 121, 169, 0.1);
+            border-color: var(--accent-primary);
+        }
+        
+        .inventory-card.clickable:not(.card-locked):active {
+            transform: scale(0.98);
+        }
+        
+        .inventory-card.card-locked {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
 
         .inv-card-header {
             display: flex;
@@ -1213,7 +1231,13 @@
                 
                 <div class="inventory-grid">
                     {% for product in products %}
-                    <div class="inventory-card" data-code="{{ product.code }}" data-name="{{ product.name|lower }}">
+                    <div class="inventory-card clickable {% if product.inventory.is_locked %}card-locked{% endif %}" 
+                         data-code="{{ product.code }}" 
+                         data-name="{{ product.name }}"
+                         data-kit-price="{{ product.kit_price }}"
+                         data-vial-price="{{ product.vial_price }}"
+                         data-locked="{{ 'true' if product.inventory.is_locked else 'false' }}"
+                         onclick="addFromInventory(this)">
                         <div class="inv-card-header">
                             <span class="inv-card-name">{{ product.name }}</span>
                             <span class="inv-card-code">{{ product.code }}</span>
@@ -1241,7 +1265,7 @@
                             {% if product.inventory.is_locked %}
                             <span class="inv-lock-badge locked">🔒 Locked</span>
                             {% else %}
-                            <span class="inv-lock-badge open">✨ Open</span>
+                            <span class="inv-lock-badge open">✨ Click to Add</span>
                             {% endif %}
                         </div>
                     </div>
@@ -1280,15 +1304,18 @@
                 </div>
 
                 <div class="pep-haul-message" style="background: linear-gradient(135deg, #fdf4ff 0%, #fce7f3 100%); border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem; border: 2px dashed #d946ef; text-align: center;">
-                    <p style="font-size: 1.1rem; font-weight: 600; color: #a855f7; margin-bottom: 0.75rem;">Hello Pep Hauler!</p>
+                    <p style="font-size: 1.1rem; font-weight: 600; color: #a855f7; margin-bottom: 0.75rem;">Hello Pep Hauler! 💜</p>
                     <p style="font-size: 0.95rem; color: #7c3aed; line-height: 1.6; margin-bottom: 0.5rem;">
                         <strong style="color: #ec4899;">Please SCREENSHOT or SAVE this Total Summary!</strong>
                     </p>
-                    <p style="font-size: 0.85rem; color: #9333ea; line-height: 1.5;">
-                        No confirmation email will be sent; therefore, this on-screen summary serves as your official reference for all current reservations and totals.
+                    <p style="font-size: 0.85rem; color: #9333ea; line-height: 1.5; margin-bottom: 0.5rem;">
+                        This on-screen summary serves as your official reference for all current reservations and totals.
+                    </p>
+                    <p style="font-size: 0.9rem; color: #0ea5e9; line-height: 1.5; background: rgba(14, 165, 233, 0.1); padding: 0.5rem; border-radius: 8px; margin-bottom: 0.5rem;">
+                        📱 <strong>Order confirmations will be sent to your Telegram!</strong> Make sure your handle is correct.
                     </p>
                     <p style="font-size: 0.95rem; font-weight: 500; color: #d946ef; margin-top: 0.75rem;">
-                        Thank you for joining the Pep Haul! 💜
+                        Thank you for joining the Pep Haul! ✨
                     </p>
                 </div>
 
@@ -1313,8 +1340,31 @@
                     </div>
                 </div>
 
-                <div class="payment-section">
-                    <h4 style="margin-bottom: 1rem;">Upload Payment Screenshot</h4>
+                <!-- Payment Section -->
+                <div class="payment-section" style="margin-top: 1rem; padding: 1.5rem; background: linear-gradient(135deg, #fdf4ff 0%, #fce7f3 100%); border-radius: 16px; border: 2px solid var(--accent-primary);">
+                    <h4 style="margin-bottom: 1rem; color: var(--accent-primary); text-align: center;">💳 Pay Now</h4>
+                    
+                    <!-- Payment QR Options -->
+                    <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 0.75rem; text-align: center;">Choose your payment method:</p>
+                    <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center; margin-bottom: 1rem;">
+                        <a href="https://drive.google.com/file/d/1-Fbib327N9RXsGH4rtHGTtitag5-UbLl/view?usp=drive_link" target="_blank" class="payment-qr-btn">GCash</a>
+                        <a href="https://drive.google.com/file/d/1RF4q3tZhzohS_Ic3-WdA83xpWgYLU1WY/view?usp=drive_link" target="_blank" class="payment-qr-btn">Maya</a>
+                        <a href="https://drive.google.com/file/d/1k2aR2xHxLWaAY4T0JMzo0i7dHXUZ5V_b/view?usp=drive_link" target="_blank" class="payment-qr-btn">BPI</a>
+                        <a href="https://drive.google.com/file/d/1jhlG1vlTarnNxvji__QtzwrtIGhlNa6f/view?usp=drive_link" target="_blank" class="payment-qr-btn">UnionBank</a>
+                        <a href="https://drive.google.com/file/d/1P7KvA5Sgk0yl4L-Kn_W2OV4ek3HSueFU/view?usp=drive_link" target="_blank" class="payment-qr-btn">CIMB</a>
+                        <a href="https://drive.google.com/file/d/1kuBfTepRzzNfvuXh9-kgz29-Dccvhjuh/view?usp=drive_link" target="_blank" class="payment-qr-btn">MariBank</a>
+                        <a href="https://drive.google.com/file/d/12dqI1EVUNCI_V3Ht4zYaFHLLzEhvysfT/view?usp=sharing" target="_blank" class="payment-qr-btn">GoTyme</a>
+                    </div>
+                    
+                    <!-- Friendly Reminder -->
+                    <div style="background: rgba(255,255,255,0.8); border-radius: 12px; padding: 1rem; margin-bottom: 1rem; border: 1px dashed var(--accent-purple);">
+                        <p style="font-size: 0.95rem; font-weight: 600; color: var(--accent-purple); margin-bottom: 0.5rem; text-align: center;">✨ Friendly Pep_Haul Reminder! ✨</p>
+                        <p style="font-size: 0.85rem; color: var(--text-secondary);">Please leave the <strong>Notes section blank</strong>, pretty please! 🧬💫 If you must write something, just your <strong>telegram username</strong> is perfect.</p>
+                        <p style="font-size: 0.85rem; color: #ef4444; margin-top: 0.5rem;">❌ No "peptide payment," "payment," or anything super serious like that.</p>
+                        <p style="font-size: 0.85rem; color: var(--accent-primary); text-align: center; margin-top: 0.5rem;">Thank you! 💕🥰</p>
+                    </div>
+                    
+                    <!-- Upload Payment -->
                     <div class="upload-area" id="upload-area" onclick="document.getElementById('payment-file').click()">
                         <div>📸 Click to upload payment screenshot</div>
                         <img id="upload-preview" class="upload-preview" style="display: none;">
@@ -1324,7 +1374,7 @@
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeModal('order-modal')">Close</button>
-                <button class="btn btn-primary" id="upload-payment-btn" onclick="uploadPayment()" disabled>Upload Payment</button>
+                <button class="btn btn-primary" id="upload-payment-btn" onclick="uploadPayment()" disabled>📤 Upload Payment</button>
             </div>
         </div>
     </div>
@@ -1563,6 +1613,55 @@
         function removeItem(index) {
             cartItems.splice(index, 1);
             updateCart();
+        }
+
+        // Add from inventory card click
+        function addFromInventory(card) {
+            const code = card.dataset.code;
+            const name = card.dataset.name;
+            const kitPrice = parseFloat(card.dataset.kitPrice);
+            const vialPrice = parseFloat(card.dataset.vialPrice);
+            const isLocked = card.dataset.locked === 'true';
+            
+            if (isLocked) {
+                showToast('This product is currently locked');
+                return;
+            }
+            
+            // Ask for order type and quantity
+            const orderTypeChoice = confirm('Add as Kit?\n\nClick OK for Kit\nClick Cancel for Vial');
+            const chosenType = orderTypeChoice ? 'Kit' : 'Vial';
+            
+            const qty = prompt(`How many ${chosenType}s of ${name} would you like to add?`, '1');
+            if (!qty || isNaN(parseInt(qty)) || parseInt(qty) < 1) {
+                return;
+            }
+            
+            const quantity = parseInt(qty);
+            const unitPrice = chosenType === 'Kit' ? kitPrice : vialPrice;
+            
+            // Add to cart with consolidation
+            const existingIndex = cartItems.findIndex(item => 
+                item.product_code === code && item.order_type === chosenType
+            );
+            
+            if (existingIndex >= 0) {
+                cartItems[existingIndex].qty += quantity;
+            } else {
+                cartItems.push({
+                    product_code: code,
+                    product_name: name,
+                    order_type: chosenType,
+                    qty: quantity,
+                    unit_price: unitPrice
+                });
+            }
+            
+            updateCart();
+            showToast(`Added ${quantity} ${chosenType}(s) of ${name} to cart!`);
+            
+            // Scroll to cart
+            document.getElementById('new-order').scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
 
         // Auto-lookup returning customers
@@ -1911,13 +2010,13 @@
                         <div style="margin-bottom: 1rem;">
                             <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 0.75rem; text-align: center;">Choose your payment method:</p>
                             <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center;">
-                                <a href="https://drive.google.com/file/d/1jhlG1vlTarnNxvji__QtzwrtIGhlNa6f/view?usp=sharing" target="_blank" class="payment-qr-btn">GCash</a>
+                                <a href="https://drive.google.com/file/d/1-Fbib327N9RXsGH4rtHGTtitag5-UbLl/view?usp=drive_link" target="_blank" class="payment-qr-btn">GCash</a>
                                 <a href="https://drive.google.com/file/d/1RF4q3tZhzohS_Ic3-WdA83xpWgYLU1WY/view?usp=drive_link" target="_blank" class="payment-qr-btn">Maya</a>
-                                <a href="https://drive.google.com/file/d/1jhlG1vlTarnNxvji__QtzwrtIGhlNa6f/view?usp=sharing" target="_blank" class="payment-qr-btn">BPI</a>
-                                <a href="https://drive.google.com/file/d/1jhlG1vlTarnNxvji__QtzwrtIGhlNa6f/view?usp=sharing" target="_blank" class="payment-qr-btn">UnionBank</a>
-                                <a href="https://drive.google.com/file/d/1jhlG1vlTarnNxvji__QtzwrtIGhlNa6f/view?usp=sharing" target="_blank" class="payment-qr-btn">CIMB</a>
-                                <a href="https://drive.google.com/file/d/1jhlG1vlTarnNxvji__QtzwrtIGhlNa6f/view?usp=sharing" target="_blank" class="payment-qr-btn">Maribank</a>
-                                <a href="https://drive.google.com/file/d/1jhlG1vlTarnNxvji__QtzwrtIGhlNa6f/view?usp=sharing" target="_blank" class="payment-qr-btn">GoTyme</a>
+                                <a href="https://drive.google.com/file/d/1k2aR2xHxLWaAY4T0JMzo0i7dHXUZ5V_b/view?usp=drive_link" target="_blank" class="payment-qr-btn">BPI</a>
+                                <a href="https://drive.google.com/file/d/1jhlG1vlTarnNxvji__QtzwrtIGhlNa6f/view?usp=drive_link" target="_blank" class="payment-qr-btn">UnionBank</a>
+                                <a href="https://drive.google.com/file/d/1P7KvA5Sgk0yl4L-Kn_W2OV4ek3HSueFU/view?usp=drive_link" target="_blank" class="payment-qr-btn">CIMB</a>
+                                <a href="https://drive.google.com/file/d/1kuBfTepRzzNfvuXh9-kgz29-Dccvhjuh/view?usp=drive_link" target="_blank" class="payment-qr-btn">MariBank</a>
+                                <a href="https://drive.google.com/file/d/12dqI1EVUNCI_V3Ht4zYaFHLLzEhvysfT/view?usp=sharing" target="_blank" class="payment-qr-btn">GoTyme</a>
                             </div>
                         </div>
                         
