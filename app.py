@@ -985,6 +985,61 @@ def api_products():
         })
     return jsonify(products)
 
+@app.route('/api/orders/lookup')
+def api_orders_lookup():
+    """Lookup orders by email or telegram"""
+    email = request.args.get('email', '').lower().strip()
+    telegram = request.args.get('telegram', '').lower().strip()
+    
+    if not email and not telegram:
+        return jsonify([])
+    
+    orders = get_orders_from_sheets()
+    
+    # Group by Order ID and filter by email/telegram
+    grouped = {}
+    for order in orders:
+        order_id = order.get('Order ID', '')
+        if not order_id:
+            continue
+        
+        order_email = str(order.get('Email', '')).lower().strip()
+        order_telegram = str(order.get('Telegram Username', '')).lower().strip()
+        
+        # Match by email OR telegram
+        matches = False
+        if email and order_email and email == order_email:
+            matches = True
+        if telegram and order_telegram and telegram in order_telegram:
+            matches = True
+        
+        if not matches:
+            continue
+            
+        if order_id not in grouped:
+            grouped[order_id] = {
+                'order_id': order_id,
+                'order_date': order.get('Order Date', ''),
+                'full_name': order.get('Full Name', ''),
+                'email': order.get('Email', ''),
+                'telegram': order.get('Telegram Username', ''),
+                'grand_total_php': float(order.get('Grand Total PHP', 0) or 0),
+                'status': order.get('Order Status', 'Pending'),
+                'payment_status': order.get('Confirmed Paid?', order.get('Payment Status', 'Unpaid')),
+                'items': []
+            }
+        
+        if order.get('Product Code'):
+            grouped[order_id]['items'].append({
+                'product_code': order.get('Product Code', ''),
+                'product_name': order.get('Product Name', ''),
+                'order_type': order.get('Order Type', ''),
+                'qty': int(order.get('QTY', 0) or 0),
+                'line_total_php': float(order.get('Line Total PHP', 0) or 0)
+            })
+    
+    return jsonify(list(grouped.values()))
+
 @app.route('/api/orders')
 def api_orders():
     """Get all orders grouped by Order ID"""

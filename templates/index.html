@@ -543,9 +543,24 @@
         .modal-footer { display: flex; gap: 1rem; justify-content: flex-end; }
 
         /* Order Summary in Modal */
-        .order-summary-header { text-align: center; padding: 1.5rem; background: linear-gradient(135deg, var(--accent-teal), var(--accent-violet)); border-radius: 12px; margin-bottom: 1.5rem; }
-        .order-summary-header h2 { color: white; margin-bottom: 0.5rem; }
-        .order-id { font-family: 'JetBrains Mono', monospace; font-size: 1.25rem; color: rgba(255,255,255,0.9); }
+        .order-summary-header { text-align: center; padding: 1.5rem; background: linear-gradient(135deg, rgba(252, 231, 243, 0.9) 0%, rgba(249, 168, 212, 0.7) 100%); border-radius: 12px; margin-bottom: 1.5rem; }
+        .order-summary-header h2 { 
+            background: linear-gradient(135deg, #be185d 0%, #dc2626 50%, #ea580c 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 0.5rem;
+            font-size: 1.75rem;
+        }
+        .order-id { 
+            font-family: 'JetBrains Mono', monospace; 
+            font-size: 1.25rem; 
+            background: linear-gradient(135deg, #be185d 0%, #dc2626 50%, #ea580c 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-weight: 600;
+        }
 
         .order-items-list { margin-bottom: 1.5rem; }
         .order-item-row { display: flex; justify-content: space-between; padding: 0.75rem 0; border-bottom: 1px solid var(--border); }
@@ -733,6 +748,28 @@
         .edit-qty-btn:hover {
             background: var(--accent-primary);
             transform: scale(1.1);
+        }
+
+        /* Returning Customer Banner */
+        .returning-customer-banner {
+            background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+            border: 2px solid #10b981;
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            animation: gentle-pulse 2s infinite;
+        }
+        @keyframes gentle-pulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.3); }
+            50% { box-shadow: 0 0 15px 3px rgba(16, 185, 129, 0.2); }
+        }
+        .returning-customer-banner .banner-content {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        .returning-customer-banner strong {
+            color: #059669;
         }
 
         /* Payment QR Buttons */
@@ -1527,6 +1564,78 @@
             cartItems.splice(index, 1);
             updateCart();
         }
+
+        // Auto-lookup returning customers
+        let customerLookupTimeout = null;
+        let existingCustomerOrders = [];
+        
+        function checkReturningCustomer() {
+            const email = document.getElementById('email').value.trim().toLowerCase();
+            const telegram = document.getElementById('telegram').value.trim().toLowerCase();
+            
+            // Need at least email or telegram to look up
+            if (!email && !telegram) return;
+            
+            // Clear previous timeout
+            if (customerLookupTimeout) clearTimeout(customerLookupTimeout);
+            
+            // Debounce the lookup
+            customerLookupTimeout = setTimeout(async () => {
+                try {
+                    const response = await fetch(`/api/orders/lookup?email=${encodeURIComponent(email)}&telegram=${encodeURIComponent(telegram)}`);
+                    const orders = await response.json();
+                    
+                    if (orders && orders.length > 0) {
+                        existingCustomerOrders = orders;
+                        showReturningCustomerBanner(orders);
+                    } else {
+                        hideReturningCustomerBanner();
+                    }
+                } catch (error) {
+                    console.log('Customer lookup error:', error);
+                }
+            }, 500);
+        }
+        
+        function showReturningCustomerBanner(orders) {
+            // Remove existing banner if any
+            hideReturningCustomerBanner();
+            
+            const totalOrders = orders.length;
+            const pendingOrders = orders.filter(o => o.status !== 'Cancelled').length;
+            
+            const banner = document.createElement('div');
+            banner.id = 'returning-customer-banner';
+            banner.className = 'returning-customer-banner';
+            banner.innerHTML = `
+                <div class="banner-content" style="flex-wrap: wrap;">
+                    <span style="font-size: 1.5rem;">👋</span>
+                    <span style="flex: 1;">Welcome back! You have <strong>${pendingOrders}</strong> existing order(s)</span>
+                    <button class="btn btn-primary" style="padding: 0.5rem 1rem; font-size: 0.85rem;" onclick="viewMyExistingOrders()">View My Orders</button>
+                </div>
+            `;
+            
+            // Insert at the top of customer info section
+            const customerInfo = document.querySelector('.customer-info-card');
+            if (customerInfo) {
+                customerInfo.insertBefore(banner, customerInfo.firstChild);
+            }
+        }
+        
+        function hideReturningCustomerBanner() {
+            const banner = document.getElementById('returning-customer-banner');
+            if (banner) banner.remove();
+        }
+        
+        function viewMyExistingOrders() {
+            // Switch to My Orders tab and load orders
+            switchView('view-my-orders');
+            loadOrders();
+        }
+        
+        // Add event listeners for customer lookup
+        document.getElementById('email').addEventListener('input', checkReturningCustomer);
+        document.getElementById('telegram').addEventListener('input', checkReturningCustomer);
 
         // Submit Order
         document.getElementById('submit-order').addEventListener('click', async () => {
