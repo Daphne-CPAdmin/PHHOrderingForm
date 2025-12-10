@@ -80,7 +80,7 @@ def ensure_worksheets_exist():
                 'Order ID', 'Order Date', 'Full Name', 'Email', 'Telegram Username',
                 'Product Code', 'Product Name', 'Order Type', 'QTY', 'Unit Price USD',
                 'Line Total USD', 'Exchange Rate', 'Line Total PHP', 'Admin Fee PHP',
-                'Grand Total PHP', 'Order Status', 'Locked', 'Payment Status', 
+                'Grand Total PHP', 'Order Status', 'Locked', 'Confirmed Paid?', 
                 'Payment Screenshot', 'Payment Date', 'Notes'
             ]
             worksheet.update('A1:U1', [headers])
@@ -456,27 +456,9 @@ def upload_to_drive(file_data, filename, order_id):
     try:
         from googleapiclient.http import MediaInMemoryUpload
         
-        # Create folder for payments if doesn't exist
-        folder_name = 'PepHaul_Payments'
-        folder_id = None
-        
-        # Search for folder
-        results = drive_service.files().list(
-            q=f"name='{folder_name}' and mimeType='application/vnd.google-apps.folder'",
-            spaces='drive'
-        ).execute()
-        
-        folders = results.get('files', [])
-        if folders:
-            folder_id = folders[0]['id']
-        else:
-            # Create folder
-            folder_metadata = {
-                'name': folder_name,
-                'mimeType': 'application/vnd.google-apps.folder'
-            }
-            folder = drive_service.files().create(body=folder_metadata, fields='id').execute()
-            folder_id = folder['id']
+        # Use the specific PepHaul Payments folder in Google Drive
+        # Folder: https://drive.google.com/drive/folders/1HOt6b11IWp9CIazujHJMkbyCxQSrwFgg
+        folder_id = os.getenv('PAYMENT_DRIVE_FOLDER_ID', '1HOt6b11IWp9CIazujHJMkbyCxQSrwFgg')
         
         # Upload file
         file_metadata = {
