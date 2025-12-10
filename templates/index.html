@@ -603,11 +603,32 @@
             padding: 1.25rem;
             transition: all 0.3s ease;
         }
+        
+        /* Darker gradient for products with registered orders */
+        .inventory-card.has-orders {
+            background: linear-gradient(135deg, rgba(192, 132, 252, 0.25) 0%, rgba(232, 121, 169, 0.3) 50%, rgba(251, 146, 60, 0.2) 100%);
+            border: 2px solid var(--accent-purple);
+            box-shadow: 0 4px 15px rgba(192, 132, 252, 0.2);
+        }
+        
+        .inventory-card.has-orders .inv-card-name {
+            color: var(--accent-purple);
+            font-weight: 600;
+        }
+        
+        .inventory-card.has-orders .inv-stat-value {
+            color: var(--accent-purple);
+        }
 
         .inventory-card:hover {
             transform: translateY(-3px);
             box-shadow: 0 8px 25px rgba(232, 121, 169, 0.15);
             border-color: var(--accent-primary);
+        }
+        
+        .inventory-card.has-orders:hover {
+            box-shadow: 0 8px 25px rgba(192, 132, 252, 0.3);
+            border-color: var(--accent-purple);
         }
         
         .inventory-card.clickable {
@@ -617,6 +638,10 @@
         .inventory-card.clickable:not(.card-locked):hover {
             background: rgba(232, 121, 169, 0.1);
             border-color: var(--accent-primary);
+        }
+        
+        .inventory-card.clickable.has-orders:not(.card-locked):hover {
+            background: linear-gradient(135deg, rgba(192, 132, 252, 0.35) 0%, rgba(232, 121, 169, 0.4) 50%, rgba(251, 146, 60, 0.3) 100%);
         }
         
         .inventory-card.clickable:not(.card-locked):active {
@@ -1231,12 +1256,13 @@
                 
                 <div class="inventory-grid">
                     {% for product in products %}
-                    <div class="inventory-card clickable {% if product.inventory.is_locked %}card-locked{% endif %}" 
+                    <div class="inventory-card clickable {% if product.inventory.is_locked %}card-locked{% endif %} {% if product.inventory.total_vials > 0 %}has-orders{% endif %}" 
                          data-code="{{ product.code }}" 
                          data-name="{{ product.name }}"
                          data-kit-price="{{ product.kit_price }}"
                          data-vial-price="{{ product.vial_price }}"
                          data-locked="{{ 'true' if product.inventory.is_locked else 'false' }}"
+                         data-total-vials="{{ product.inventory.total_vials }}"
                          onclick="addFromInventory(this)">
                         <div class="inv-card-header">
                             <span class="inv-card-name">{{ product.name }}</span>

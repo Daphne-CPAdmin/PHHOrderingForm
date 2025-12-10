@@ -31,3 +31,5 @@ data/temp/
 .DS_Store
 Thumbs.db
 
+credentials_single_line.txt
+convert_credentials.py
