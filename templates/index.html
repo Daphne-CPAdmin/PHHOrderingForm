@@ -558,54 +558,106 @@
         .upload-area.has-file { border-color: var(--accent-emerald); background: rgba(16, 185, 129, 0.1); }
         .upload-preview { max-width: 200px; max-height: 150px; margin-top: 1rem; border-radius: 8px; }
 
-        /* Inventory Reference Section */
-        .inventory-section {
+        /* Full-Width Inventory Section */
+        .inventory-full-section {
             margin-top: 2rem;
-            padding-top: 1.5rem;
-            border-top: 1px solid var(--border);
+            margin-bottom: 2rem;
         }
-        .inventory-section h3 {
-            font-size: 1rem;
+
+        .inventory-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1rem;
+            max-height: 500px;
+            overflow-y: auto;
+            padding-right: 0.5rem;
+        }
+
+        .inventory-card {
+            background: rgba(255, 255, 255, 0.6);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 1.25rem;
+            transition: all 0.3s ease;
+        }
+
+        .inventory-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(232, 121, 169, 0.15);
+            border-color: var(--accent-primary);
+        }
+
+        .inv-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 1rem;
+        }
+
+        .inv-card-name {
             font-weight: 600;
             color: var(--text-primary);
-            margin-bottom: 1rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
+            font-size: 0.95rem;
+            line-height: 1.3;
+            flex: 1;
+            padding-right: 0.5rem;
         }
-        .inventory-table {
+
+        .inv-card-code {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            color: var(--accent-primary);
+            background: rgba(232, 121, 169, 0.1);
+            padding: 0.25rem 0.5rem;
+            border-radius: 6px;
+            font-weight: 500;
+        }
+
+        .inv-card-stats {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+        }
+
+        .inv-stat {
+            text-align: center;
+            flex: 1;
+        }
+
+        .inv-stat-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            display: block;
+        }
+
+        .inv-stat-label {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .inv-card-progress {
+            margin-bottom: 0.75rem;
+        }
+
+        .inv-progress-bar-full {
             width: 100%;
-            font-size: 0.85rem;
-            border-collapse: collapse;
-            background: var(--bg-input);
-            border-radius: 12px;
+            height: 8px;
+            background: rgba(232, 121, 169, 0.1);
+            border-radius: 4px;
             overflow: hidden;
         }
-        .inventory-table th,
-        .inventory-table td {
-            padding: 0.75rem;
-            text-align: left;
+
+        .inv-card-status {
+            text-align: center;
         }
-        .inventory-table th {
-            background: var(--bg-card);
-            color: var(--text-muted);
-            font-size: 0.7rem;
-            text-transform: uppercase;
-            font-weight: 600;
-            letter-spacing: 0.5px;
-        }
-        .inventory-table tbody tr {
-            border-bottom: 1px solid var(--border);
-        }
-        .inventory-table tbody tr:last-child {
-            border-bottom: none;
-        }
-        .inventory-table tbody tr:hover {
-            background: rgba(168, 85, 247, 0.05);
-        }
+
         .inv-product-code {
             font-family: 'JetBrains Mono', monospace;
-            color: var(--accent-teal);
+            color: var(--accent-primary);
             font-weight: 500;
         }
         .inv-kits-badge {
@@ -613,8 +665,8 @@
             padding: 0.25rem 0.5rem;
             border-radius: 12px;
             font-size: 0.75rem;
-            background: rgba(168, 85, 247, 0.15);
-            color: var(--accent-purple);
+            background: rgba(232, 121, 169, 0.15);
+            color: var(--accent-primary);
         }
         .inv-lock-badge {
             padding: 0.2rem 0.5rem;
@@ -1015,50 +1067,55 @@
                     <button type="button" class="btn btn-violet btn-full" style="margin-top: 1.5rem;" id="submit-order" disabled>Submit Order</button>
                     {% endif %}
 
-                    <!-- Live Inventory Reference -->
-                    <div class="inventory-section">
-                        <h3>📊 Live Product Inventory</h3>
-                        <div class="inventory-search">
-                            <input type="text" id="inventory-search" placeholder="Search products...">
+                </div>
+            </div>
+        </div>
+
+        <!-- Full-Width Live Inventory Section -->
+        <div class="inventory-full-section">
+            <div class="card">
+                <h2 class="card-title"><span class="icon">📊</span> Live Product Inventory</h2>
+                <p style="color: var(--text-muted); margin-bottom: 1.5rem; font-size: 0.9rem;">Real-time tracking of peptide reservations and kit availability</p>
+                
+                <div class="inventory-search" style="max-width: 400px; margin-bottom: 1.5rem;">
+                    <input type="text" class="form-input" id="inventory-search" placeholder="🔍 Search products by name or code...">
+                </div>
+                
+                <div class="inventory-grid">
+                    {% for product in products %}
+                    <div class="inventory-card" data-code="{{ product.code }}" data-name="{{ product.name|lower }}">
+                        <div class="inv-card-header">
+                            <span class="inv-card-name">{{ product.name }}</span>
+                            <span class="inv-card-code">{{ product.code }}</span>
                         </div>
-                        <div class="inventory-scroll">
-                            <table class="inventory-table">
-                                <thead>
-                                    <tr>
-                                        <th>Product</th>
-                                        <th>Code</th>
-                                        <th>Kits</th>
-                                        <th>Total Vials</th>
-                                        <th>Progress</th>
-                                        <th>Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="inventory-tbody">
-                                    {% for product in products %}
-                                    <tr data-code="{{ product.code }}" data-name="{{ product.name|lower }}">
-                                        <td style="max-width: 180px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{{ product.name }}">{{ product.name }}</td>
-                                        <td><span class="inv-product-code">{{ product.code }}</span></td>
-                                        <td><span class="inv-kits-badge">{{ product.inventory.kits_generated }}</span></td>
-                                        <td>{{ product.inventory.total_vials }}</td>
-                                        <td>
-                                            <div class="inv-progress-bar">
-                                                <div class="inv-progress-fill" style="width: {{ (product.inventory.remaining_vials / product.vials_per_kit * 100)|int if product.vials_per_kit > 0 else 0 }}%;"></div>
-                                            </div>
-                                            <span style="font-size: 0.7rem; color: var(--text-muted);">{{ product.inventory.remaining_vials }}/{{ product.vials_per_kit }}</span>
-                                        </td>
-                                        <td>
-                                            {% if product.inventory.is_locked %}
-                                            <span class="inv-lock-badge locked">🔒 Locked</span>
-                                            {% else %}
-                                            <span class="inv-lock-badge open">Open</span>
-                                            {% endif %}
-                                        </td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
+                        <div class="inv-card-stats">
+                            <div class="inv-stat">
+                                <span class="inv-stat-value">{{ product.inventory.kits_generated }}</span>
+                                <span class="inv-stat-label">Kits</span>
+                            </div>
+                            <div class="inv-stat">
+                                <span class="inv-stat-value">{{ product.inventory.total_vials }}</span>
+                                <span class="inv-stat-label">Vials</span>
+                            </div>
+                            <div class="inv-stat">
+                                <span class="inv-stat-value">{{ product.inventory.remaining_vials }}/{{ product.vials_per_kit }}</span>
+                                <span class="inv-stat-label">Next Kit</span>
+                            </div>
+                        </div>
+                        <div class="inv-card-progress">
+                            <div class="inv-progress-bar-full">
+                                <div class="inv-progress-fill" style="width: {{ (product.inventory.remaining_vials / product.vials_per_kit * 100)|int if product.vials_per_kit > 0 else 0 }}%;"></div>
+                            </div>
+                        </div>
+                        <div class="inv-card-status">
+                            {% if product.inventory.is_locked %}
+                            <span class="inv-lock-badge locked">🔒 Locked</span>
+                            {% else %}
+                            <span class="inv-lock-badge open">✨ Open</span>
+                            {% endif %}
                         </div>
                     </div>
+                    {% endfor %}
                 </div>
             </div>
         </div>
@@ -1635,11 +1692,11 @@
         // Inventory Search
         document.getElementById('inventory-search').addEventListener('input', (e) => {
             const query = e.target.value.toLowerCase();
-            document.querySelectorAll('#inventory-tbody tr').forEach(row => {
-                const code = row.dataset.code.toLowerCase();
-                const name = row.dataset.name;
+            document.querySelectorAll('.inventory-card').forEach(card => {
+                const code = card.dataset.code.toLowerCase();
+                const name = card.dataset.name;
                 const visible = code.includes(query) || name.includes(query);
-                row.style.display = visible ? '' : 'none';
+                card.style.display = visible ? '' : 'none';
             });
         });
 
