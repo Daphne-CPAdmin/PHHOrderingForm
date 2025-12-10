@@ -3,8 +3,10 @@
 
 # Google credentials
 credentials.json
+pephaul-order-form-credentials.json
 token.json
 service_account.json
+*credentials*.json
 
 # Python
 __pycache__/

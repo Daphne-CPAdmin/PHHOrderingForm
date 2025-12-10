@@ -90,6 +90,11 @@ def init_google_services():
             except json.JSONDecodeError as je:
                 print(f"❌ JSON parse error: {je}")
                 print(f"First 100 chars of creds: {creds_json[:100] if creds_json else 'empty'}")
+        elif os.path.exists('pephaul-order-form-credentials.json'):
+            creds = Credentials.from_service_account_file('pephaul-order-form-credentials.json', scopes=scopes)
+            sheets_client = gspread.authorize(creds)
+            drive_service = build('drive', 'v3', credentials=creds)
+            print("✅ Google services initialized from pephaul-order-form-credentials.json")
         elif os.path.exists('credentials.json'):
             creds = Credentials.from_service_account_file('credentials.json', scopes=scopes)
             sheets_client = gspread.authorize(creds)
