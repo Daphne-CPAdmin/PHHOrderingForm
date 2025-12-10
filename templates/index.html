@@ -1015,18 +1015,32 @@
             const qty = parseInt(quantityInput.value) || 1;
             const unitPrice = orderType === 'Kit' ? selectedProduct.kit_price : selectedProduct.vial_price;
             
-            cartItems.push({
-                product_code: selectedProduct.code,
-                product_name: selectedProduct.name,
-                order_type: orderType,
-                qty: qty,
-                unit_price_usd: unitPrice,
-                line_total_usd: unitPrice * qty,
-                line_total_php: unitPrice * qty * EXCHANGE_RATE
-            });
+            // Check if same product_code + order_type already exists in cart - consolidate!
+            const existingIndex = cartItems.findIndex(item => 
+                item.product_code === selectedProduct.code && item.order_type === orderType
+            );
+            
+            if (existingIndex !== -1) {
+                // Consolidate: Add to existing quantity
+                cartItems[existingIndex].qty += qty;
+                cartItems[existingIndex].line_total_usd = cartItems[existingIndex].qty * unitPrice;
+                cartItems[existingIndex].line_total_php = cartItems[existingIndex].line_total_usd * EXCHANGE_RATE;
+                showToast('Quantity updated!');
+            } else {
+                // New item
+                cartItems.push({
+                    product_code: selectedProduct.code,
+                    product_name: selectedProduct.name,
+                    order_type: orderType,
+                    qty: qty,
+                    unit_price_usd: unitPrice,
+                    line_total_usd: unitPrice * qty,
+                    line_total_php: unitPrice * qty * EXCHANGE_RATE
+                });
+                showToast('Item added!');
+            }
             
             updateCart();
-            showToast('Item added!');
             resetSelection();
         });
 

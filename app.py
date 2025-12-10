@@ -1044,12 +1044,25 @@ def api_submit_order():
                 'error': f'Product {code} is currently locked and cannot be ordered'
             }), 400
     
+    # Consolidate items with same product_code + order_type
+    consolidated = {}
+    for item in data.get('items', []):
+        key = (item['product_code'], item.get('order_type', 'Vial'))
+        if key in consolidated:
+            consolidated[key]['qty'] += item['qty']
+        else:
+            consolidated[key] = {
+                'product_code': item['product_code'],
+                'order_type': item.get('order_type', 'Vial'),
+                'qty': item['qty']
+            }
+    
     # Calculate totals
     total_usd = 0
     items_with_prices = []
     products = get_products()
     
-    for item in data.get('items', []):
+    for key, item in consolidated.items():
         product = next((p for p in products if p['code'] == item['product_code']), None)
         if product:
             unit_price = product['kit_price'] if item.get('order_type') == 'Kit' else product['vial_price']
