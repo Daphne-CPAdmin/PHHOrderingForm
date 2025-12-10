@@ -1178,6 +1178,126 @@ def api_add_items(order_id):
     
     return jsonify({'error': 'Failed to add items'}), 500
 
+@app.route('/api/orders/<order_id>/update-item', methods=['POST'])
+def api_update_item(order_id):
+    """Update quantity of an item in an existing order"""
+    order = get_order_by_id(order_id)
+    if not order:
+        return jsonify({'error': 'Order not found'}), 404
+    
+    if order['locked']:
+        return jsonify({'error': 'Order is locked'}), 403
+    
+    if order['status'] == 'Cancelled':
+        return jsonify({'error': 'Order is cancelled'}), 403
+    
+    data = request.json
+    product_code = data.get('product_code')
+    order_type = data.get('order_type')
+    new_qty = data.get('qty', 0)
+    
+    if not product_code or not order_type:
+        return jsonify({'error': 'Missing product_code or order_type'}), 400
+    
+    if update_item_quantity(order_id, product_code, order_type, new_qty):
+        return jsonify({'success': True})
+    
+    return jsonify({'error': 'Failed to update item'}), 500
+
+def update_item_quantity(order_id, product_code, order_type, new_qty):
+    """Update quantity of a specific item in an order"""
+    if not sheets_client:
+        return False
+    
+    try:
+        spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
+        worksheet = spreadsheet.worksheet('PepHaul Entry')
+        
+        # Get all data
+        all_values = worksheet.get_all_values()
+        headers = all_values[0] if all_values else []
+        
+        # Find column indices
+        order_id_col = headers.index('Order ID') if 'Order ID' in headers else -1
+        product_code_col = headers.index('Product Code') if 'Product Code' in headers else -1
+        order_type_col = headers.index('Order Type') if 'Order Type' in headers else -1
+        qty_col = headers.index('QTY') if 'QTY' in headers else -1
+        unit_price_col = headers.index('Unit Price USD') if 'Unit Price USD' in headers else -1
+        line_total_usd_col = headers.index('Line Total USD') if 'Line Total USD' in headers else -1
+        line_total_php_col = headers.index('Line Total PHP') if 'Line Total PHP' in headers else -1
+        exchange_rate_col = headers.index('Exchange Rate') if 'Exchange Rate' in headers else -1
+        grand_total_col = headers.index('Grand Total PHP') if 'Grand Total PHP' in headers else -1
+        
+        if -1 in [order_id_col, product_code_col, order_type_col, qty_col]:
+            print("Missing required columns")
+            return False
+        
+        # Find the specific row to update
+        target_row = None
+        first_order_row = None
+        order_rows = []
+        
+        for i, row in enumerate(all_values[1:], start=2):  # Start at row 2 (1-indexed, skip header)
+            if len(row) > order_id_col and row[order_id_col] == order_id:
+                if first_order_row is None:
+                    first_order_row = i
+                order_rows.append(i)
+                
+                if (len(row) > product_code_col and row[product_code_col] == product_code and
+                    len(row) > order_type_col and row[order_type_col] == order_type):
+                    target_row = i
+        
+        if target_row is None:
+            print(f"Item not found: {product_code} / {order_type}")
+            return False
+        
+        # Get current values
+        current_row = all_values[target_row - 1]  # Convert to 0-indexed
+        unit_price = float(current_row[unit_price_col]) if unit_price_col >= 0 and current_row[unit_price_col] else 0
+        exchange_rate = float(current_row[exchange_rate_col]) if exchange_rate_col >= 0 and current_row[exchange_rate_col] else FALLBACK_EXCHANGE_RATE
+        
+        # Calculate new line totals
+        new_line_total_usd = unit_price * new_qty
+        new_line_total_php = new_line_total_usd * exchange_rate
+        
+        # Update the item row
+        updates = []
+        updates.append({'range': f'{chr(65 + qty_col)}{target_row}', 'values': [[new_qty]]})
+        
+        if line_total_usd_col >= 0:
+            updates.append({'range': f'{chr(65 + line_total_usd_col)}{target_row}', 'values': [[new_line_total_usd]]})
+        
+        if line_total_php_col >= 0:
+            updates.append({'range': f'{chr(65 + line_total_php_col)}{target_row}', 'values': [[new_line_total_php]]})
+        
+        # Apply item updates
+        for update in updates:
+            worksheet.update(update['range'], update['values'])
+        
+        # Recalculate grand total for the entire order
+        if first_order_row and grand_total_col >= 0:
+            # Get fresh data after update
+            all_values = worksheet.get_all_values()
+            new_subtotal_php = 0
+            
+            for i, row in enumerate(all_values[1:], start=2):
+                if len(row) > order_id_col and row[order_id_col] == order_id:
+                    if len(row) > line_total_php_col and row[line_total_php_col]:
+                        try:
+                            new_subtotal_php += float(row[line_total_php_col])
+                        except:
+                            pass
+            
+            new_grand_total = new_subtotal_php + ADMIN_FEE_PHP
+            worksheet.update(f'{chr(65 + grand_total_col)}{first_order_row}', [[new_grand_total]])
+        
+        print(f"Updated {product_code} qty to {new_qty} for order {order_id}")
+        return True
+        
+    except Exception as e:
+        print(f"Error updating item: {e}")
+        return False
+
 @app.route('/api/orders/<order_id>/cancel', methods=['POST'])
 def api_cancel_order(order_id):
     """Cancel an order and wipe quantities to reset inventory"""

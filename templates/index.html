@@ -34,7 +34,7 @@
             font-family: 'DM Sans', sans-serif;
             min-height: 100vh;
             color: var(--text-primary);
-            background: linear-gradient(135deg, #fdf8ff 0%, #fef1f8 25%, #fdf4ff 50%, #fff1f6 75%, #fdf8ff 100%);
+            background: linear-gradient(135deg, #fce7f3 0%, #f9a8d4 25%, #fbcfe8 50%, #f472b6 75%, #fce7f3 100%);
             position: relative;
             overflow-x: hidden;
         }
@@ -712,9 +712,24 @@
             transition: width 0.3s ease;
         }
 
+        /* Edit Quantity Button */
+        .edit-qty-btn {
+            background: rgba(232, 121, 169, 0.1);
+            border: 1px solid var(--accent-primary);
+            border-radius: 6px;
+            padding: 0.25rem 0.5rem;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+        }
+        .edit-qty-btn:hover {
+            background: var(--accent-primary);
+            transform: scale(1.1);
+        }
+
         /* Add to Order Banner */
         .add-to-order-banner {
-            background: linear-gradient(135deg, #fdf4ff 0%, #fce7f3 100%);
+            background: linear-gradient(135deg, #fbcfe8 0%, #f9a8d4 100%);
             border: 2px solid var(--accent-primary);
             border-radius: 12px;
             padding: 1rem;
@@ -1049,8 +1064,8 @@
                         <div class="form-group" style="margin-top: 1.25rem;">
                             <label class="form-label">Order Type</label>
                             <div class="order-type-toggle">
-                                <button type="button" class="toggle-btn active" data-type="Kit">Kit ({{ vials_per_kit }} vials)</button>
-                                <button type="button" class="toggle-btn" data-type="Vial">Per Vial</button>
+                                <button type="button" class="toggle-btn" data-type="Kit">Kit ({{ vials_per_kit }} vials)</button>
+                                <button type="button" class="toggle-btn active" data-type="Vial">Per Vial</button>
                             </div>
                         </div>
 
@@ -1279,7 +1294,7 @@
         
         // State
         let selectedProduct = null;
-        let orderType = 'Kit';
+        let orderType = 'Vial';
         let cartItems = [];
         let currentOrderId = null;
         let paymentFile = null;
@@ -1434,8 +1449,8 @@
             productSearch.value = '';
             quantityInput.value = 1;
             document.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
-            document.querySelector('.toggle-btn[data-type="Kit"]').classList.add('active');
-            orderType = 'Kit';
+            document.querySelector('.toggle-btn[data-type="Vial"]').classList.add('active');
+            orderType = 'Vial';
         }
 
         function updateCart() {
@@ -1693,10 +1708,15 @@
         });
 
         // View Order Details
+        let currentViewingOrder = null;
+        
         async function viewOrder(orderId) {
             try {
                 const response = await fetch(`/api/orders/${orderId}`);
                 const order = await response.json();
+                currentViewingOrder = order;
+                
+                const canEdit = !order.locked && order.status !== 'Cancelled';
                 
                 const body = document.getElementById('order-details-body');
                 body.innerHTML = `
@@ -1715,20 +1735,27 @@
                     </div>
                     
                     <h4 style="margin-bottom: 0.75rem;">Items</h4>
-                    ${order.items.map(item => `
-                        <div class="order-item-row">
-                            <div class="order-item-info">
+                    <div id="order-items-list">
+                    ${order.items.map((item, index) => `
+                        <div class="order-item-row" style="display: flex; align-items: center; gap: 0.5rem;">
+                            <div class="order-item-info" style="flex: 1;">
                                 <div>${item.product_name}</div>
-                                <div class="order-item-qty">${item.order_type} × ${item.qty}</div>
+                                <div class="order-item-qty">${item.order_type} × <span id="item-qty-${index}">${item.qty}</span></div>
                             </div>
-                            <div>₱${item.line_total_php.toFixed(2)}</div>
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                ${canEdit ? `
+                                <button class="edit-qty-btn" onclick="editItemQty('${order.order_id}', '${item.product_code}', '${item.order_type}', ${item.qty})" title="Edit quantity">✏️</button>
+                                ` : ''}
+                                <span>₱${item.line_total_php.toFixed(2)}</span>
+                            </div>
                         </div>
                     `).join('')}
+                    </div>
                     
                     <div class="cart-summary" style="margin-top: 1rem;">
                         <div class="summary-row grand-total">
                             <span class="summary-label">Grand Total</span>
-                            <span class="summary-value">₱${order.grand_total_php.toFixed(2)}</span>
+                            <span class="summary-value" id="order-grand-total">₱${order.grand_total_php.toFixed(2)}</span>
                         </div>
                     </div>
                     
@@ -1739,7 +1766,7 @@
                 `;
                 
                 const footer = document.getElementById('order-details-footer');
-                if (!order.locked && order.status !== 'Cancelled') {
+                if (canEdit) {
                     footer.innerHTML = `
                         <button class="btn btn-rose" onclick="cancelOrder('${order.order_id}')">Cancel Order</button>
                         <button class="btn btn-primary" onclick="addToExistingOrder('${order.order_id}')">➕ Add to Order</button>
@@ -1752,6 +1779,46 @@
                 document.getElementById('order-details-modal').classList.add('show');
             } catch (error) {
                 showToast('Error loading order');
+            }
+        }
+        
+        // Edit item quantity
+        function editItemQty(orderId, productCode, orderType, currentQty) {
+            const newQty = prompt(`Update quantity for ${productCode} (${orderType}):`, currentQty);
+            if (newQty === null) return; // Cancelled
+            
+            const qty = parseInt(newQty);
+            if (isNaN(qty) || qty < 0) {
+                showToast('Please enter a valid quantity (0 or more)');
+                return;
+            }
+            
+            updateItemQuantity(orderId, productCode, orderType, qty);
+        }
+        
+        async function updateItemQuantity(orderId, productCode, orderType, newQty) {
+            try {
+                const response = await fetch(`/api/orders/${orderId}/update-item`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        product_code: productCode, 
+                        order_type: orderType, 
+                        qty: newQty 
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showToast(newQty === 0 ? 'Item removed!' : 'Quantity updated!');
+                    // Refresh the order view
+                    viewOrder(orderId);
+                } else {
+                    showToast(result.error || 'Failed to update');
+                }
+            } catch (error) {
+                showToast('Error updating quantity');
             }
         }
 
