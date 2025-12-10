@@ -727,6 +727,26 @@
             transform: scale(1.1);
         }
 
+        /* Payment QR Buttons */
+        .payment-qr-btn {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            background: var(--accent-primary);
+            color: white;
+            text-decoration: none;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            border: 2px solid var(--accent-primary);
+            transition: all 0.2s;
+        }
+        .payment-qr-btn:hover {
+            background: white;
+            color: var(--accent-primary);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(232, 121, 169, 0.3);
+        }
+
         /* Add to Order Banner */
         .add-to-order-banner {
             background: linear-gradient(135deg, #fbcfe8 0%, #f9a8d4 100%);
@@ -1763,6 +1783,47 @@
                         <span class="status-badge ${order.payment_status.toLowerCase()}">${order.payment_status}</span>
                         ${order.payment_screenshot ? `<a href="${order.payment_screenshot}" target="_blank" style="color: var(--accent-teal); font-size: 0.85rem;">View Receipt</a>` : ''}
                     </div>
+                    
+                    ${order.payment_status === 'Unpaid' && order.status !== 'Cancelled' ? `
+                    <!-- Payment Section for Unpaid Orders -->
+                    <div class="payment-section" style="margin-top: 1.5rem; padding: 1.5rem; background: linear-gradient(135deg, #fdf4ff 0%, #fce7f3 100%); border-radius: 16px; border: 2px solid var(--accent-primary);">
+                        <h4 style="margin-bottom: 1rem; color: var(--accent-primary); text-align: center;">💳 Make Payment</h4>
+                        
+                        <!-- Payment QR Options -->
+                        <div style="margin-bottom: 1rem;">
+                            <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 0.75rem; text-align: center;">Choose your payment method:</p>
+                            <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center;">
+                                <a href="https://drive.google.com/file/d/1NuuuTlov7ztm3igEvNr35TCM8wEFsn5w/GCASHQR_Dee.JPG" target="_blank" class="payment-qr-btn">GCash</a>
+                                <a href="https://drive.google.com/file/d/1NuuuTlov7ztm3igEvNr35TCM8wEFsn5w/MAYAQR_Dee.JPG" target="_blank" class="payment-qr-btn">Maya</a>
+                                <a href="https://drive.google.com/file/d/1NuuuTlov7ztm3igEvNr35TCM8wEFsn5w/BPIQR_Dee.PNG" target="_blank" class="payment-qr-btn">BPI</a>
+                                <a href="https://drive.google.com/file/d/1NuuuTlov7ztm3igEvNr35TCM8wEFsn5w/UBQR_Dee.JPG" target="_blank" class="payment-qr-btn">UnionBank</a>
+                                <a href="https://drive.google.com/file/d/1NuuuTlov7ztm3igEvNr35TCM8wEFsn5w/CIMBQR_Dee.JPG" target="_blank" class="payment-qr-btn">CIMB</a>
+                                <a href="https://drive.google.com/drive/folders/1NuuuTlov7ztm3igEvNr35TCM8wEFsn5w" target="_blank" class="payment-qr-btn" style="background: var(--accent-gold); border-color: var(--accent-gold);">📁 All QR Codes</a>
+                            </div>
+                        </div>
+                        
+                        <!-- Friendly Reminder -->
+                        <div style="background: rgba(255,255,255,0.8); border-radius: 12px; padding: 1rem; margin-bottom: 1rem; border: 1px dashed var(--accent-purple);">
+                            <p style="font-size: 0.95rem; font-weight: 600; color: var(--accent-purple); margin-bottom: 0.5rem; text-align: center;">✨ Friendly Pep_Haul Reminder! ✨</p>
+                            <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem;">Hiii Pep Hauler! 💙</p>
+                            <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem;">Please leave the <strong>Notes section blank</strong>, pretty please! 🧬💫</p>
+                            <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem;">If you must write something, just your <strong>telegram username</strong> is perfect.</p>
+                            <p style="font-size: 0.85rem; color: #ef4444; margin-bottom: 0.5rem;">❌ No "peptide payment," "payment," or anything super serious like that.</p>
+                            <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem;">My bank account is just a baby (personal account lang po 😅) — ayaw natin ma-flag or ma-freeze and ma-delay ang pep-haul!</p>
+                            <p style="font-size: 0.85rem; color: var(--accent-primary); text-align: center; margin-top: 0.75rem;">Thank you for keeping our pep-haul smooth, happy, and drama-free! 💕🥰</p>
+                        </div>
+                        
+                        <!-- Upload Payment Screenshot -->
+                        <div style="text-align: center;">
+                            <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 0.75rem;">After payment, upload your screenshot:</p>
+                            <input type="file" id="order-payment-file" accept="image/*" onchange="handleOrderPaymentFile(event, '${order.order_id}')" style="display: none;">
+                            <label for="order-payment-file" class="btn btn-primary" style="cursor: pointer; display: inline-flex; align-items: center; gap: 0.5rem;">
+                                📸 Upload Payment Screenshot
+                            </label>
+                            <div id="order-payment-preview-${order.order_id}" style="margin-top: 1rem;"></div>
+                        </div>
+                    </div>
+                    ` : ''}
                 `;
                 
                 const footer = document.getElementById('order-details-footer');
@@ -1819,6 +1880,74 @@
                 }
             } catch (error) {
                 showToast('Error updating quantity');
+            }
+        }
+
+        // Handle payment file upload from order details
+        function handleOrderPaymentFile(event, orderId) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const previewDiv = document.getElementById(`order-payment-preview-${orderId}`);
+            
+            // Show preview
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                previewDiv.innerHTML = `
+                    <img src="${e.target.result}" style="max-width: 200px; max-height: 150px; border-radius: 8px; margin-bottom: 0.75rem;">
+                    <br>
+                    <button class="btn btn-violet" onclick="uploadOrderPayment('${orderId}')" id="upload-btn-${orderId}">
+                        ⬆️ Confirm & Upload
+                    </button>
+                `;
+                
+                // Store file data for upload
+                previewDiv.dataset.fileData = e.target.result;
+                previewDiv.dataset.fileName = file.name;
+            };
+            reader.readAsDataURL(file);
+        }
+        
+        async function uploadOrderPayment(orderId) {
+            const previewDiv = document.getElementById(`order-payment-preview-${orderId}`);
+            const fileData = previewDiv.dataset.fileData;
+            const fileName = previewDiv.dataset.fileName;
+            
+            if (!fileData) {
+                showToast('No file selected');
+                return;
+            }
+            
+            const btn = document.getElementById(`upload-btn-${orderId}`);
+            btn.disabled = true;
+            btn.textContent = 'Uploading...';
+            
+            try {
+                const response = await fetch('/api/upload-payment', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        order_id: orderId,
+                        file_data: fileData,
+                        file_name: fileName
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showToast('Payment screenshot uploaded! 🎉');
+                    // Refresh the order view
+                    viewOrder(orderId);
+                } else {
+                    showToast(result.error || 'Failed to upload');
+                    btn.disabled = false;
+                    btn.textContent = '⬆️ Confirm & Upload';
+                }
+            } catch (error) {
+                showToast('Upload error');
+                btn.disabled = false;
+                btn.textContent = '⬆️ Confirm & Upload';
             }
         }
 
