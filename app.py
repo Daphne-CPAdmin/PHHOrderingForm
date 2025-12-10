@@ -27,6 +27,7 @@ GOOGLE_SHEETS_ID = os.getenv('GOOGLE_SHEETS_ID', '18Q3A7pmgj7WNi3GL8cgoLiD1gPmxG
 ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD', 'pephaul2024')  # Change in production!
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '')  # Create bot via @BotFather
 TELEGRAM_ADMIN_CHAT_ID = os.getenv('TELEGRAM_ADMIN_CHAT_ID', '')  # Admin's Telegram chat ID
+TELEGRAM_BOT_USERNAME = os.getenv('TELEGRAM_BOT_USERNAME', 'PepHaulBot')  # Bot username (without @)
 
 def send_telegram_notification(message, parse_mode='HTML'):
     """Send notification to admin via Telegram bot"""
@@ -924,7 +925,8 @@ def index():
                          admin_fee=ADMIN_FEE_PHP,
                          vials_per_kit=VIALS_PER_KIT,
                          order_form_locked=order_form_lock['is_locked'],
-                         order_form_lock_message=order_form_lock['message'])
+                         order_form_lock_message=order_form_lock['message'],
+                         telegram_bot_username=TELEGRAM_BOT_USERNAME)
 
 @app.route('/admin')
 def admin_panel():
@@ -1220,6 +1222,9 @@ def api_submit_order():
 <b>Grand Total:</b> ₱{grand_total_php:,.2f}
 <b>Status:</b> Pending Payment"""
         send_telegram_notification(telegram_msg)
+        
+        # Also notify customer if registered
+        notify_customer_order(order_data, order_id)
         
         return jsonify({
             'success': True,
@@ -1557,6 +1562,127 @@ def api_upload_payment_generic():
         return jsonify({'success': True, 'link': drive_link})
     
     return jsonify({'error': 'Failed to upload - Drive service may not be configured'}), 500
+
+# Telegram customer notifications storage (in-memory, consider using database for production)
+telegram_customers = {}  # {telegram_username: chat_id}
+
+def send_customer_telegram(chat_id, message, parse_mode='HTML'):
+    """Send notification to a specific customer via Telegram"""
+    if not TELEGRAM_BOT_TOKEN or not chat_id:
+        return False
+    
+    try:
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+        data = {
+            'chat_id': chat_id,
+            'text': message,
+            'parse_mode': parse_mode
+        }
+        response = requests.post(url, data=data, timeout=10)
+        return response.status_code == 200
+    except Exception as e:
+        print(f"Error sending customer Telegram: {e}")
+        return False
+
+@app.route('/api/telegram/webhook', methods=['POST'])
+def telegram_webhook():
+    """Handle incoming Telegram messages (for customer registration)"""
+    try:
+        data = request.json
+        message = data.get('message', {})
+        chat_id = message.get('chat', {}).get('id')
+        text = message.get('text', '')
+        username = message.get('from', {}).get('username', '')
+        first_name = message.get('from', {}).get('first_name', '')
+        
+        if text.startswith('/start'):
+            # Register customer for notifications
+            if username:
+                telegram_customers[username.lower()] = chat_id
+                telegram_customers[f"@{username.lower()}"] = chat_id
+                print(f"Registered Telegram customer: @{username} -> {chat_id}")
+            
+            # Send welcome message
+            welcome_msg = f"""🎉 <b>Welcome to PepHaul Bot, {first_name}!</b>
+
+You're now registered to receive order notifications!
+
+When you place an order on our website with your Telegram username, you'll receive:
+• ✅ Order confirmation
+• 📦 Order updates
+• 💳 Payment reminders
+
+<i>Your Telegram: @{username}</i>
+
+Thank you for joining PepHaul! 💜✨"""
+            
+            send_customer_telegram(chat_id, welcome_msg)
+        
+        return jsonify({'ok': True})
+    except Exception as e:
+        print(f"Telegram webhook error: {e}")
+        return jsonify({'ok': False}), 500
+
+@app.route('/api/telegram/set-webhook', methods=['POST'])
+def set_telegram_webhook():
+    """Set up Telegram webhook (admin only)"""
+    if not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    if not TELEGRAM_BOT_TOKEN:
+        return jsonify({'error': 'Telegram bot token not configured'}), 400
+    
+    try:
+        # Get the webhook URL from request or construct from host
+        webhook_url = request.json.get('webhook_url')
+        if not webhook_url:
+            webhook_url = f"{request.host_url}api/telegram/webhook"
+        
+        # Set webhook
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setWebhook"
+        response = requests.post(url, json={'url': webhook_url}, timeout=10)
+        result = response.json()
+        
+        if result.get('ok'):
+            return jsonify({'success': True, 'message': f'Webhook set to: {webhook_url}'})
+        else:
+            return jsonify({'success': False, 'error': result.get('description', 'Unknown error')})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+def notify_customer_order(order_data, order_id):
+    """Send order confirmation to customer via Telegram if registered"""
+    telegram_handle = order_data.get('telegram', '').strip().lower()
+    if not telegram_handle:
+        return False
+    
+    # Clean up the handle
+    if telegram_handle.startswith('@'):
+        telegram_handle = telegram_handle[1:]
+    
+    chat_id = telegram_customers.get(telegram_handle) or telegram_customers.get(f"@{telegram_handle}")
+    
+    if not chat_id:
+        print(f"Customer @{telegram_handle} not registered for Telegram notifications")
+        return False
+    
+    items_text = '\n'.join([f"• {item['product_name']} ({item['order_type']} x{item['qty']})" for item in order_data.get('items', [])])
+    
+    message = f"""✨ <b>Order Confirmed!</b> ✨
+
+<b>Order ID:</b> {order_id}
+<b>Name:</b> {order_data.get('full_name', '')}
+
+<b>Your Items:</b>
+{items_text}
+
+<b>Grand Total:</b> ₱{order_data.get('grand_total_php', 0):,.2f}
+
+📱 Please complete your payment and upload the screenshot on the order form.
+
+Thank you for your order! 💜"""
+    
+    return send_customer_telegram(chat_id, message)
 
 @app.route('/api/admin/orders')
 def api_admin_orders():
