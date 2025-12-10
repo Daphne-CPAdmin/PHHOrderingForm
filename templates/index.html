@@ -712,6 +712,56 @@
             transition: width 0.3s ease;
         }
 
+        /* Add to Order Banner */
+        .add-to-order-banner {
+            background: linear-gradient(135deg, #fdf4ff 0%, #fce7f3 100%);
+            border: 2px solid var(--accent-primary);
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+            animation: pulse-border 2s infinite;
+        }
+        @keyframes pulse-border {
+            0%, 100% { border-color: var(--accent-primary); box-shadow: 0 0 0 0 rgba(232, 121, 169, 0.4); }
+            50% { border-color: var(--accent-purple); box-shadow: 0 0 10px 2px rgba(232, 121, 169, 0.3); }
+        }
+        .banner-content {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+        .banner-icon {
+            font-size: 1.5rem;
+            animation: bounce 1s infinite;
+        }
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+        .banner-text {
+            flex: 1;
+            color: var(--text-primary);
+            font-size: 0.95rem;
+        }
+        .banner-text strong {
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--accent-primary);
+        }
+        .banner-cancel {
+            background: rgba(244, 63, 94, 0.1);
+            color: #f43f5e;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .banner-cancel:hover {
+            background: rgba(244, 63, 94, 0.2);
+        }
+
         /* Orders List */
         .orders-section { margin-top: 2rem; }
         .orders-search { margin-bottom: 1rem; }
@@ -1441,40 +1491,74 @@
             const email = document.getElementById('email').value.trim();
             const telegram = document.getElementById('telegram').value.trim();
             
-            if (!fullName || !email) {
+            // Different validation for adding to existing order vs new order
+            if (!addingToOrderId && (!fullName || !email)) {
                 showToast('Please fill in name and email');
                 return;
             }
             
             const btn = document.getElementById('submit-order');
             btn.disabled = true;
-            btn.textContent = 'Submitting...';
+            btn.textContent = addingToOrderId ? 'Adding...' : 'Submitting...';
             
             try {
-                const response = await fetch('/api/submit-order', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ full_name: fullName, email, telegram, items: cartItems })
-                });
+                let response, result;
                 
-                const result = await response.json();
-                
-                if (result.success) {
-                    currentOrderId = result.order_id;
-                    showOrderModal(result.order);
-                    cartItems = [];
-                    updateCart();
-                    document.getElementById('full-name').value = '';
-                    document.getElementById('email').value = '';
-                    document.getElementById('telegram').value = '';
+                if (addingToOrderId) {
+                    // Adding items to existing order
+                    const targetOrderId = addingToOrderId; // Save before clearing
+                    
+                    response = await fetch(`/api/orders/${targetOrderId}/add-items`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ items: cartItems })
+                    });
+                    
+                    result = await response.json();
+                    
+                    if (result.success) {
+                        currentOrderId = targetOrderId;
+                        showToast(`Items added to order ${targetOrderId}!`);
+                        
+                        // Clear the adding state
+                        cancelAddToOrder();
+                        
+                        // Clear cart and show order
+                        cartItems = [];
+                        updateCart();
+                        
+                        // Show updated order details
+                        showViewOrderDetails(targetOrderId);
+                    } else {
+                        showToast(result.error || 'Failed to add items');
+                    }
                 } else {
-                    showToast(result.error || 'Failed to submit');
+                    // Creating new order
+                    response = await fetch('/api/submit-order', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ full_name: fullName, email, telegram, items: cartItems })
+                    });
+                    
+                    result = await response.json();
+                    
+                    if (result.success) {
+                        currentOrderId = result.order_id;
+                        showOrderModal(result.order);
+                        cartItems = [];
+                        updateCart();
+                        document.getElementById('full-name').value = '';
+                        document.getElementById('email').value = '';
+                        document.getElementById('telegram').value = '';
+                    } else {
+                        showToast(result.error || 'Failed to submit');
+                    }
                 }
             } catch (error) {
                 showToast('Error submitting order');
             } finally {
                 btn.disabled = false;
-                btn.textContent = 'Submit Order';
+                btn.textContent = addingToOrderId ? '➕ Add to Existing Order' : 'Submit Order';
             }
         });
 
@@ -1658,6 +1742,7 @@
                 if (!order.locked && order.status !== 'Cancelled') {
                     footer.innerHTML = `
                         <button class="btn btn-rose" onclick="cancelOrder('${order.order_id}')">Cancel Order</button>
+                        <button class="btn btn-primary" onclick="addToExistingOrder('${order.order_id}')">➕ Add to Order</button>
                         <button class="btn btn-secondary" onclick="closeModal('order-details-modal')">Close</button>
                     `;
                 } else {
@@ -1687,6 +1772,73 @@
             } catch (error) {
                 showToast('Error cancelling order');
             }
+        }
+
+        // Add items to existing order
+        let addingToOrderId = null;
+        
+        function addToExistingOrder(orderId) {
+            addingToOrderId = orderId;
+            closeModal('order-details-modal');
+            
+            // Switch to new order view
+            switchView('view-new-order');
+            
+            // Show notification banner
+            showAddToOrderBanner(orderId);
+            
+            showToast(`Adding items to order ${orderId}`);
+        }
+        
+        function showAddToOrderBanner(orderId) {
+            // Remove existing banner if any
+            const existingBanner = document.getElementById('add-to-order-banner');
+            if (existingBanner) existingBanner.remove();
+            
+            // Create banner
+            const banner = document.createElement('div');
+            banner.id = 'add-to-order-banner';
+            banner.className = 'add-to-order-banner';
+            banner.innerHTML = `
+                <div class="banner-content">
+                    <span class="banner-icon">✨</span>
+                    <span class="banner-text">Adding items to <strong>${orderId}</strong></span>
+                    <button class="banner-cancel" onclick="cancelAddToOrder()">✕ Cancel</button>
+                </div>
+            `;
+            
+            // Insert at top of order form card
+            const card = document.querySelector('#view-new-order .card');
+            if (card) {
+                card.insertBefore(banner, card.firstChild);
+            }
+            
+            // Update submit button text
+            const submitBtn = document.getElementById('submit-order');
+            if (submitBtn) {
+                submitBtn.innerHTML = '➕ Add to Existing Order';
+            }
+        }
+        
+        function cancelAddToOrder() {
+            addingToOrderId = null;
+            const banner = document.getElementById('add-to-order-banner');
+            if (banner) banner.remove();
+            
+            // Reset submit button text
+            const submitBtn = document.getElementById('submit-order');
+            if (submitBtn) {
+                submitBtn.innerHTML = 'Submit Order';
+            }
+            
+            showToast('Cancelled adding to order');
+        }
+        
+        // Show updated order details after adding items
+        async function showViewOrderDetails(orderId) {
+            // Small delay to ensure backend has updated
+            await new Promise(resolve => setTimeout(resolve, 500));
+            viewOrder(orderId);
         }
 
         // Inventory Search
