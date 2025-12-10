@@ -1462,6 +1462,29 @@ def api_upload_payment(order_id):
     
     return jsonify({'error': 'Failed to upload'}), 500
 
+@app.route('/api/upload-payment', methods=['POST'])
+def api_upload_payment_generic():
+    """Upload payment screenshot (generic endpoint)"""
+    data = request.json
+    order_id = data.get('order_id')
+    file_data = data.get('file_data')
+    file_name = data.get('file_name', 'payment.jpg')
+    
+    if not order_id:
+        return jsonify({'error': 'No order ID provided'}), 400
+    
+    if not file_data:
+        return jsonify({'error': 'No file data provided'}), 400
+    
+    # Upload to Drive
+    drive_link = upload_to_drive(file_data, file_name, order_id)
+    
+    if drive_link:
+        update_order_status(order_id, payment_status='Paid', payment_screenshot=drive_link)
+        return jsonify({'success': True, 'link': drive_link})
+    
+    return jsonify({'error': 'Failed to upload - Drive service may not be configured'}), 500
+
 @app.route('/api/admin/orders')
 def api_admin_orders():
     """Get all orders for admin panel"""

@@ -995,7 +995,7 @@
         <!-- Navigation -->
         <nav class="nav-bar">
             <div class="nav-tabs">
-                <button class="nav-tab active" data-view="new-order">New Order</button>
+                <button class="nav-tab active" data-view="new-order">New / Update Order</button>
                 <button class="nav-tab" data-view="my-orders">View Orders</button>
             </div>
             <a href="/admin" class="nav-tab admin">Admin Panel</a>
@@ -1034,12 +1034,12 @@
             </div>
         </div>
 
-        <!-- View: New Order -->
+        <!-- View: New / Update Order -->
         <div id="view-new-order" class="view-content">
             <div class="main-grid">
                 <!-- Order Form -->
                 <div class="card">
-                    <h2 class="card-title"><span class="icon">📦</span> New Order</h2>
+                    <h2 class="card-title"><span class="icon">📦</span> New / Update Order</h2>
 
                     <div class="form-row" style="margin-bottom: 1.5rem;">
                         <div class="form-group">
@@ -1643,24 +1643,25 @@
             const email = document.getElementById('email').value.trim();
             const telegram = document.getElementById('telegram').value.trim();
             
-            // Different validation for adding to existing order vs new order
-            if (!addingToOrderId && (!fullName || !email)) {
+            if (!fullName || !email) {
                 showToast('Please fill in name and email');
                 return;
             }
             
             const btn = document.getElementById('submit-order');
             btn.disabled = true;
-            btn.textContent = addingToOrderId ? 'Adding...' : 'Submitting...';
             
             try {
                 let response, result;
                 
-                if (addingToOrderId) {
-                    // Adding items to existing order
-                    const targetOrderId = addingToOrderId; // Save before clearing
+                // Check if customer has an existing pending order to update
+                const pendingOrder = existingCustomerOrders.find(o => o.status !== 'Cancelled' && !o.locked);
+                
+                if (pendingOrder) {
+                    // Update existing order - add items to it
+                    btn.textContent = 'Updating...';
                     
-                    response = await fetch(`/api/orders/${targetOrderId}/add-items`, {
+                    response = await fetch(`/api/orders/${pendingOrder.order_id}/add-items`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ items: cartItems })
@@ -1669,23 +1670,23 @@
                     result = await response.json();
                     
                     if (result.success) {
-                        currentOrderId = targetOrderId;
-                        showToast(`Items added to order ${targetOrderId}!`);
+                        currentOrderId = pendingOrder.order_id;
+                        showToast(`Order ${pendingOrder.order_id} updated!`);
                         
-                        // Clear the adding state
-                        cancelAddToOrder();
-                        
-                        // Clear cart and show order
+                        // Clear cart
                         cartItems = [];
                         updateCart();
+                        hideReturningCustomerBanner();
+                        existingCustomerOrders = [];
                         
                         // Show updated order details
-                        showViewOrderDetails(targetOrderId);
+                        showViewOrderDetails(pendingOrder.order_id);
                     } else {
-                        showToast(result.error || 'Failed to add items');
+                        showToast(result.error || 'Failed to update order');
                     }
                 } else {
-                    // Creating new order
+                    // Create new order
+                    btn.textContent = 'Submitting...';
                     response = await fetch('/api/submit-order', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -1910,12 +1911,13 @@
                         <div style="margin-bottom: 1rem;">
                             <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 0.75rem; text-align: center;">Choose your payment method:</p>
                             <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center;">
-                                <a href="https://drive.google.com/file/d/1NuuuTlov7ztm3igEvNr35TCM8wEFsn5w/GCASHQR_Dee.JPG" target="_blank" class="payment-qr-btn">GCash</a>
-                                <a href="https://drive.google.com/file/d/1NuuuTlov7ztm3igEvNr35TCM8wEFsn5w/MAYAQR_Dee.JPG" target="_blank" class="payment-qr-btn">Maya</a>
-                                <a href="https://drive.google.com/file/d/1NuuuTlov7ztm3igEvNr35TCM8wEFsn5w/BPIQR_Dee.PNG" target="_blank" class="payment-qr-btn">BPI</a>
-                                <a href="https://drive.google.com/file/d/1NuuuTlov7ztm3igEvNr35TCM8wEFsn5w/UBQR_Dee.JPG" target="_blank" class="payment-qr-btn">UnionBank</a>
-                                <a href="https://drive.google.com/file/d/1NuuuTlov7ztm3igEvNr35TCM8wEFsn5w/CIMBQR_Dee.JPG" target="_blank" class="payment-qr-btn">CIMB</a>
-                                <a href="https://drive.google.com/drive/folders/1NuuuTlov7ztm3igEvNr35TCM8wEFsn5w" target="_blank" class="payment-qr-btn" style="background: var(--accent-gold); border-color: var(--accent-gold);">📁 All QR Codes</a>
+                                <a href="https://drive.google.com/file/d/1jhlG1vlTarnNxvji__QtzwrtIGhlNa6f/view?usp=sharing" target="_blank" class="payment-qr-btn">GCash</a>
+                                <a href="https://drive.google.com/file/d/1RF4q3tZhzohS_Ic3-WdA83xpWgYLU1WY/view?usp=drive_link" target="_blank" class="payment-qr-btn">Maya</a>
+                                <a href="https://drive.google.com/file/d/1jhlG1vlTarnNxvji__QtzwrtIGhlNa6f/view?usp=sharing" target="_blank" class="payment-qr-btn">BPI</a>
+                                <a href="https://drive.google.com/file/d/1jhlG1vlTarnNxvji__QtzwrtIGhlNa6f/view?usp=sharing" target="_blank" class="payment-qr-btn">UnionBank</a>
+                                <a href="https://drive.google.com/file/d/1jhlG1vlTarnNxvji__QtzwrtIGhlNa6f/view?usp=sharing" target="_blank" class="payment-qr-btn">CIMB</a>
+                                <a href="https://drive.google.com/file/d/1jhlG1vlTarnNxvji__QtzwrtIGhlNa6f/view?usp=sharing" target="_blank" class="payment-qr-btn">Maribank</a>
+                                <a href="https://drive.google.com/file/d/1jhlG1vlTarnNxvji__QtzwrtIGhlNa6f/view?usp=sharing" target="_blank" class="payment-qr-btn">GoTyme</a>
                             </div>
                         </div>
                         
@@ -1947,7 +1949,6 @@
                 if (canEdit) {
                     footer.innerHTML = `
                         <button class="btn btn-rose" onclick="cancelOrder('${order.order_id}')">Cancel Order</button>
-                        <button class="btn btn-primary" onclick="addToExistingOrder('${order.order_id}')">➕ Add to Order</button>
                         <button class="btn btn-secondary" onclick="closeModal('order-details-modal')">Close</button>
                     `;
                 } else {
