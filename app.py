@@ -375,7 +375,7 @@ def update_order_status(order_id, status=None, locked=None, payment_status=None,
         return False
 
 def add_items_to_order(order_id, new_items, exchange_rate):
-    """Add items to an existing order"""
+    """Add items to an existing order - consolidates duplicate product codes"""
     if not sheets_client:
         return False
     
@@ -383,39 +383,83 @@ def add_items_to_order(order_id, new_items, exchange_rate):
         spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
         worksheet = spreadsheet.worksheet('PepHaul Entry')
         
-        # Get next row
+        # Get all existing data
         all_values = worksheet.get_all_values()
-        next_row = len(all_values) + 1
+        headers = all_values[0] if all_values else []
         
-        # Add new items
-        rows_to_add = []
+        # Find column indices
+        col_indices = {
+            'order_id': headers.index('Order ID') if 'Order ID' in headers else 0,
+            'product_code': headers.index('Product Code') if 'Product Code' in headers else 5,
+            'order_type': headers.index('Order Type') if 'Order Type' in headers else 7,
+            'qty': headers.index('QTY') if 'QTY' in headers else 8,
+            'unit_price': headers.index('Unit Price USD') if 'Unit Price USD' in headers else 9,
+            'line_total_usd': headers.index('Line Total USD') if 'Line Total USD' in headers else 10,
+            'line_total_php': headers.index('Line Total PHP') if 'Line Total PHP' in headers else 12,
+        }
+        
+        # Find existing items for this order
+        existing_items = {}  # key: (product_code, order_type) -> row_number
+        for row_num, row in enumerate(all_values[1:], start=2):  # Skip header, 1-indexed for sheets
+            if len(row) > col_indices['order_id'] and row[col_indices['order_id']] == order_id:
+                product_code = row[col_indices['product_code']] if len(row) > col_indices['product_code'] else ''
+                order_type = row[col_indices['order_type']] if len(row) > col_indices['order_type'] else ''
+                if product_code:
+                    existing_items[(product_code, order_type)] = row_num
+        
+        items_to_add = []
+        
         for item in new_items:
-            row = [
-                '',  # Order ID already exists
-                '',
-                '',
-                '',
-                '',
-                item['product_code'],
-                item.get('product_name', ''),
-                item['order_type'],
-                item['qty'],
-                item.get('unit_price_usd', 0),
-                item.get('line_total_usd', 0),
-                exchange_rate,
-                item.get('line_total_php', 0),
-                '',
-                '',
-                'Pending',
-                'No',
-                'Unpaid',
-                '',
-                '',
-                f'Added to {order_id}'
-            ]
-            rows_to_add.append(row)
+            key = (item['product_code'], item['order_type'])
+            
+            if key in existing_items:
+                # Consolidate: Update existing row by adding quantity
+                row_num = existing_items[key]
+                current_row = all_values[row_num - 1]  # 0-indexed for array
+                current_qty = int(current_row[col_indices['qty']] or 0)
+                new_qty = current_qty + item['qty']
+                unit_price = float(item.get('unit_price_usd', 0))
+                new_line_total_usd = unit_price * new_qty
+                new_line_total_php = new_line_total_usd * exchange_rate
+                
+                # Update qty and totals
+                worksheet.update_cell(row_num, col_indices['qty'] + 1, new_qty)
+                worksheet.update_cell(row_num, col_indices['line_total_usd'] + 1, new_line_total_usd)
+                worksheet.update_cell(row_num, col_indices['line_total_php'] + 1, new_line_total_php)
+            else:
+                # New item - add to list
+                items_to_add.append(item)
         
-        if rows_to_add:
+        # Add any truly new items
+        if items_to_add:
+            next_row = len(all_values) + 1
+            rows_to_add = []
+            for item in items_to_add:
+                row = [
+                    '',  # Order ID already exists in first row
+                    '',
+                    '',
+                    '',
+                    '',
+                    item['product_code'],
+                    item.get('product_name', ''),
+                    item['order_type'],
+                    item['qty'],
+                    item.get('unit_price_usd', 0),
+                    item.get('line_total_usd', 0),
+                    exchange_rate,
+                    item.get('line_total_php', 0),
+                    '',
+                    '',
+                    'Pending',
+                    'No',
+                    'Unpaid',
+                    '',
+                    '',
+                    f'Added to {order_id}'
+                ]
+                rows_to_add.append(row)
+            
             end_row = next_row + len(rows_to_add) - 1
             worksheet.update(f'A{next_row}:U{end_row}', rows_to_add)
         
@@ -1073,7 +1117,7 @@ def api_add_items(order_id):
 
 @app.route('/api/orders/<order_id>/cancel', methods=['POST'])
 def api_cancel_order(order_id):
-    """Cancel an order"""
+    """Cancel an order and wipe quantities to reset inventory"""
     order = get_order_by_id(order_id)
     if not order:
         return jsonify({'error': 'Order not found'}), 404
@@ -1081,10 +1125,72 @@ def api_cancel_order(order_id):
     if order['locked']:
         return jsonify({'error': 'Order is locked'}), 403
     
-    if update_order_status(order_id, status='Cancelled'):
-        return jsonify({'success': True})
+    # Wipe quantities for this order to reset inventory
+    if wipe_order_quantities(order_id):
+        if update_order_status(order_id, status='Cancelled'):
+            return jsonify({'success': True})
     
     return jsonify({'error': 'Failed to cancel order'}), 500
+
+def wipe_order_quantities(order_id):
+    """Set all quantities to 0 for a cancelled order to reset inventory"""
+    if not sheets_client:
+        return False
+    
+    try:
+        spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
+        worksheet = spreadsheet.worksheet('PepHaul Entry')
+        
+        # Get all data
+        all_values = worksheet.get_all_values()
+        headers = all_values[0] if all_values else []
+        
+        # Find column indices
+        col_order_id = headers.index('Order ID') if 'Order ID' in headers else 0
+        col_qty = headers.index('QTY') if 'QTY' in headers else 8
+        col_line_total_usd = headers.index('Line Total USD') if 'Line Total USD' in headers else 10
+        col_line_total_php = headers.index('Line Total PHP') if 'Line Total PHP' in headers else 12
+        col_admin_fee = headers.index('Admin Fee PHP') if 'Admin Fee PHP' in headers else 13
+        col_grand_total = headers.index('Grand Total PHP') if 'Grand Total PHP' in headers else 14
+        
+        # Find all rows belonging to this order
+        order_rows = []
+        for row_num, row in enumerate(all_values[1:], start=2):  # Skip header
+            if len(row) > col_order_id:
+                # Check if this row belongs to the order (first row has order_id, subsequent have empty)
+                if row[col_order_id] == order_id:
+                    order_rows.append(row_num)
+                elif order_rows and not row[col_order_id]:
+                    # Continue adding rows if they're part of the same order (empty Order ID means continuation)
+                    # Check if product code exists
+                    if len(row) > 5 and row[5]:  # Product Code column
+                        order_rows.append(row_num)
+                elif order_rows and row[col_order_id]:
+                    # New order started, stop
+                    break
+        
+        # Also find rows by searching for order_id anywhere in first column (for added items)
+        cells = worksheet.findall(order_id)
+        for cell in cells:
+            if cell.row not in order_rows:
+                order_rows.append(cell.row)
+        
+        # Wipe quantities and totals for all order rows
+        for row_num in order_rows:
+            worksheet.update_cell(row_num, col_qty + 1, 0)  # QTY = 0
+            worksheet.update_cell(row_num, col_line_total_usd + 1, 0)  # Line Total USD = 0
+            worksheet.update_cell(row_num, col_line_total_php + 1, 0)  # Line Total PHP = 0
+        
+        # Wipe grand total on first row
+        if order_rows:
+            first_row = min(order_rows)
+            worksheet.update_cell(first_row, col_admin_fee + 1, 0)
+            worksheet.update_cell(first_row, col_grand_total + 1, 0)
+        
+        return True
+    except Exception as e:
+        print(f"Error wiping order quantities: {e}")
+        return False
 
 @app.route('/api/orders/<order_id>/lock', methods=['POST'])
 def api_lock_order(order_id):

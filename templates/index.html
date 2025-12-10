@@ -344,6 +344,108 @@
         .upload-area.has-file { border-color: var(--accent-emerald); background: rgba(16, 185, 129, 0.1); }
         .upload-preview { max-width: 200px; max-height: 150px; margin-top: 1rem; border-radius: 8px; }
 
+        /* Inventory Reference Section */
+        .inventory-section {
+            margin-top: 2rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border);
+        }
+        .inventory-section h3 {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .inventory-table {
+            width: 100%;
+            font-size: 0.85rem;
+            border-collapse: collapse;
+            background: var(--bg-input);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        .inventory-table th,
+        .inventory-table td {
+            padding: 0.75rem;
+            text-align: left;
+        }
+        .inventory-table th {
+            background: var(--bg-card);
+            color: var(--text-muted);
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+        .inventory-table tbody tr {
+            border-bottom: 1px solid var(--border);
+        }
+        .inventory-table tbody tr:last-child {
+            border-bottom: none;
+        }
+        .inventory-table tbody tr:hover {
+            background: rgba(168, 85, 247, 0.05);
+        }
+        .inv-product-code {
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--accent-teal);
+            font-weight: 500;
+        }
+        .inv-kits-badge {
+            font-family: 'JetBrains Mono', monospace;
+            padding: 0.25rem 0.5rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            background: rgba(168, 85, 247, 0.15);
+            color: var(--accent-purple);
+        }
+        .inv-lock-badge {
+            padding: 0.2rem 0.5rem;
+            border-radius: 10px;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+        .inv-lock-badge.open {
+            background: rgba(16, 185, 129, 0.15);
+            color: #10b981;
+        }
+        .inv-lock-badge.locked {
+            background: rgba(244, 63, 94, 0.15);
+            color: #f43f5e;
+        }
+        .inventory-search {
+            margin-bottom: 1rem;
+        }
+        .inventory-search input {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: var(--text-primary);
+            font-size: 0.9rem;
+        }
+        .inventory-scroll {
+            max-height: 350px;
+            overflow-y: auto;
+        }
+        .inv-progress-bar {
+            width: 60px;
+            height: 6px;
+            background: var(--border);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .inv-progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent-purple), var(--accent-pink));
+            border-radius: 3px;
+            transition: width 0.3s ease;
+        }
+
         /* Orders List */
         .orders-section { margin-top: 2rem; }
         .orders-search { margin-bottom: 1rem; }
@@ -635,6 +737,51 @@
                     {% else %}
                     <button type="button" class="btn btn-violet btn-full" style="margin-top: 1.5rem;" id="submit-order" disabled>Submit Order</button>
                     {% endif %}
+
+                    <!-- Live Inventory Reference -->
+                    <div class="inventory-section">
+                        <h3>📊 Live Product Inventory</h3>
+                        <div class="inventory-search">
+                            <input type="text" id="inventory-search" placeholder="Search products...">
+                        </div>
+                        <div class="inventory-scroll">
+                            <table class="inventory-table">
+                                <thead>
+                                    <tr>
+                                        <th>Product</th>
+                                        <th>Code</th>
+                                        <th>Kits</th>
+                                        <th>Total Vials</th>
+                                        <th>Progress</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="inventory-tbody">
+                                    {% for product in products %}
+                                    <tr data-code="{{ product.code }}" data-name="{{ product.name|lower }}">
+                                        <td style="max-width: 180px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{{ product.name }}">{{ product.name }}</td>
+                                        <td><span class="inv-product-code">{{ product.code }}</span></td>
+                                        <td><span class="inv-kits-badge">{{ product.inventory.kits_generated }}</span></td>
+                                        <td>{{ product.inventory.total_vials }}</td>
+                                        <td>
+                                            <div class="inv-progress-bar">
+                                                <div class="inv-progress-fill" style="width: {{ (product.inventory.remaining_vials / product.vials_per_kit * 100)|int if product.vials_per_kit > 0 else 0 }}%;"></div>
+                                            </div>
+                                            <span style="font-size: 0.7rem; color: var(--text-muted);">{{ product.inventory.remaining_vials }}/{{ product.vials_per_kit }}</span>
+                                        </td>
+                                        <td>
+                                            {% if product.inventory.is_locked %}
+                                            <span class="inv-lock-badge locked">🔒 Locked</span>
+                                            {% else %}
+                                            <span class="inv-lock-badge open">Open</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1193,6 +1340,17 @@
                 showToast('Error cancelling order');
             }
         }
+
+        // Inventory Search
+        document.getElementById('inventory-search').addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase();
+            document.querySelectorAll('#inventory-tbody tr').forEach(row => {
+                const code = row.dataset.code.toLowerCase();
+                const name = row.dataset.name;
+                const visible = code.includes(query) || name.includes(query);
+                row.style.display = visible ? '' : 'none';
+            });
+        });
 
         // Modals
         function closeModal(id) {
