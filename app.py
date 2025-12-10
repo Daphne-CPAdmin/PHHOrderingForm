@@ -515,6 +515,7 @@ def recalculate_order_total(order_id):
 def upload_to_drive(file_data, filename, order_id):
     """Upload payment screenshot to Google Drive"""
     if not drive_service:
+        print("Drive service not initialized - check GOOGLE_CREDENTIALS_JSON env variable")
         return None
     
     try:
@@ -524,35 +525,64 @@ def upload_to_drive(file_data, filename, order_id):
         # Folder: https://drive.google.com/drive/folders/1HOt6b11IWp9CIazujHJMkbyCxQSrwFgg
         folder_id = os.getenv('PAYMENT_DRIVE_FOLDER_ID', '1HOt6b11IWp9CIazujHJMkbyCxQSrwFgg')
         
-        # Upload file
-        file_metadata = {
-            'name': f'{order_id}_{filename}',
-            'parents': [folder_id]
-        }
+        print(f"Uploading to folder: {folder_id}")
         
         # Decode base64 if needed
         if ',' in file_data:
             file_data = file_data.split(',')[1]
         
         file_bytes = base64.b64decode(file_data)
-        media = MediaInMemoryUpload(file_bytes, mimetype='image/jpeg')
+        
+        # Detect mime type from data
+        mime_type = 'image/jpeg'
+        if file_data.startswith('/9j/'):
+            mime_type = 'image/jpeg'
+        elif file_data.startswith('iVBOR'):
+            mime_type = 'image/png'
+        elif file_data.startswith('R0lGO'):
+            mime_type = 'image/gif'
+        
+        # Generate unique filename with timestamp
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        safe_filename = f'{order_id}_payment_{timestamp}.jpg'
+        
+        # Upload file
+        file_metadata = {
+            'name': safe_filename,
+            'parents': [folder_id]
+        }
+        
+        media = MediaInMemoryUpload(file_bytes, mimetype=mime_type, resumable=True)
+        
+        print(f"Creating file: {safe_filename}")
         
         file = drive_service.files().create(
             body=file_metadata,
             media_body=media,
-            fields='id,webViewLink'
+            fields='id,webViewLink',
+            supportsAllDrives=True
         ).execute()
         
-        # Make file viewable
-        drive_service.permissions().create(
-            fileId=file['id'],
-            body={'type': 'anyone', 'role': 'reader'}
-        ).execute()
+        print(f"File created with ID: {file.get('id')}")
         
-        return file.get('webViewLink', '')
+        # Make file viewable by anyone with link
+        try:
+            drive_service.permissions().create(
+                fileId=file['id'],
+                body={'type': 'anyone', 'role': 'reader'},
+                supportsAllDrives=True
+            ).execute()
+            print("Permissions set successfully")
+        except Exception as perm_error:
+            print(f"Warning: Could not set permissions: {perm_error}")
+        
+        return file.get('webViewLink', f"https://drive.google.com/file/d/{file['id']}/view")
         
     except Exception as e:
         print(f"Error uploading to Drive: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
         return None
 
 def get_inventory_stats():
