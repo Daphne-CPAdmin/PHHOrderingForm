@@ -2107,15 +2107,41 @@ def telegram_webhook():
         username = message.get('from', {}).get('username', '')
         first_name = message.get('from', {}).get('first_name', '')
         
+        # Check if this is the admin (@dee_jay)
+        is_admin = username.lower() == 'dee_jay'
+        
         if text.startswith('/start'):
             # Register customer for notifications
             if username:
                 telegram_customers[username.lower()] = chat_id
                 telegram_customers[f"@{username.lower()}"] = chat_id
                 print(f"Registered Telegram customer: @{username} -> {chat_id}")
+                
+                # If admin, also set as admin chat ID
+                if is_admin:
+                    # Store admin chat ID in environment (for current session)
+                    global TELEGRAM_ADMIN_CHAT_ID
+                    TELEGRAM_ADMIN_CHAT_ID = str(chat_id)
+                    print(f"✅ GB Admin registered: @{username} (chat_id: {chat_id})")
             
             # Send welcome message
-            welcome_msg = f"""🎉 <b>Welcome to PepHaul Bot, {first_name}!</b>
+            if is_admin:
+                welcome_msg = f"""🎉 <b>Welcome GB Admin, {first_name}!</b> 👑
+
+You're now registered as the <b>PepHaul Admin</b>.
+
+You'll receive notifications for:
+• 📦 New orders
+• 💸 Payment status updates
+• ⏳ Orders waiting for confirmation
+
+<i>Your Telegram: @{username}</i>
+
+Admin panel: https://pephaul-order-form.onrender.com/admin
+
+Ready to manage orders! 💜✨"""
+            else:
+                welcome_msg = f"""🎉 <b>Welcome to PepHaul Bot, {first_name}!</b>
 
 You're now registered to receive order notifications!
 
