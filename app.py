@@ -411,7 +411,7 @@ def get_order_by_id(order_id):
     
     # Reconstruct order
     first_item = order_items[0]
-        order = {
+    order = {
         'order_id': order_id,
         'order_date': first_item.get('Order Date', ''),
         'full_name': first_item.get('Name', first_item.get('Full Name', '')),
