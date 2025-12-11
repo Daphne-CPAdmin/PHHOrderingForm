@@ -2247,10 +2247,27 @@ def api_admin_confirm_payment(order_id):
         return jsonify({'error': 'Unauthorized'}), 401
     
     if update_order_status(order_id, payment_status='Paid'):
-        # Get order details for customer notification
+        # Get order details for notifications
         order = get_order_by_id(order_id)
         if order:
-            # Send notification to customer via Telegram
+            items_text = '\n'.join([f"• {item['product_name']} ({item['order_type']} x{item['qty']})" for item in order.get('items', [])])
+            
+            # Notify GB Admin via Telegram
+            admin_msg = f"""✅ <b>Payment Confirmed!</b>
+
+<b>Order ID:</b> {order_id}
+<b>Customer:</b> {order.get('full_name', '')}
+<b>Telegram:</b> @{order.get('telegram', 'N/A').replace('@', '')}
+
+<b>Items:</b>
+{items_text}
+
+<b>Grand Total:</b> ₱{order.get('grand_total_php', 0):,.2f}
+
+Payment has been confirmed and order is ready for fulfillment."""
+            send_telegram_notification(admin_msg)
+            
+            # Try to notify customer via Telegram
             telegram_handle = order.get('telegram', '').strip().lower()
             if telegram_handle:
                 if telegram_handle.startswith('@'):
@@ -2259,8 +2276,6 @@ def api_admin_confirm_payment(order_id):
                 chat_id = telegram_customers.get(telegram_handle) or telegram_customers.get(f"@{telegram_handle}")
                 
                 if chat_id:
-                    items_text = '\n'.join([f"• {item['product_name']} ({item['order_type']} x{item['qty']})" for item in order.get('items', [])])
-                    
                     customer_msg = f"""✅ <b>Payment Confirmed!</b> ✅
 
 <b>Order ID:</b> {order_id}
@@ -2271,14 +2286,14 @@ def api_admin_confirm_payment(order_id):
 
 <b>Grand Total:</b> ₱{order.get('grand_total_php', 0):,.2f}
 
-🎉 Your payment has been confirmed by admin! Your order is now being processed.
+🎉 Your payment has been confirmed! Your order is now being processed.
 
 Thank you for your order! 💜"""
                     
                     send_customer_telegram(chat_id, customer_msg)
                     print(f"✅ Payment confirmation sent to customer @{telegram_handle}")
                 else:
-                    print(f"⚠️ Customer @{telegram_handle} not registered for Telegram notifications")
+                    print(f"⚠️ Customer @{telegram_handle} hasn't messaged @{TELEGRAM_BOT_USERNAME} yet")
         
         return jsonify({'success': True})
     return jsonify({'error': 'Failed to confirm payment'}), 500
@@ -2369,8 +2384,8 @@ def api_admin_send_reminder(order_id):
     
     if not chat_id:
         return jsonify({
-            'error': f'Cannot send message to @{telegram_handle}',
-            'message': f'Customer needs to message the bot @{TELEGRAM_BOT_USERNAME} first'
+            'error': f'Cannot send reminder to @{telegram_handle}',
+            'message': f'Customer needs to message @{TELEGRAM_BOT_USERNAME} on Telegram first.\n\nOnce they send any message to the bot, you can send reminders.'
         }), 400
     
     # Create reminder message

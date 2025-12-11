@@ -1792,17 +1792,18 @@
                         <p style="font-size: 0.85rem; color: var(--accent-primary); text-align: center; margin-top: 0.5rem;">Thank you! 💕🥰</p>
                     </div>
                     
-                    <!-- Upload Payment -->
-                    <div class="upload-area" id="upload-area" onclick="document.getElementById('payment-file').click()">
-                        <div>📸 Click to upload payment screenshot</div>
-                        <img id="upload-preview" class="upload-preview" style="display: none;">
+                    <!-- Payment Instructions -->
+                    <div style="text-align: center; padding: 1.5rem; background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(20, 184, 166, 0.1)); border-radius: 12px;">
+                        <p style="font-size: 1rem; font-weight: 600; color: var(--accent-emerald); margin-bottom: 0.5rem;">📱 To complete your order:</p>
+                        <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 0.75rem;">View your order details to mark payment as sent</p>
+                        <button class="btn btn-primary" onclick="switchView('view-my-orders'); loadOrders(); closeModal('order-modal');">
+                            View My Orders
+                        </button>
                     </div>
-                    <input type="file" id="payment-file" accept="image/*" style="display: none;" onchange="handleFileSelect(event)">
                 </div>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeModal('order-modal')">Close</button>
-                <button class="btn btn-primary" id="upload-payment-btn" onclick="uploadPayment()" disabled>📤 Upload Payment</button>
             </div>
         </div>
     </div>
@@ -2322,56 +2323,7 @@
             document.getElementById('order-modal').classList.add('show');
         }
 
-        // Payment Upload
-        function handleFileSelect(event) {
-            const file = event.target.files[0];
-            if (file) {
-                paymentFile = file;
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    document.getElementById('upload-preview').src = e.target.result;
-                    document.getElementById('upload-preview').style.display = 'block';
-                    document.getElementById('upload-area').classList.add('has-file');
-                    document.getElementById('upload-payment-btn').disabled = false;
-                };
-                reader.readAsDataURL(file);
-            }
-        }
-
-        async function uploadPayment() {
-            if (!paymentFile || !currentOrderId) return;
-            
-            const btn = document.getElementById('upload-payment-btn');
-            btn.disabled = true;
-            btn.textContent = 'Uploading...';
-            
-            const reader = new FileReader();
-            reader.onload = async (e) => {
-                try {
-                    const response = await fetch(`/api/orders/${currentOrderId}/payment`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ screenshot: e.target.result })
-                    });
-                    
-                    const result = await response.json();
-                    if (result.success) {
-                        showToast('Payment uploaded successfully! 🎉');
-                        closeModal('order-modal');
-                    } else {
-                        console.error('Upload failed:', result);
-                        showToast(result.error || 'Upload failed - please try again');
-                    }
-                } catch (error) {
-                    console.error('Upload error:', error);
-                    showToast('Network error - please try again');
-                } finally {
-                    btn.disabled = false;
-                    btn.textContent = 'Upload Payment';
-                }
-            };
-            reader.readAsDataURL(paymentFile);
-        }
+        // Payment Upload removed - customers now use "Payment Sent" button from order details
 
         // Load Orders
         async function loadOrders() {
@@ -2608,119 +2560,7 @@
             }
         }
 
-        // Handle payment file upload from order details
-        function handleOrderPaymentFile(event, orderId) {
-            const file = event.target.files[0];
-            if (!file) return;
-            
-            const previewDiv = document.getElementById(`order-payment-preview-${orderId}`);
-            
-            // Show preview
-            const reader = new FileReader();
-            reader.onload = async (e) => {
-                previewDiv.innerHTML = `
-                    <img src="${e.target.result}" style="max-width: 200px; max-height: 150px; border-radius: 8px; margin-bottom: 0.75rem;">
-                    <br>
-                    <button class="btn btn-violet" onclick="uploadOrderPayment('${orderId}')" id="upload-btn-${orderId}">
-                        ⬆️ Confirm & Upload
-                    </button>
-                `;
-                
-                // Store file data for upload
-                previewDiv.dataset.fileData = e.target.result;
-                previewDiv.dataset.fileName = file.name;
-            };
-            reader.readAsDataURL(file);
-        }
-        
-        async function uploadOrderPayment(orderId) {
-            const previewDiv = document.getElementById(`order-payment-preview-${orderId}`);
-            const fileData = previewDiv.dataset.fileData;
-            const fileName = previewDiv.dataset.fileName;
-            
-            if (!fileData) {
-                showToast('No file selected');
-                return;
-            }
-            
-            const btn = document.getElementById(`upload-btn-${orderId}`);
-            btn.disabled = true;
-            btn.textContent = 'Uploading...';
-            
-            try {
-                const response = await fetch('/api/upload-payment', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        order_id: orderId,
-                        file_data: fileData,
-                        file_name: fileName
-                    })
-                });
-                
-                const result = await response.json();
-                
-                if (result.success) {
-                    showToast('Payment screenshot uploaded! 🎉');
-                    // Refresh the order view
-                    viewOrder(orderId);
-                } else {
-                    console.error('Upload failed:', result);
-                    showToast(result.error || 'Upload failed - please try again');
-                    btn.disabled = false;
-                    btn.textContent = '⬆️ Confirm & Upload';
-                }
-            } catch (error) {
-                console.error('Upload error:', error);
-                showToast('Network error - please try again');
-                btn.disabled = false;
-                btn.textContent = '⬆️ Confirm & Upload';
-            }
-        }
-
-        // Submit payment link (Google Drive / Imgur)
-        async function submitPaymentLink(orderId) {
-            const linkInput = document.getElementById(`order-payment-link-${orderId}`);
-            const link = linkInput.value.trim();
-            
-            if (!link) {
-                showToast('Please paste a link');
-                return;
-            }
-            
-            // Validate URL format
-            try {
-                new URL(link);
-            } catch (e) {
-                showToast('Please enter a valid URL');
-                return;
-            }
-            
-            linkInput.disabled = true;
-            
-            try {
-                const response = await fetch('/api/orders/' + orderId + '/payment-link', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ payment_link: link })
-                });
-                
-                const result = await response.json();
-                
-                if (result.success) {
-                    showToast('Payment link submitted! 🎉');
-                    // Refresh the order view
-                    viewOrder(orderId);
-                } else {
-                    showToast(result.error || 'Failed to submit link');
-                }
-            } catch (error) {
-                console.error('Error submitting link:', error);
-                showToast('Network error - please try again');
-            } finally {
-                linkInput.disabled = false;
-            }
-        }
+        // Payment file upload removed - customers now use "Payment Sent" button
 
         async function markPaymentSent(orderId) {
             if (!confirm('Confirm that you have sent payment to GB Admin via GCash/Maya/Bank?')) {
@@ -2903,10 +2743,6 @@
         // Modals
         function closeModal(id) {
             document.getElementById(id).classList.remove('show');
-            paymentFile = null;
-            document.getElementById('upload-preview').style.display = 'none';
-            document.getElementById('upload-area').classList.remove('has-file');
-            document.getElementById('upload-payment-btn').disabled = true;
         }
 
         // Toast
