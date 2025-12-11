@@ -1283,10 +1283,10 @@
             <div class="goal-section">
                 <div class="goal-header">
                     <span class="goal-label">🎯 Progress to Goal</span>
-                    <span class="goal-amount">${{ "%.2f"|format(order_stats.combined_total_usd) }} / $1,000</span>
+                    <span class="goal-amount">${{ "%.2f"|format(order_stats.combined_total_usd) }} / ${{ "{:,.0f}"|format(order_goal) }}</span>
                 </div>
                 <div class="goal-bar">
-                    {% set progress = (order_stats.combined_total_usd / 1000 * 100) if order_stats.combined_total_usd < 1000 else 100 %}
+                    {% set progress = (order_stats.combined_total_usd / order_goal * 100) if order_stats.combined_total_usd < order_goal else 100 %}
                     <div class="goal-fill {% if progress >= 100 %}goal-reached{% endif %}" style="width: {{ progress }}%;">
                         <span class="goal-percentage">{{ "%.0f"|format(progress) }}%</span>
                     </div>

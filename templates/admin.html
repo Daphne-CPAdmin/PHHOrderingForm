@@ -487,6 +487,35 @@
                 </div>
             </div>
 
+            <!-- Order Goal Settings -->
+            <div class="card" style="margin-bottom: 2rem; border: 2px solid var(--accent-amber);">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                    <div>
+                        <h2 style="font-size: 1.25rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                            🎯 Order Goal Settings
+                        </h2>
+                        <p style="color: var(--text-muted); font-size: 0.9rem;">
+                            Set the order goal displayed on the progress bar. The goal is in USD.
+                        </p>
+                    </div>
+                </div>
+                <div style="margin-top: 1rem; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                    <div style="flex: 1; min-width: 200px;">
+                        <label style="display: block; font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem;">Goal Amount (USD)</label>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <span style="display: flex; align-items: center; padding: 0 0.75rem; background: var(--bg-input); border: 1px solid var(--border); border-radius: 10px 0 0 10px; color: var(--text-secondary);">$</span>
+                            <input type="number" id="order-goal-amount" class="form-input" style="border-radius: 0 10px 10px 0; flex: 1;" value="1000" min="1" step="100" placeholder="1000">
+                        </div>
+                    </div>
+                    <button id="save-goal-btn" class="btn" style="padding: 0.75rem 1.5rem; background: var(--accent-amber); margin-top: 1.5rem;">
+                        💾 Save Goal
+                    </button>
+                </div>
+                <div id="goal-save-status" style="margin-top: 0.75rem; font-size: 0.85rem; color: var(--accent-emerald); display: none;">
+                    ✓ Goal saved successfully!
+                </div>
+            </div>
+
             <!-- Stats -->
             <div class="stats-grid">
                 <div class="stat-card">
@@ -620,6 +649,7 @@
                     loadProducts();
                     loadOrders();
                     loadOrderFormStatus();
+                    loadOrderGoal();
                 } else {
                     document.getElementById('login-error').textContent = 'Invalid password';
                     document.getElementById('login-error').style.display = 'block';
@@ -648,6 +678,57 @@
                 console.error('Error loading order form status:', error);
             }
         }
+
+        // Order Goal Functions
+        async function loadOrderGoal() {
+            try {
+                const response = await fetch('/api/admin/order-goal');
+                const data = await response.json();
+                document.getElementById('order-goal-amount').value = data.goal || 1000;
+            } catch (error) {
+                console.error('Error loading order goal:', error);
+            }
+        }
+
+        document.getElementById('save-goal-btn').addEventListener('click', async () => {
+            const goalAmount = parseFloat(document.getElementById('order-goal-amount').value);
+            
+            if (!goalAmount || goalAmount <= 0) {
+                alert('Please enter a valid goal amount');
+                return;
+            }
+            
+            const btn = document.getElementById('save-goal-btn');
+            btn.disabled = true;
+            btn.textContent = 'Saving...';
+            
+            try {
+                const response = await fetch('/api/admin/order-goal', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ goal: goalAmount })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    const statusEl = document.getElementById('goal-save-status');
+                    statusEl.style.display = 'block';
+                    statusEl.textContent = '✓ Goal saved successfully! ($' + goalAmount.toLocaleString() + ')';
+                    setTimeout(() => {
+                        statusEl.style.display = 'none';
+                    }, 3000);
+                } else {
+                    alert('Failed to save goal: ' + (data.error || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error saving goal:', error);
+                alert('Error saving goal');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '💾 Save Goal';
+            }
+        });
 
         function updateFormLockUI(isLocked, message) {
             const statusEl = document.getElementById('form-lock-status');

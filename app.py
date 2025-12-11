@@ -278,6 +278,69 @@ def set_order_form_lock(is_locked, message=''):
     
     return True
 
+# Order Goal Settings
+_order_goal = 1000.0  # Default goal
+
+def get_order_goal():
+    """Get order goal from Settings sheet"""
+    global _order_goal
+    
+    if sheets_client:
+        try:
+            spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
+            worksheet = spreadsheet.worksheet('Settings')
+            records = worksheet.get_all_records()
+            
+            for record in records:
+                if record.get('Setting') == 'Order Goal':
+                    try:
+                        _order_goal = float(record.get('Value', 1000))
+                    except:
+                        _order_goal = 1000.0
+                    break
+        except Exception as e:
+            print(f"Error getting order goal: {e}")
+    
+    return _order_goal
+
+def set_order_goal(goal_amount):
+    """Set order goal in Settings sheet"""
+    global _order_goal
+    _order_goal = float(goal_amount)
+    
+    if sheets_client:
+        try:
+            spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
+            
+            try:
+                worksheet = spreadsheet.worksheet('Settings')
+            except:
+                worksheet = spreadsheet.add_worksheet(title='Settings', rows=10, cols=5)
+                worksheet.update('A1:C1', [['Setting', 'Value', 'Updated']])
+            
+            # Find or create the goal setting row
+            all_values = worksheet.get_all_values()
+            goal_row = None
+            
+            for i, row in enumerate(all_values):
+                if row and row[0] == 'Order Goal':
+                    goal_row = i + 1
+                    break
+            
+            if goal_row is None:
+                goal_row = len(all_values) + 1
+                worksheet.update_cell(goal_row, 1, 'Order Goal')
+            
+            worksheet.update_cell(goal_row, 2, str(goal_amount))
+            worksheet.update_cell(goal_row, 3, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+            
+            return True
+        except Exception as e:
+            print(f"Error setting order goal: {e}")
+            return False
+    
+    return True
+
 def get_orders_from_sheets():
     """Read existing orders from PepHaul Entry tab"""
     if not sheets_client:
@@ -981,6 +1044,8 @@ def index():
         if stats.get('total_vials', 0) > 0:
             products_with_orders.append(product)
     
+    order_goal = get_order_goal()
+    
     return render_template('index.html', 
                          products=products, 
                          products_with_orders=products_with_orders,
@@ -990,7 +1055,8 @@ def index():
                          order_form_locked=order_form_lock['is_locked'],
                          order_form_lock_message=order_form_lock['message'],
                          telegram_bot_username=TELEGRAM_BOT_USERNAME,
-                         order_stats=order_stats)
+                         order_stats=order_stats,
+                         order_goal=order_goal)
 
 @app.route('/admin')
 def admin_panel():
@@ -1073,6 +1139,33 @@ def api_order_form_status():
     """Get order form lock status"""
     lock_status = get_order_form_lock()
     return jsonify(lock_status)
+
+@app.route('/api/admin/order-goal')
+def api_get_order_goal():
+    """Get order goal amount"""
+    goal = get_order_goal()
+    return jsonify({'goal': goal})
+
+@app.route('/api/admin/order-goal', methods=['POST'])
+def api_set_order_goal():
+    """Set order goal amount"""
+    if not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    data = request.json
+    goal = data.get('goal', 1000)
+    
+    try:
+        goal = float(goal)
+        if goal <= 0:
+            return jsonify({'error': 'Goal must be positive'}), 400
+    except:
+        return jsonify({'error': 'Invalid goal amount'}), 400
+    
+    if set_order_goal(goal):
+        return jsonify({'success': True, 'goal': goal})
+    
+    return jsonify({'error': 'Failed to update goal'}), 500
 
 @app.route('/api/exchange-rate')
 def api_exchange_rate():
