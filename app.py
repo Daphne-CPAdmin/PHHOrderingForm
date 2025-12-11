@@ -495,6 +495,8 @@ def save_order_to_sheets(order_data, order_id=None):
         
         # Clear cache since orders changed
         clear_cache('orders')
+        clear_cache('inventory')
+        clear_cache('order_stats')
         
         return order_id
         
@@ -528,6 +530,8 @@ def update_order_status(order_id, status=None, locked=None, payment_status=None,
         
         # Clear cache since orders changed
         clear_cache('orders')
+        clear_cache('inventory')
+        clear_cache('order_stats')
         
         return True
     except Exception as e:
@@ -637,6 +641,8 @@ def add_items_to_order(order_id, new_items, exchange_rate):
         
         # Clear cache since orders changed
         clear_cache('orders')
+        clear_cache('inventory')
+        clear_cache('order_stats')
         
         # Recalculate totals
         recalculate_order_total(order_id)
@@ -792,8 +798,8 @@ def upload_to_drive(file_data, filename, order_id):
     print("❌ All upload methods failed")
     return None
 
-def get_inventory_stats():
-    """Calculate inventory statistics with product-specific vials per kit"""
+def _fetch_inventory_stats():
+    """Internal function to fetch and calculate inventory statistics"""
     orders = get_orders_from_sheets()
     product_stats = defaultdict(lambda: {'total_vials': 0, 'kit_orders': 0, 'vial_orders': 0})
     
@@ -846,6 +852,10 @@ def get_inventory_stats():
         }
     
     return inventory
+
+def get_inventory_stats():
+    """Get inventory statistics with caching"""
+    return get_cached('inventory', _fetch_inventory_stats, cache_duration=60)
 
 def get_products():
     """Get complete product list with vials per kit"""
@@ -1084,8 +1094,8 @@ def get_exchange_rate():
         pass
     return FALLBACK_EXCHANGE_RATE
 
-def get_consolidated_order_stats():
-    """Calculate consolidated order stats - total kits USD and total vials USD"""
+def _fetch_consolidated_order_stats():
+    """Internal function to calculate consolidated order stats"""
     orders = get_orders_from_sheets()
     products = get_products()
     product_prices = {p['code']: {'kit_price': p['kit_price'], 'vial_price': p['vial_price']} for p in products}
@@ -1118,6 +1128,10 @@ def get_consolidated_order_stats():
         'total_vials_count': total_vials_count,
         'combined_total_usd': total_kits_usd + total_vials_usd
     }
+
+def get_consolidated_order_stats():
+    """Get consolidated order stats with caching"""
+    return get_cached('order_stats', _fetch_consolidated_order_stats, cache_duration=60)
 
 # Routes
 @app.route('/')
@@ -1659,6 +1673,8 @@ def update_item_quantity(order_id, product_code, order_type, new_qty):
         
         # Clear cache since orders changed
         clear_cache('orders')
+        clear_cache('inventory')
+        clear_cache('order_stats')
         
         print(f"Updated {product_code} qty to {new_qty} for order {order_id}")
         return True
@@ -1741,6 +1757,8 @@ def wipe_order_quantities(order_id):
         
         # Clear cache since orders changed
         clear_cache('orders')
+        clear_cache('inventory')
+        clear_cache('order_stats')
         
         return True
     except Exception as e:
@@ -1970,6 +1988,8 @@ def api_save_mailing_address(order_id):
         
         # Clear cache since orders changed
         clear_cache('orders')
+        clear_cache('inventory')
+        clear_cache('order_stats')
         
         # Send notification to admin
         order = get_order_by_id(order_id)
