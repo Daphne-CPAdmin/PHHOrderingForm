@@ -648,7 +648,7 @@
             background: var(--bg-card);
             border: 1px solid var(--border);
             border-radius: 10px;
-            max-height: 350px;
+            max-height: 420px;
             overflow-y: auto;
             z-index: 100;
             display: none;
@@ -1175,33 +1175,49 @@
         .qty-btn:hover { border-color: var(--accent-teal); color: var(--accent-teal); }
         .qty-input { width: 80px; text-align: center; font-family: 'JetBrains Mono', monospace; font-weight: 600; }
 
-        /* Quantity Selector for Inventory Cards */
-        .qty-selector {
+        /* Quantity Control for Inventory Cards */
+        .inv-qty-control {
             display: flex;
-            gap: 0.25rem;
-            flex-wrap: wrap;
+            align-items: center;
             justify-content: center;
+            gap: 0.5rem;
         }
-        .qty-selector .qty-btn {
-            width: 24px;
-            height: 24px;
-            font-size: 0.7rem;
+        .inv-qty-btn {
+            width: 28px;
+            height: 28px;
+            font-size: 1rem;
             font-weight: 600;
             padding: 0;
             display: flex;
             align-items: center;
             justify-content: center;
+            border: 1px solid var(--border);
+            background: var(--bg-input);
+            color: var(--text-primary);
+            border-radius: 8px;
+            cursor: pointer;
             transition: all 0.2s ease;
         }
-        .qty-selector .qty-btn:hover {
-            background: linear-gradient(135deg, #ec4899, #8b5cf6);
-            color: white;
-            transform: scale(1.1);
-        }
-        .qty-selector .qty-btn.selected {
+        .inv-qty-btn:hover {
             background: linear-gradient(135deg, #ec4899, #8b5cf6);
             color: white;
             border-color: #ec4899;
+        }
+        .inv-qty-btn:active {
+            transform: scale(0.95);
+        }
+        .inv-qty-input {
+            width: 45px;
+            height: 28px;
+            text-align: center;
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 600;
+            font-size: 0.9rem;
+            border: 1px solid var(--border);
+            background: var(--bg-primary);
+            color: var(--accent-primary);
+            border-radius: 8px;
+            padding: 0;
         }
 
         /* Click to Add Button */
@@ -1599,19 +1615,19 @@
                         <div class="inv-stat">
                             <span class="inv-stat-value">{{ product.inventory.kits_generated }}</span>
                             <span class="inv-stat-label">KITS</span>
-                            <div class="qty-selector" style="margin-top: 0.5rem;">
-                                {% for i in range(1, 10) %}
-                                <button class="qty-btn" onclick="selectQty('{{ product.code }}', 'Kit', {{ i }})">{{ i }}</button>
-                                {% endfor %}
+                            <div class="inv-qty-control" style="margin-top: 0.5rem;">
+                                <button class="inv-qty-btn" onclick="adjustInvQty('{{ product.code }}', 'Kit', -1)">−</button>
+                                <input type="number" class="inv-qty-input" id="inv-kit-qty-{{ product.code }}" value="0" min="0" max="5" readonly>
+                                <button class="inv-qty-btn" onclick="adjustInvQty('{{ product.code }}', 'Kit', 1)">+</button>
                             </div>
                         </div>
                         <div class="inv-stat">
                             <span class="inv-stat-value">{{ product.inventory.total_vials }}</span>
                             <span class="inv-stat-label">VIALS</span>
-                            <div class="qty-selector" style="margin-top: 0.5rem;">
-                                {% for i in range(1, 10) %}
-                                <button class="qty-btn" onclick="selectQty('{{ product.code }}', 'Vial', {{ i }})">{{ i }}</button>
-                                {% endfor %}
+                            <div class="inv-qty-control" style="margin-top: 0.5rem;">
+                                <button class="inv-qty-btn" onclick="adjustInvQty('{{ product.code }}', 'Vial', -1)">−</button>
+                                <input type="number" class="inv-qty-input" id="inv-vial-qty-{{ product.code }}" value="0" min="0" max="10" readonly>
+                                <button class="inv-qty-btn" onclick="adjustInvQty('{{ product.code }}', 'Vial', 1)">+</button>
                             </div>
                         </div>
                         <div class="inv-stat">
@@ -1639,9 +1655,9 @@
         </div>
 
         <!-- Products with Active Orders Summary -->
-        {% if products_with_orders %}
         <div class="orders-summary-section">
             <h3 class="orders-summary-title">🛒 Products with Active Orders</h3>
+            {% if products_with_orders and products_with_orders|length > 0 %}
             <div class="orders-product-grid">
                 {% for product in products_with_orders %}
                 <div class="order-product-card">
@@ -1660,8 +1676,13 @@
                 </div>
                 {% endfor %}
             </div>
+            {% else %}
+            <div style="text-align: center; padding: 2rem; color: var(--text-muted);">
+                <p style="font-size: 1rem; margin-bottom: 0.5rem;">📦 No product orders yet</p>
+                <p style="font-size: 0.85rem;">Orders will appear here once customers start ordering</p>
+            </div>
+            {% endif %}
         </div>
-        {% endif %}
 
 
         <!-- View: My Orders -->
@@ -2895,22 +2916,22 @@
             setTimeout(() => document.getElementById('toast').classList.remove('show'), 3000);
         }
 
-        // Inventory Card Quantity Selection
-        let selectedQty = {};  // {product_code_orderType: qty}
-
-        function selectQty(productCode, orderType, qty) {
-            const key = `${productCode}_${orderType}`;
-            selectedQty[key] = qty;
+        // Inventory Card Quantity Management
+        function adjustInvQty(productCode, orderType, delta) {
+            const inputId = orderType === 'Kit' ? `inv-kit-qty-${productCode}` : `inv-vial-qty-${productCode}`;
+            const input = document.getElementById(inputId);
             
-            // Highlight selected button
-            const card = document.querySelector(`[data-code="${productCode}"]`);
-            if (card) {
-                card.querySelectorAll('.qty-selector .qty-btn').forEach(btn => {
-                    if (btn.textContent == qty && btn.parentElement.previousElementSibling.textContent.includes(orderType.toUpperCase())) {
-                        btn.classList.add('selected');
-                    }
-                });
-            }
+            if (!input) return;
+            
+            const currentQty = parseInt(input.value) || 0;
+            const maxQty = orderType === 'Kit' ? 5 : 10;
+            let newQty = currentQty + delta;
+            
+            // Enforce min/max limits
+            if (newQty < 0) newQty = 0;
+            if (newQty > maxQty) newQty = maxQty;
+            
+            input.value = newQty;
         }
 
         function quickAddToCart(productCode, productName) {
@@ -2921,27 +2942,34 @@
             const kitPrice = parseFloat(productOption.dataset.kit);
             const vialPrice = parseFloat(productOption.dataset.vial);
 
-            // Check if quantities were selected
-            const kitKey = `${productCode}_Kit`;
-            const vialKey = `${productCode}_Vial`;
+            // Get quantities from inputs
+            const kitQtyInput = document.getElementById(`inv-kit-qty-${productCode}`);
+            const vialQtyInput = document.getElementById(`inv-vial-qty-${productCode}`);
+            
+            const kitQty = kitQtyInput ? parseInt(kitQtyInput.value) || 0 : 0;
+            const vialQty = vialQtyInput ? parseInt(vialQtyInput.value) || 0 : 0;
             
             let added = false;
             
-            if (selectedQty[kitKey]) {
+            if (kitQty > 0) {
                 // Add kits to cart
                 const existingKitIndex = cartItems.findIndex(item => 
                     item.product_code === productCode && item.order_type === 'Kit'
                 );
                 
                 if (existingKitIndex !== -1) {
-                    cartItems[existingKitIndex].qty += selectedQty[kitKey];
+                    cartItems[existingKitIndex].qty += kitQty;
+                    // Recalculate totals
+                    const item = cartItems[existingKitIndex];
+                    item.line_total_usd = item.unit_price_usd * item.qty;
+                    item.line_total_php = item.line_total_usd * EXCHANGE_RATE;
                 } else {
-                    const lineTotalUsd = kitPrice * selectedQty[kitKey];
+                    const lineTotalUsd = kitPrice * kitQty;
                     cartItems.push({
                         product_code: productCode,
                         product_name: productName,
                         order_type: 'Kit',
-                        qty: selectedQty[kitKey],
+                        qty: kitQty,
                         unit_price_usd: kitPrice,
                         line_total_usd: lineTotalUsd,
                         line_total_php: lineTotalUsd * EXCHANGE_RATE
@@ -2950,21 +2978,25 @@
                 added = true;
             }
             
-            if (selectedQty[vialKey]) {
+            if (vialQty > 0) {
                 // Add vials to cart
                 const existingVialIndex = cartItems.findIndex(item => 
                     item.product_code === productCode && item.order_type === 'Vial'
                 );
                 
                 if (existingVialIndex !== -1) {
-                    cartItems[existingVialIndex].qty += selectedQty[vialKey];
+                    cartItems[existingVialIndex].qty += vialQty;
+                    // Recalculate totals
+                    const item = cartItems[existingVialIndex];
+                    item.line_total_usd = item.unit_price_usd * item.qty;
+                    item.line_total_php = item.line_total_usd * EXCHANGE_RATE;
                 } else {
-                    const lineTotalUsd = vialPrice * selectedQty[vialKey];
+                    const lineTotalUsd = vialPrice * vialQty;
                     cartItems.push({
                         product_code: productCode,
                         product_name: productName,
                         order_type: 'Vial',
-                        qty: selectedQty[vialKey],
+                        qty: vialQty,
                         unit_price_usd: vialPrice,
                         line_total_usd: lineTotalUsd,
                         line_total_php: lineTotalUsd * EXCHANGE_RATE
@@ -2978,17 +3010,14 @@
                 saveCart();
                 showToast(`Added ${productName} to cart!`);
                 
-                // Clear selections for this product
-                delete selectedQty[kitKey];
-                delete selectedQty[vialKey];
-                document.querySelectorAll(`[data-code="${productCode}"] .qty-btn`).forEach(btn => {
-                    btn.classList.remove('selected');
-                });
+                // Reset quantities to 0
+                if (kitQtyInput) kitQtyInput.value = 0;
+                if (vialQtyInput) vialQtyInput.value = 0;
                 
                 // Scroll to cart
                 document.getElementById('new-order').scrollIntoView({ behavior: 'smooth', block: 'start' });
             } else {
-                showToast('Please select quantity first! Click 1-9 under KITS or VIALS');
+                showToast('Please select quantity using + buttons!');
             }
         }
 
