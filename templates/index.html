@@ -1910,13 +1910,15 @@
                     
                     const result = await response.json();
                     if (result.success) {
-                        showToast('Payment uploaded successfully!');
+                        showToast('Payment uploaded successfully! 🎉');
                         closeModal('order-modal');
                     } else {
-                        showToast('Failed to upload');
+                        console.error('Upload failed:', result);
+                        showToast(result.error || 'Upload failed - please try again');
                     }
                 } catch (error) {
-                    showToast('Upload error');
+                    console.error('Upload error:', error);
+                    showToast('Network error - please try again');
                 } finally {
                     btn.disabled = false;
                     btn.textContent = 'Upload Payment';
@@ -2200,12 +2202,14 @@
                     // Refresh the order view
                     viewOrder(orderId);
                 } else {
-                    showToast(result.error || 'Failed to upload');
+                    console.error('Upload failed:', result);
+                    showToast(result.error || 'Upload failed - please try again');
                     btn.disabled = false;
                     btn.textContent = '⬆️ Confirm & Upload';
                 }
             } catch (error) {
-                showToast('Upload error');
+                console.error('Upload error:', error);
+                showToast('Network error - please try again');
                 btn.disabled = false;
                 btn.textContent = '⬆️ Confirm & Upload';
             }

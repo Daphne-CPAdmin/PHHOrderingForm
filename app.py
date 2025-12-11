@@ -27,7 +27,7 @@ GOOGLE_SHEETS_ID = os.getenv('GOOGLE_SHEETS_ID', '18Q3A7pmgj7WNi3GL8cgoLiD1gPmxG
 ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD', 'pephaul2024')  # Change in production!
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '')  # Create bot via @BotFather
 TELEGRAM_ADMIN_CHAT_ID = os.getenv('TELEGRAM_ADMIN_CHAT_ID', '')  # Admin's Telegram chat ID
-TELEGRAM_BOT_USERNAME = os.getenv('TELEGRAM_BOT_USERNAME', 'PepHaulBot')  # Bot username (without @)
+TELEGRAM_BOT_USERNAME = os.getenv('TELEGRAM_BOT_USERNAME', 'pephaul_bot')  # Bot username (without @)
 
 def send_telegram_notification(message, parse_mode='HTML'):
     """Send notification to admin via Telegram bot"""
@@ -1528,11 +1528,23 @@ def api_unlock_order(order_id):
 @app.route('/api/orders/<order_id>/payment', methods=['POST'])
 def api_upload_payment(order_id):
     """Upload payment screenshot"""
+    # Pre-check: Is Drive configured?
+    if not drive_service:
+        print("❌ Upload attempt failed - Drive service not initialized")
+        creds_json = os.getenv('GOOGLE_CREDENTIALS_JSON', '')
+        print(f"  - GOOGLE_CREDENTIALS_JSON set: {bool(creds_json)}")
+        return jsonify({
+            'error': 'Google Drive not configured. Please check GOOGLE_CREDENTIALS_JSON on Render.',
+            'details': {'drive_configured': False}
+        }), 500
+    
     data = request.json
     screenshot_data = data.get('screenshot')
     
     if not screenshot_data:
         return jsonify({'error': 'No screenshot provided'}), 400
+    
+    print(f"📤 Attempting upload for order {order_id}")
     
     # Upload to Drive
     drive_link = upload_to_drive(screenshot_data, 'payment.jpg', order_id)
@@ -1555,13 +1567,32 @@ def api_upload_payment(order_id):
 ⚠️ Please verify and confirm payment in Admin Panel."""
             send_telegram_notification(telegram_msg)
         
+        print(f"✅ Upload successful: {drive_link}")
         return jsonify({'success': True, 'link': drive_link})
     
-    return jsonify({'error': 'Failed to upload'}), 500
+    print(f"❌ Upload failed for order {order_id}")
+    return jsonify({'error': 'Upload failed - please check server logs'}), 500
 
 @app.route('/api/upload-payment', methods=['POST'])
 def api_upload_payment_generic():
     """Upload payment screenshot (generic endpoint)"""
+    # Pre-check: Is Drive configured?
+    if not drive_service:
+        print("❌ Upload attempt failed - Drive service not initialized")
+        print(f"  - sheets_client: {sheets_client is not None}")
+        print(f"  - drive_service: {drive_service is not None}")
+        creds_json = os.getenv('GOOGLE_CREDENTIALS_JSON', '')
+        print(f"  - GOOGLE_CREDENTIALS_JSON set: {bool(creds_json)}")
+        print(f"  - GOOGLE_CREDENTIALS_JSON length: {len(creds_json) if creds_json else 0}")
+        return jsonify({
+            'error': 'Google Drive not configured. Please check GOOGLE_CREDENTIALS_JSON on Render.',
+            'details': {
+                'drive_configured': False,
+                'sheets_configured': sheets_client is not None,
+                'creds_set': bool(creds_json)
+            }
+        }), 500
+    
     data = request.json
     order_id = data.get('order_id')
     file_data = data.get('file_data')
@@ -1572,6 +1603,8 @@ def api_upload_payment_generic():
     
     if not file_data:
         return jsonify({'error': 'No file data provided'}), 400
+    
+    print(f"📤 Attempting upload for order {order_id}")
     
     # Upload to Drive
     drive_link = upload_to_drive(file_data, file_name, order_id)
@@ -1594,9 +1627,11 @@ def api_upload_payment_generic():
 ⚠️ Please verify and confirm payment in Admin Panel."""
             send_telegram_notification(telegram_msg)
         
+        print(f"✅ Upload successful: {drive_link}")
         return jsonify({'success': True, 'link': drive_link})
     
-    return jsonify({'error': 'Failed to upload - Drive service may not be configured'}), 500
+    print(f"❌ Upload failed for order {order_id}")
+    return jsonify({'error': 'Upload failed - please check server logs'}), 500
 
 # Telegram customer notifications storage (in-memory, consider using database for production)
 telegram_customers = {}  # {telegram_username: chat_id}
