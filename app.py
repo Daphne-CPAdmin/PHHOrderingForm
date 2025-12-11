@@ -2187,6 +2187,7 @@ def api_admin_orders():
                 'order_id': order_id,
                 'order_date': order.get('Order Date', ''),
                 'full_name': order.get('Name', order.get('Full Name', '')),
+                'email': order.get('Email', ''),
                 'telegram': order.get('Telegram Username', ''),
                 'grand_total_php': float(order.get('Grand Total PHP', 0) or 0),
                 'status': order.get('Order Status', 'Pending'),

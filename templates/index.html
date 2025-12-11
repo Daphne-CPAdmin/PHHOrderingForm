@@ -1174,6 +1174,56 @@
         .qty-btn:hover { border-color: var(--accent-teal); color: var(--accent-teal); }
         .qty-input { width: 80px; text-align: center; font-family: 'JetBrains Mono', monospace; font-weight: 600; }
 
+        /* Quantity Selector for Inventory Cards */
+        .qty-selector {
+            display: flex;
+            gap: 0.25rem;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .qty-selector .qty-btn {
+            width: 24px;
+            height: 24px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+        .qty-selector .qty-btn:hover {
+            background: linear-gradient(135deg, #ec4899, #8b5cf6);
+            color: white;
+            transform: scale(1.1);
+        }
+        .qty-selector .qty-btn.selected {
+            background: linear-gradient(135deg, #ec4899, #8b5cf6);
+            color: white;
+            border-color: #ec4899;
+        }
+
+        /* Click to Add Button */
+        .btn-click-to-add {
+            width: 100%;
+            padding: 0.5rem;
+            background: linear-gradient(135deg, #10b981, #14b8a6);
+            border: none;
+            border-radius: 10px;
+            color: white;
+            font-weight: 600;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .btn-click-to-add:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        }
+        .btn-click-to-add:active {
+            transform: scale(0.95);
+        }
+
         /* Price Display */
         .price-display { background: var(--bg-input); border-radius: 10px; padding: 1rem; margin-top: 1rem; }
         .price-row { display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid var(--border); }
@@ -1514,6 +1564,76 @@
                 <div id="my-orders-empty" style="text-align: center; padding: 2rem; color: var(--text-muted); display: none;">
                     <p>No orders found. Create your first order above!</p>
                 </div>
+            </div>
+        </div>
+
+        <!-- Live Product Inventory Section -->
+        <div class="orders-summary-section">
+            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+                <div style="background: linear-gradient(135deg, #ec4899, #8b5cf6); padding: 0.75rem; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                    <span style="font-size: 1.5rem;">📊</span>
+                </div>
+                <div>
+                    <h3 class="orders-summary-title" style="margin: 0;">Live Product Inventory</h3>
+                    <p style="color: var(--text-muted); font-size: 0.85rem; margin: 0;">Real-time tracking of peptide reservations and kit availability</p>
+                </div>
+            </div>
+
+            <div class="inventory-search" style="max-width: 400px; margin-bottom: 1.5rem;">
+                <input type="text" class="form-input" id="inventory-search" placeholder="🔍 Search products by name or code...">
+            </div>
+
+            <div class="inventory-grid">
+                {% for product in products %}
+                <div class="inventory-card {% if product.inventory.total_vials > 0 %}has-orders{% endif %} {% if product.inventory.is_locked %}card-locked{% endif %}"
+                     data-code="{{ product.code }}"
+                     data-name="{{ product.name }}"
+                     data-kit-price="{{ product.kit_price }}"
+                     data-vial-price="{{ product.vial_price }}">
+                    <div class="inv-card-header">
+                        <span class="inv-card-name">{{ product.name }}</span>
+                        <span class="inv-card-code">{{ product.code }}</span>
+                    </div>
+                    <div class="inv-card-stats">
+                        <div class="inv-stat">
+                            <span class="inv-stat-value">{{ product.inventory.kits_generated }}</span>
+                            <span class="inv-stat-label">KITS</span>
+                            <div class="qty-selector" style="margin-top: 0.5rem;">
+                                {% for i in range(1, 10) %}
+                                <button class="qty-btn" onclick="selectQty('{{ product.code }}', 'Kit', {{ i }})">{{ i }}</button>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        <div class="inv-stat">
+                            <span class="inv-stat-value">{{ product.inventory.total_vials }}</span>
+                            <span class="inv-stat-label">VIALS</span>
+                            <div class="qty-selector" style="margin-top: 0.5rem;">
+                                {% for i in range(1, 10) %}
+                                <button class="qty-btn" onclick="selectQty('{{ product.code }}', 'Vial', {{ i }})">{{ i }}</button>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        <div class="inv-stat">
+                            <span class="inv-stat-value">{{ product.inventory.remaining_vials }}/{{ product.vials_per_kit }}</span>
+                            <span class="inv-stat-label">NEXT KIT</span>
+                        </div>
+                    </div>
+                    <div class="inv-card-progress">
+                        <div class="inv-progress-bar-full">
+                            <div class="inv-progress-fill" style="width: {{ (product.inventory.remaining_vials / product.vials_per_kit * 100)|int if product.vials_per_kit > 0 else 0 }}%;"></div>
+                        </div>
+                    </div>
+                    <div class="inv-card-status">
+                        {% if product.inventory.is_locked %}
+                        <span class="inv-lock-badge locked">🔒 Locked</span>
+                        {% else %}
+                        <button class="btn-click-to-add" onclick="quickAddToCart('{{ product.code }}', '{{ product.name }}')">
+                            ✨ Click to Add
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
             </div>
         </div>
 
@@ -1987,21 +2107,23 @@
             
             list.innerHTML = orders.map(order => {
                 const isPaid = order.payment_status && order.payment_status.toLowerCase() === 'paid';
-                const itemsPreview = order.items.map(i => `${i.product_code} (${i.qty})`).join(', ');
+                const itemsPreview = order.items.map(i => `${i.product_name || i.product_code} (${i.order_type} x${i.qty})`).join(', ');
                 
                 return `
-                    <div class="card" style="cursor: pointer; padding: 1.25rem; border: 2px solid ${isPaid ? 'var(--accent-emerald)' : 'var(--border)'};" onclick="viewOrder('${order.order_id}')">
-                        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.75rem;">
+                    <div class="card" style="cursor: pointer; padding: 1.5rem; border: 2px solid ${isPaid ? 'var(--accent-emerald)' : 'var(--accent-amber)'}; background: ${isPaid ? 'rgba(16, 185, 129, 0.05)' : 'rgba(245, 158, 11, 0.05)'};" onclick="viewOrder('${order.order_id}')">
+                        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;">
                             <div>
-                                <div style="font-family: 'JetBrains Mono', monospace; color: var(--accent-primary); font-weight: 600; margin-bottom: 0.25rem;">${order.order_id}</div>
+                                <div style="font-family: 'JetBrains Mono', monospace; color: var(--accent-primary); font-weight: 700; font-size: 1.1rem; margin-bottom: 0.35rem;">${order.order_id}</div>
                                 <div style="font-size: 0.85rem; color: var(--text-muted);">${order.order_date}</div>
                             </div>
                             <div style="text-align: right;">
-                                <div style="font-family: 'JetBrains Mono', monospace; font-size: 1.1rem; font-weight: 600; color: var(--accent-primary);">₱${order.grand_total_php.toLocaleString('en-PH', {minimumFractionDigits: 2})}</div>
-                                <div style="display: inline-block; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600; ${isPaid ? 'background: rgba(16, 185, 129, 0.15); color: var(--accent-emerald);' : 'background: rgba(245, 158, 11, 0.15); color: var(--accent-amber);'}">${isPaid ? 'PAID' : 'UNPAID'}</div>
+                                <div style="font-family: 'JetBrains Mono', monospace; font-size: 1.25rem; font-weight: 700; color: var(--accent-primary); margin-bottom: 0.35rem;">₱${order.grand_total_php.toLocaleString('en-PH', {minimumFractionDigits: 2})}</div>
+                                <div style="display: inline-block; padding: 0.35rem 0.85rem; border-radius: 20px; font-size: 0.75rem; font-weight: 700; ${isPaid ? 'background: rgba(16, 185, 129, 0.2); color: #065f46;' : 'background: rgba(245, 158, 11, 0.2); color: #92400e;'}">${isPaid ? '✅ PAID' : '⏳ UNPAID'}</div>
                             </div>
                         </div>
-                        <div style="font-size: 0.85rem; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${itemsPreview}</div>
+                        <div style="font-size: 0.9rem; color: var(--text-primary); margin-bottom: 0.5rem; font-weight: 500;">📦 Items:</div>
+                        <div style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.4;">${itemsPreview}</div>
+                        ${!isPaid && order.payment_screenshot ? '<div style="margin-top: 0.75rem; font-size: 0.8rem; color: var(--accent-teal);">📷 Payment screenshot uploaded - pending confirmation</div>' : ''}
                     </div>
                 `;
             }).join('');
@@ -2009,6 +2131,11 @@
             list.style.display = 'grid';
             empty.style.display = 'none';
             section.style.display = 'block';
+            
+            // Scroll to show the orders section
+            setTimeout(() => {
+                section.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }, 300);
         }
         
         function hideMyOrdersSection() {
@@ -2022,15 +2149,33 @@
             
             const totalOrders = orders.length;
             const pendingOrders = orders.filter(o => o.status !== 'Cancelled').length;
+            const unpaidOrders = orders.filter(o => o.payment_status && o.payment_status.toLowerCase() !== 'paid').length;
             
             const banner = document.createElement('div');
             banner.id = 'returning-customer-banner';
-            banner.className = 'returning-customer-banner';
+            banner.style.cssText = `
+                background: linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(236, 72, 153, 0.15));
+                border: 2px solid var(--accent-violet);
+                border-radius: 16px;
+                padding: 1.25rem;
+                margin-bottom: 1.5rem;
+                animation: slideIn 0.3s ease;
+            `;
             banner.innerHTML = `
-                <div class="banner-content" style="flex-wrap: wrap;">
-                    <span style="font-size: 1.5rem;">👋</span>
-                    <span style="flex: 1;">Welcome back! You have <strong>${pendingOrders}</strong> existing order(s)</span>
-                    <button class="btn btn-primary" style="padding: 0.5rem 1rem; font-size: 0.85rem;" onclick="viewMyExistingOrders()">View My Orders</button>
+                <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+                    <div style="background: linear-gradient(135deg, #8b5cf6, #ec4899); padding: 0.75rem; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                        <span style="font-size: 1.75rem;">👋</span>
+                    </div>
+                    <div style="flex: 1; min-width: 200px;">
+                        <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 0.25rem; color: var(--text-primary);">Welcome back!</div>
+                        <div style="font-size: 0.9rem; color: var(--text-secondary);">
+                            You have <strong style="color: var(--accent-violet);">${pendingOrders}</strong> existing order(s)
+                            ${unpaidOrders > 0 ? ` • <strong style="color: var(--accent-amber);">${unpaidOrders}</strong> unpaid` : ''}
+                        </div>
+                    </div>
+                    <button class="btn btn-violet" style="padding: 0.65rem 1.25rem; font-size: 0.9rem; font-weight: 600;" onclick="scrollToMyOrders()">
+                        📋 View My Orders Below
+                    </button>
                 </div>
             `;
             
@@ -2039,6 +2184,11 @@
             if (customerInfo) {
                 customerInfo.insertBefore(banner, customerInfo.firstChild);
             }
+        }
+        
+        function scrollToMyOrders() {
+            const section = document.getElementById('my-orders-section');
+            section.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
         
         function hideReturningCustomerBanner() {
@@ -2733,6 +2883,117 @@
             document.getElementById('toast-message').textContent = message;
             document.getElementById('toast').classList.add('show');
             setTimeout(() => document.getElementById('toast').classList.remove('show'), 3000);
+        }
+
+        // Inventory Card Quantity Selection
+        let selectedQty = {};  // {product_code_orderType: qty}
+
+        function selectQty(productCode, orderType, qty) {
+            const key = `${productCode}_${orderType}`;
+            selectedQty[key] = qty;
+            
+            // Highlight selected button
+            const card = document.querySelector(`[data-code="${productCode}"]`);
+            if (card) {
+                card.querySelectorAll('.qty-selector .qty-btn').forEach(btn => {
+                    if (btn.textContent == qty && btn.parentElement.previousElementSibling.textContent.includes(orderType.toUpperCase())) {
+                        btn.classList.add('selected');
+                    }
+                });
+            }
+        }
+
+        function quickAddToCart(productCode, productName) {
+            // Find product data from dropdown options
+            const productOption = document.querySelector(`.product-option[data-code="${productCode}"]`);
+            if (!productOption) return;
+            
+            const kitPrice = parseFloat(productOption.dataset.kit);
+            const vialPrice = parseFloat(productOption.dataset.vial);
+
+            // Check if quantities were selected
+            const kitKey = `${productCode}_Kit`;
+            const vialKey = `${productCode}_Vial`;
+            
+            let added = false;
+            
+            if (selectedQty[kitKey]) {
+                // Add kits to cart
+                const existingKitIndex = cartItems.findIndex(item => 
+                    item.product_code === productCode && item.order_type === 'Kit'
+                );
+                
+                if (existingKitIndex !== -1) {
+                    cartItems[existingKitIndex].qty += selectedQty[kitKey];
+                } else {
+                    const lineTotalUsd = kitPrice * selectedQty[kitKey];
+                    cartItems.push({
+                        product_code: productCode,
+                        product_name: productName,
+                        order_type: 'Kit',
+                        qty: selectedQty[kitKey],
+                        unit_price_usd: kitPrice,
+                        line_total_usd: lineTotalUsd,
+                        line_total_php: lineTotalUsd * EXCHANGE_RATE
+                    });
+                }
+                added = true;
+            }
+            
+            if (selectedQty[vialKey]) {
+                // Add vials to cart
+                const existingVialIndex = cartItems.findIndex(item => 
+                    item.product_code === productCode && item.order_type === 'Vial'
+                );
+                
+                if (existingVialIndex !== -1) {
+                    cartItems[existingVialIndex].qty += selectedQty[vialKey];
+                } else {
+                    const lineTotalUsd = vialPrice * selectedQty[vialKey];
+                    cartItems.push({
+                        product_code: productCode,
+                        product_name: productName,
+                        order_type: 'Vial',
+                        qty: selectedQty[vialKey],
+                        unit_price_usd: vialPrice,
+                        line_total_usd: lineTotalUsd,
+                        line_total_php: lineTotalUsd * EXCHANGE_RATE
+                    });
+                }
+                added = true;
+            }
+
+            if (added) {
+                updateCart();
+                saveCart();
+                showToast(`Added ${productName} to cart!`);
+                
+                // Clear selections for this product
+                delete selectedQty[kitKey];
+                delete selectedQty[vialKey];
+                document.querySelectorAll(`[data-code="${productCode}"] .qty-btn`).forEach(btn => {
+                    btn.classList.remove('selected');
+                });
+                
+                // Scroll to cart
+                document.getElementById('new-order').scrollIntoView({ behavior: 'smooth', block: 'start' });
+            } else {
+                showToast('Please select quantity first! Click 1-9 under KITS or VIALS');
+            }
+        }
+
+        // Inventory Search
+        const inventorySearchInput = document.getElementById('inventory-search');
+        if (inventorySearchInput) {
+            inventorySearchInput.addEventListener('input', (e) => {
+                const query = e.target.value.toLowerCase();
+                document.querySelectorAll('.inventory-card').forEach(card => {
+                    const code = card.dataset.code.toLowerCase();
+                    const name = card.dataset.name.toLowerCase();
+                    const visible = code.includes(query) || name.includes(query);
+                    card.style.display = visible ? '' : 'none';
+                });
+            });
         }
 
         // Initialize

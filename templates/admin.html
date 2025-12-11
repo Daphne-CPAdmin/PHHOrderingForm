@@ -933,7 +933,8 @@
                         <td style="font-size: 0.85rem;">${order.order_date}</td>
                         <td>
                             <div style="font-weight: 500;">${order.full_name}</div>
-                            <div style="font-size: 0.8rem; color: var(--text-muted);">${order.telegram ? '@' + order.telegram.replace('@', '') : ''}</div>
+                            <div style="font-size: 0.8rem; color: var(--accent-violet); font-family: 'JetBrains Mono', monospace;">${order.telegram ? '@' + order.telegram.replace('@', '') : '—'}</div>
+                            ${order.email ? `<div style="font-size: 0.75rem; color: var(--text-muted);">${order.email}</div>` : ''}
                         </td>
                         <td><div class="order-items-preview">${itemsPreview.length > 30 ? itemsPreview.substring(0, 30) + '...' : itemsPreview}</div></td>
                         <td style="font-family: 'JetBrains Mono', monospace; font-weight: 600;">₱${order.grand_total_php.toLocaleString('en-PH', {minimumFractionDigits: 2})}</td>
