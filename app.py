@@ -378,6 +378,9 @@ def get_order_by_id(order_id):
         'locked': str(first_item.get('Locked', 'No')).lower() == 'yes',
         'payment_status': first_item.get('Confirmed Paid?', first_item.get('Payment Status', 'Unpaid')),
         'payment_screenshot': first_item.get('Payment Screenshot', ''),
+        'mailing_name': first_item.get('Mailing Name', ''),
+        'mailing_phone': first_item.get('Mailing Phone', ''),
+        'mailing_address': first_item.get('Mailing Address', ''),
         'items': []
     }
     
@@ -1817,6 +1820,85 @@ def api_upload_payment_generic():
     
     print(f"❌ Upload failed for order {order_id}")
     return jsonify({'error': 'Upload failed - please check server logs'}), 500
+
+@app.route('/api/orders/<order_id>/mailing-address', methods=['POST'])
+def api_save_mailing_address(order_id):
+    """Save mailing address for an order (only for paid orders)"""
+    data = request.json
+    mailing_name = data.get('mailing_name', '')
+    mailing_phone = data.get('mailing_phone', '')
+    mailing_address = data.get('mailing_address', '')
+    
+    if not mailing_name or not mailing_phone or not mailing_address:
+        return jsonify({'error': 'All fields are required'}), 400
+    
+    if not sheets_client:
+        return jsonify({'error': 'Sheets not configured'}), 500
+    
+    try:
+        spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
+        worksheet = spreadsheet.worksheet('PepHaul Entry')
+        
+        # Find the order's first row
+        cell = worksheet.find(order_id)
+        if not cell:
+            return jsonify({'error': 'Order not found'}), 404
+        
+        # Get headers to find mailing address columns
+        headers = worksheet.row_values(1)
+        
+        # Find or create mailing columns
+        mailing_name_col = None
+        mailing_phone_col = None
+        mailing_address_col = None
+        
+        for i, header in enumerate(headers):
+            if header == 'Mailing Name':
+                mailing_name_col = i + 1
+            elif header == 'Mailing Phone':
+                mailing_phone_col = i + 1
+            elif header == 'Mailing Address':
+                mailing_address_col = i + 1
+        
+        # If columns don't exist, add them
+        if mailing_name_col is None:
+            mailing_name_col = len(headers) + 1
+            worksheet.update_cell(1, mailing_name_col, 'Mailing Name')
+        if mailing_phone_col is None:
+            mailing_phone_col = len(headers) + 2 if mailing_name_col == len(headers) + 1 else len(headers) + 1
+            worksheet.update_cell(1, mailing_phone_col, 'Mailing Phone')
+        if mailing_address_col is None:
+            next_col = max(mailing_name_col, mailing_phone_col) + 1
+            worksheet.update_cell(1, next_col, 'Mailing Address')
+            mailing_address_col = next_col
+        
+        # Update the order row with mailing info
+        worksheet.update_cell(cell.row, mailing_name_col, mailing_name)
+        worksheet.update_cell(cell.row, mailing_phone_col, mailing_phone)
+        worksheet.update_cell(cell.row, mailing_address_col, mailing_address)
+        
+        # Send notification to admin
+        order = get_order_by_id(order_id)
+        if order:
+            telegram_msg = f"""📬 <b>Mailing Address Added!</b>
+
+<b>Order ID:</b> {order_id}
+<b>Customer:</b> {order.get('full_name', 'N/A')}
+<b>Telegram:</b> {order.get('telegram', 'N/A')}
+
+<b>Shipping To:</b>
+{mailing_name}
+{mailing_phone}
+{mailing_address}
+
+✅ Ready for fulfillment!"""
+            send_telegram_notification(telegram_msg)
+        
+        return jsonify({'success': True})
+        
+    except Exception as e:
+        print(f"Error saving mailing address: {e}")
+        return jsonify({'error': str(e)}), 500
 
 # Telegram customer notifications storage (in-memory, consider using database for production)
 telegram_customers = {}  # {telegram_username: chat_id}
