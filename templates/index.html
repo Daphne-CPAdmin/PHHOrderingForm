@@ -1136,6 +1136,7 @@
         .status-badge.pending { background: rgba(245, 158, 11, 0.15); color: var(--accent-amber); }
         .status-badge.paid { background: rgba(16, 185, 129, 0.15); color: var(--accent-emerald); }
         .status-badge.unpaid { background: rgba(244, 63, 94, 0.15); color: var(--accent-rose); }
+        .status-badge.waiting { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
         .status-badge.locked { background: rgba(139, 92, 246, 0.15); color: var(--accent-violet); }
         .status-badge.cancelled { background: rgba(100, 116, 139, 0.15); color: var(--text-muted); }
 
@@ -2375,7 +2376,7 @@
                         <div style="display: flex; justify-content: space-between; align-items: center;">
                             <div>
                                 <span class="status-badge ${order.status.toLowerCase()}">${order.status}</span>
-                                <span class="status-badge ${order.payment_status.toLowerCase()}">${order.payment_status}</span>
+                                <span class="status-badge ${order.payment_status.toLowerCase().replace(/\s+/g, '-').replace('waiting-for-confirmation', 'waiting')}">${order.payment_status}</span>
                             </div>
                             <span class="order-card-total">₱${order.grand_total_php.toFixed(2)}</span>
                         </div>
@@ -2405,7 +2406,7 @@
                             </div>
                             <div class="order-card-customer">${order.full_name}</div>
                             <div style="display: flex; justify-content: space-between;">
-                                <span class="status-badge ${order.payment_status.toLowerCase()}">${order.payment_status}</span>
+                                <span class="status-badge ${order.payment_status.toLowerCase().replace(/\s+/g, '-').replace('waiting-for-confirmation', 'waiting')}">${order.payment_status}</span>
                                 <span class="order-card-total">₱${order.grand_total_php.toFixed(2)}</span>
                             </div>
                         </div>
@@ -2436,7 +2437,7 @@
                     
                     <div style="background: var(--bg-input); padding: 1rem; border-radius: 10px; margin-bottom: 1rem;">
                         <div style="font-weight: 500;">${order.full_name}</div>
-                        ${order.telegram ? `<div style="color: var(--text-muted); font-size: 0.85rem;">📱 ${order.telegram}</div>` : ''}
+                        ${order.telegram ? `<div style="color: var(--text-muted); font-size: 0.75rem;">📱 ${order.telegram}</div>` : ''}
                         ${order.mailing_address ? `
                             <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px dashed var(--border);">
                                 <div style="color: var(--accent-primary); font-size: 0.8rem; font-weight: 600;">📬 Mailing Address:</div>
@@ -2473,7 +2474,7 @@
                     </div>
                     
                     <div style="margin-top: 1rem; display: flex; gap: 0.5rem; align-items: center;">
-                        <span class="status-badge ${order.payment_status.toLowerCase()}">${order.payment_status}</span>
+                        <span class="status-badge ${order.payment_status.toLowerCase().replace(/\s+/g, '-').replace('waiting-for-confirmation', 'waiting')}">${order.payment_status}</span>
                         ${order.payment_screenshot ? `<a href="${order.payment_screenshot}" target="_blank" style="color: var(--accent-teal); font-size: 0.85rem;">View Receipt</a>` : ''}
                     </div>
                     
@@ -2507,33 +2508,16 @@
                             <p style="font-size: 0.85rem; color: var(--accent-primary); text-align: center; margin-top: 0.75rem;">Thank you for keeping our pep-haul smooth, happy, and drama-free! 💕🥰</p>
                         </div>
                         
-                        <!-- Upload Payment Screenshot -->
+                        <!-- Mark Payment as Sent -->
                         <div style="text-align: center;">
-                            <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 0.75rem;">After payment, upload your screenshot OR paste a link:</p>
-                            
-                            <!-- File Upload Option -->
-                            <input type="file" id="order-payment-file" accept="image/*" onchange="handleOrderPaymentFile(event, '${order.order_id}')" style="display: none;">
-                            <label for="order-payment-file" class="btn btn-primary" style="cursor: pointer; display: inline-flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;">
-                                📸 Upload Payment Screenshot
-                            </label>
-                            
-                            <!-- OR Separator -->
-                            <div style="margin: 0.75rem 0; display: flex; align-items: center; gap: 0.5rem;">
-                                <div style="flex: 1; height: 1px; background: var(--border);"></div>
-                                <span style="color: var(--text-muted); font-size: 0.85rem;">OR</span>
-                                <div style="flex: 1; height: 1px; background: var(--border);"></div>
-                            </div>
-                            
-                            <!-- Paste Link Option -->
-                            <div style="margin-bottom: 0.75rem;">
-                                <input type="text" id="order-payment-link-${order.order_id}" placeholder="Paste Google Drive or Imgur link here" 
-                                    style="width: 100%; padding: 0.75rem; border: 1px solid var(--border); border-radius: 10px; font-size: 0.9rem;">
-                                <button class="btn btn-primary" onclick="submitPaymentLink('${order.order_id}')" style="margin-top: 0.5rem; width: 100%;">
-                                    🔗 Submit Link
-                                </button>
-                            </div>
-                            
-                            <div id="order-payment-preview-${order.order_id}" style="margin-top: 1rem;"></div>
+                            <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 1rem;">After payment, let GB Admin know:</p>
+
+                            <button class="btn btn-primary" onclick="markPaymentSent('${order.order_id}')" style="width: 100%; font-size: 1rem; padding: 1rem; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;">
+                                <span style="font-size: 1.5rem;">💸</span>
+                                <span>Payment Sent to GB Admin</span>
+                            </button>
+
+                            <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.75rem;">GB Admin will be notified via Telegram</p>
                         </div>
                     </div>
                     ` : ''}
@@ -2714,6 +2698,32 @@
                 showToast('Network error - please try again');
             } finally {
                 linkInput.disabled = false;
+            }
+        }
+
+        async function markPaymentSent(orderId) {
+            if (!confirm('Confirm that you have sent payment to GB Admin via GCash/Maya/Bank?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/mark-payment-sent/${orderId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    showToast('✅ Payment marked as sent! GB Admin will confirm soon.');
+                    // Refresh the order view
+                    viewOrder(orderId);
+                } else {
+                    showToast(result.error || 'Failed to update payment status');
+                }
+            } catch (error) {
+                console.error('Error marking payment as sent:', error);
+                showToast('Network error - please try again');
             }
         }
 

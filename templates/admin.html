@@ -315,6 +315,11 @@
             color: var(--accent-amber);
         }
 
+        .payment-badge.waiting {
+            background: rgba(59, 130, 246, 0.15);
+            color: #3b82f6;
+        }
+
         .payment-badge.paid {
             background: rgba(16, 185, 129, 0.15);
             color: var(--accent-emerald);
@@ -938,7 +943,7 @@
                         </td>
                         <td><div class="order-items-preview">${itemsPreview.length > 30 ? itemsPreview.substring(0, 30) + '...' : itemsPreview}</div></td>
                         <td style="font-family: 'JetBrains Mono', monospace; font-weight: 600;">₱${order.grand_total_php.toLocaleString('en-PH', {minimumFractionDigits: 2})}</td>
-                        <td><span class="payment-badge ${isPaid ? 'paid' : 'unpaid'}">${isPaid ? 'Paid' : 'Unpaid'}</span></td>
+                        <td><span class="payment-badge ${order.payment_status.toLowerCase().replace(/\s+/g, '-').replace('waiting-for-confirmation', 'waiting')}">${order.payment_status}</span></td>
                         <td>
                             ${order.payment_screenshot 
                                 ? `<a href="${order.payment_screenshot}" target="_blank" class="screenshot-link">📷 View</a>` 
@@ -996,7 +1001,7 @@
                 <div style="margin-bottom: 1.5rem;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
                         <span style="font-family: 'JetBrains Mono', monospace; color: var(--accent-teal); font-size: 1.25rem;">${order.order_id}</span>
-                        <span class="payment-badge ${isPaid ? 'paid' : 'unpaid'}">${isPaid ? 'Paid' : 'Unpaid'}</span>
+                        <span class="payment-badge ${order.payment_status.toLowerCase().replace(/\s+/g, '-').replace('waiting-for-confirmation', 'waiting')}">${order.payment_status}</span>
                     </div>
                     <div style="color: var(--text-muted); font-size: 0.85rem;">${order.order_date}</div>
                 </div>

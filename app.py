@@ -152,7 +152,7 @@ def ensure_worksheets_exist():
                 'Order ID', 'Order Date', 'Name', 'Telegram Username',
                 'Product Code', 'Product Name', 'Order Type', 'QTY', 'Unit Price USD',
                 'Line Total USD', 'Exchange Rate', 'Line Total PHP', 'Admin Fee PHP',
-                'Grand Total PHP', 'Order Status', 'Locked', 'Confirmed Paid?', 
+                'Grand Total PHP', 'Order Status', 'Locked', 'Payment Status', 
                 'Payment Screenshot Link', 'Remarks'
             ]
             worksheet.update('A1:U1', [headers])
@@ -421,7 +421,7 @@ def get_order_by_id(order_id):
         'grand_total_php': float(first_item.get('Grand Total PHP', 0) or 0),
         'status': first_item.get('Order Status', 'Pending'),
         'locked': str(first_item.get('Locked', 'No')).lower() == 'yes',
-        'payment_status': first_item.get('Confirmed Paid?', first_item.get('Payment Status', 'Unpaid')),
+        'payment_status': first_item.get('Payment Status', first_item.get('Confirmed Paid?', 'Unpaid')),
         'payment_screenshot': first_item.get('Payment Screenshot Link', first_item.get('Payment Screenshot', '')),
         'items': []
     }
@@ -483,7 +483,7 @@ def save_order_to_sheets(order_data, order_id=None):
                 order_data.get('grand_total_php', 0) if i == 0 else '',  # Only first row
                 'Pending' if i == 0 else '',                 # Only first row
                 'No' if i == 0 else '',                      # Only first row (Locked)
-                'Unpaid' if i == 0 else '',                  # Only first row (Confirmed Paid?)
+                'Unpaid' if i == 0 else '',                  # Only first row (Payment Status)
                 '',                                          # Payment Screenshot Link - only first row
                 ''                                           # Remarks
             ]
@@ -630,7 +630,7 @@ def add_items_to_order(order_id, new_items, exchange_rate):
                     '',                                 # Grand Total - only on first row
                     '',                                 # Order Status - only on first row
                     '',                                 # Locked - only on first row
-                    '',                                 # Confirmed Paid? - only on first row
+                    '',                                 # Payment Status - only on first row
                     '',                                 # Payment Screenshot Link
                     f'Added to {order_id}'              # Remarks
                 ]
@@ -1365,7 +1365,7 @@ def api_orders_lookup():
                 'telegram': order.get('Telegram Username', ''),
                 'grand_total_php': float(order.get('Grand Total PHP', 0) or 0),
                 'status': order.get('Order Status', 'Pending'),
-                'payment_status': order.get('Confirmed Paid?', order.get('Payment Status', 'Unpaid')),
+                'payment_status': order.get('Payment Status', order.get('Confirmed Paid?', 'Unpaid')),
                 'items': []
             }
         
@@ -1401,7 +1401,7 @@ def api_orders():
                 'grand_total_php': float(order.get('Grand Total PHP', 0) or 0),
                 'status': order.get('Order Status', 'Pending'),
                 'locked': str(order.get('Locked', 'No')).lower() == 'yes',
-                'payment_status': order.get('Confirmed Paid?', order.get('Payment Status', 'Unpaid')),
+                'payment_status': order.get('Payment Status', order.get('Confirmed Paid?', 'Unpaid')),
                 'items': []
             }
         
@@ -1446,7 +1446,7 @@ def api_search_orders():
                     'full_name': order.get('Name', order.get('Full Name', '')),
                     'telegram': order.get('Telegram Username', ''),
                     'status': order.get('Order Status', 'Pending'),
-                    'payment_status': order.get('Confirmed Paid?', order.get('Payment Status', 'Unpaid')),
+                    'payment_status': order.get('Payment Status', order.get('Confirmed Paid?', 'Unpaid')),
                     'grand_total_php': float(order.get('Grand Total PHP', 0) or 0)
                 }
     
@@ -1902,6 +1902,35 @@ def api_submit_payment_link(order_id):
     print(f"❌ Failed to save payment link for order {order_id}")
     return jsonify({'error': 'Failed to save payment link'}), 500
 
+@app.route('/api/mark-payment-sent/<order_id>', methods=['POST'])
+def api_mark_payment_sent(order_id):
+    """Mark payment as sent to GB Admin - updates status to Waiting for Confirmation"""
+    print(f"📤 Marking payment as sent for order: {order_id}")
+    
+    # Update order status to Waiting for Confirmation
+    if update_order_status(order_id, payment_status='Waiting for Confirmation'):
+        # Get order details for notification
+        order = get_order_by_id(order_id)
+        if order:
+            telegram_msg = f"""💸 <b>Payment Sent Notification!</b>
+
+<b>Order ID:</b> {order_id}
+<b>Customer:</b> {order.get('full_name', 'N/A')}
+<b>Telegram:</b> @{order.get('telegram', 'N/A').replace('@', '')}
+<b>Amount:</b> ₱{order.get('grand_total_php', 0):,.2f}
+
+Customer has marked payment as sent to GB Admin.
+⏳ Status: <b>Waiting for Confirmation</b>
+
+Please check GCash and confirm payment in Admin Panel."""
+            send_telegram_notification(telegram_msg)
+        
+        print(f"✅ Payment marked as sent - status updated to Waiting for Confirmation")
+        return jsonify({'success': True, 'message': 'Payment marked as sent! GB Admin will be notified.'})
+    
+    print(f"❌ Failed to mark payment as sent for order {order_id}")
+    return jsonify({'error': 'Failed to update payment status'}), 500
+
 @app.route('/api/upload-payment', methods=['POST'])
 def api_upload_payment_generic():
     """Upload payment screenshot (generic endpoint)"""
@@ -2192,7 +2221,7 @@ def api_admin_orders():
                 'grand_total_php': float(order.get('Grand Total PHP', 0) or 0),
                 'status': order.get('Order Status', 'Pending'),
                 'locked': str(order.get('Locked', 'No')).lower() == 'yes',
-                'payment_status': order.get('Confirmed Paid?', order.get('Payment Status', 'Unpaid')),
+                'payment_status': order.get('Payment Status', order.get('Confirmed Paid?', 'Unpaid')),
                 'payment_screenshot': order.get('Payment Screenshot Link', order.get('Payment Screenshot', '')),
                 'items': []
             }
