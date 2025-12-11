@@ -1340,44 +1340,32 @@
                     </div>
 
                     <div class="form-group product-search-container">
-                        <label class="form-label">Select Product {% if products_with_orders %}(Active Orders Only){% endif %}</label>
+                        <label class="form-label">Select Product</label>
                         <input type="text" class="form-input" id="product-search" placeholder="Search products..." autocomplete="off">
                         <div class="product-dropdown" id="product-dropdown">
-                            {% if products_with_orders %}
-                                {% for product in products_with_orders %}
-                                <div class="product-option {% if product.inventory.is_locked %}locked{% endif %}"
-                                     data-code="{{ product.code }}" 
-                                     data-name="{{ product.name }}" 
-                                     data-kit="{{ product.kit_price }}" 
-                                     data-vial="{{ product.vial_price }}"
-                                     data-vials-per-kit="{{ product.vials_per_kit|default(10) }}"
-                                     data-locked="{{ product.inventory.is_locked }}"
-                                     data-total-vials="{{ product.inventory.total_vials }}"
-                                     data-kits="{{ product.inventory.kits_generated }}"
-                                     data-remaining="{{ product.inventory.remaining_vials }}"
-                                     data-slots="{{ product.inventory.slots_to_next_kit }}">
-                                    <div class="product-option-name">
-                                        {{ product.name }}
-                                        {% if product.inventory.is_locked %}<span class="locked-badge">LOCKED</span>{% endif %}
-                                    </div>
-                                    <div class="product-option-meta">
-                                        <span>{{ product.code }}</span>
-                                        <span>Kit: ${{ "%.2f"|format(product.kit_price) }}</span>
-                                        <span>Vial: ${{ "%.2f"|format(product.vial_price) }}</span>
-                                        <span style="color: var(--accent-teal);">{{ product.inventory.total_vials }} vials</span>
-                                    </div>
+                            {% for product in products %}
+                            <div class="product-option {% if product.inventory.is_locked %}locked{% endif %}"
+                                 data-code="{{ product.code }}" 
+                                 data-name="{{ product.name }}" 
+                                 data-kit="{{ product.kit_price }}" 
+                                 data-vial="{{ product.vial_price }}"
+                                 data-vials-per-kit="{{ product.vials_per_kit|default(10) }}"
+                                 data-locked="{{ product.inventory.is_locked }}"
+                                 data-total-vials="{{ product.inventory.total_vials }}"
+                                 data-kits="{{ product.inventory.kits_generated }}"
+                                 data-remaining="{{ product.inventory.remaining_vials }}"
+                                 data-slots="{{ product.inventory.slots_to_next_kit }}">
+                                <div class="product-option-name">
+                                    {{ product.name }}
+                                    {% if product.inventory.is_locked %}<span class="locked-badge">LOCKED</span>{% endif %}
                                 </div>
-                                {% endfor %}
-                            {% else %}
-                                <div class="product-option locked">
-                                    <div class="product-option-name">
-                                        No active orders yet
-                                    </div>
-                                    <div class="product-option-meta">
-                                        <span style="color: var(--text-muted);">Orders will appear here once placed</span>
-                                    </div>
+                                <div class="product-option-meta">
+                                    <span>{{ product.code }}</span>
+                                    <span>Kit: ${{ "%.2f"|format(product.kit_price) }}</span>
+                                    <span>Vial: ${{ "%.2f"|format(product.vial_price) }}</span>
                                 </div>
-                            {% endif %}
+                            </div>
+                            {% endfor %}
                         </div>
                     </div>
 
@@ -1528,9 +1516,9 @@
                         <div class="order-product-code">{{ product.code }}</div>
                     </div>
                     <div class="order-product-stats">
-                        <span class="order-vials-count">{{ product.inventory.total_vials }} vials</span>
+                        <span class="order-vials-count">{{ product.inventory.kits_generated }} kits • {{ product.inventory.total_vials }} vials</span>
                         {% if product.inventory.slots_to_next_kit > 0 and product.inventory.remaining_vials > 0 %}
-                        <span class="missing-slots">{{ product.inventory.slots_to_next_kit }} to next kit</span>
+                        <span class="missing-slots">{{ product.inventory.slots_to_next_kit }} slots needed for next kit</span>
                         {% elif product.inventory.remaining_vials == 0 and product.inventory.kits_generated > 0 %}
                         <span class="missing-slots kit-complete">✓ Kit complete</span>
                         {% endif %}
