@@ -1340,32 +1340,44 @@
                     </div>
 
                     <div class="form-group product-search-container">
-                        <label class="form-label">Select Product</label>
+                        <label class="form-label">Select Product {% if products_with_orders %}(Active Orders Only){% endif %}</label>
                         <input type="text" class="form-input" id="product-search" placeholder="Search products..." autocomplete="off">
                         <div class="product-dropdown" id="product-dropdown">
-                            {% for product in products %}
-                            <div class="product-option {% if product.inventory.is_locked %}locked{% endif %}"
-                                 data-code="{{ product.code }}" 
-                                 data-name="{{ product.name }}" 
-                                 data-kit="{{ product.kit_price }}" 
-                                 data-vial="{{ product.vial_price }}"
-                                 data-vials-per-kit="{{ product.vials_per_kit|default(10) }}"
-                                 data-locked="{{ product.inventory.is_locked }}"
-                                 data-total-vials="{{ product.inventory.total_vials }}"
-                                 data-kits="{{ product.inventory.kits_generated }}"
-                                 data-remaining="{{ product.inventory.remaining_vials }}"
-                                 data-slots="{{ product.inventory.slots_to_next_kit }}">
-                                <div class="product-option-name">
-                                    {{ product.name }}
-                                    {% if product.inventory.is_locked %}<span class="locked-badge">LOCKED</span>{% endif %}
+                            {% if products_with_orders %}
+                                {% for product in products_with_orders %}
+                                <div class="product-option {% if product.inventory.is_locked %}locked{% endif %}"
+                                     data-code="{{ product.code }}" 
+                                     data-name="{{ product.name }}" 
+                                     data-kit="{{ product.kit_price }}" 
+                                     data-vial="{{ product.vial_price }}"
+                                     data-vials-per-kit="{{ product.vials_per_kit|default(10) }}"
+                                     data-locked="{{ product.inventory.is_locked }}"
+                                     data-total-vials="{{ product.inventory.total_vials }}"
+                                     data-kits="{{ product.inventory.kits_generated }}"
+                                     data-remaining="{{ product.inventory.remaining_vials }}"
+                                     data-slots="{{ product.inventory.slots_to_next_kit }}">
+                                    <div class="product-option-name">
+                                        {{ product.name }}
+                                        {% if product.inventory.is_locked %}<span class="locked-badge">LOCKED</span>{% endif %}
+                                    </div>
+                                    <div class="product-option-meta">
+                                        <span>{{ product.code }}</span>
+                                        <span>Kit: ${{ "%.2f"|format(product.kit_price) }}</span>
+                                        <span>Vial: ${{ "%.2f"|format(product.vial_price) }}</span>
+                                        <span style="color: var(--accent-teal);">{{ product.inventory.total_vials }} vials</span>
+                                    </div>
                                 </div>
-                                <div class="product-option-meta">
-                                    <span>{{ product.code }}</span>
-                                    <span>Kit: ${{ "%.2f"|format(product.kit_price) }}</span>
-                                    <span>Vial: ${{ "%.2f"|format(product.vial_price) }}</span>
+                                {% endfor %}
+                            {% else %}
+                                <div class="product-option locked">
+                                    <div class="product-option-name">
+                                        No active orders yet
+                                    </div>
+                                    <div class="product-option-meta">
+                                        <span style="color: var(--text-muted);">Orders will appear here once placed</span>
+                                    </div>
                                 </div>
-                            </div>
-                            {% endfor %}
+                            {% endif %}
                         </div>
                     </div>
 
@@ -1529,61 +1541,6 @@
         </div>
         {% endif %}
 
-        <!-- Full-Width Live Inventory Section -->
-        <div class="inventory-full-section">
-            <div class="card">
-                <h2 class="card-title"><span class="icon">📊</span> Live Product Inventory</h2>
-                <p style="color: var(--text-muted); margin-bottom: 1.5rem; font-size: 0.9rem;">Real-time tracking of peptide reservations and kit availability</p>
-                
-                <div class="inventory-search" style="max-width: 400px; margin-bottom: 1.5rem;">
-                    <input type="text" class="form-input" id="inventory-search" placeholder="🔍 Search products by name or code...">
-                </div>
-                
-                <div class="inventory-grid">
-                    {% for product in products %}
-                    <div class="inventory-card clickable {% if product.inventory.is_locked %}card-locked{% endif %} {% if product.inventory.total_vials > 0 %}has-orders{% endif %}" 
-                         data-code="{{ product.code }}" 
-                         data-name="{{ product.name }}"
-                         data-kit-price="{{ product.kit_price }}"
-                         data-vial-price="{{ product.vial_price }}"
-                         data-locked="{{ 'true' if product.inventory.is_locked else 'false' }}"
-                         data-total-vials="{{ product.inventory.total_vials }}"
-                         onclick="addFromInventory(this)">
-                        <div class="inv-card-header">
-                            <span class="inv-card-name">{{ product.name }}</span>
-                            <span class="inv-card-code">{{ product.code }}</span>
-                        </div>
-                        <div class="inv-card-stats">
-                            <div class="inv-stat">
-                                <span class="inv-stat-value">{{ product.inventory.kits_generated }}</span>
-                                <span class="inv-stat-label">Kits</span>
-                            </div>
-                            <div class="inv-stat">
-                                <span class="inv-stat-value">{{ product.inventory.total_vials }}</span>
-                                <span class="inv-stat-label">Vials</span>
-                            </div>
-                            <div class="inv-stat">
-                                <span class="inv-stat-value">{{ product.inventory.remaining_vials }}/{{ product.vials_per_kit }}</span>
-                                <span class="inv-stat-label">Next Kit</span>
-                            </div>
-                        </div>
-                        <div class="inv-card-progress">
-                            <div class="inv-progress-bar-full">
-                                <div class="inv-progress-fill" style="width: {{ (product.inventory.remaining_vials / product.vials_per_kit * 100)|int if product.vials_per_kit > 0 else 0 }}%;"></div>
-                            </div>
-                        </div>
-                        <div class="inv-card-status">
-                            {% if product.inventory.is_locked %}
-                            <span class="inv-lock-badge locked">🔒 Locked</span>
-                            {% else %}
-                            <span class="inv-lock-badge open">✨ Click to Add</span>
-                            {% endif %}
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-            </div>
-        </div>
 
         <!-- View: My Orders -->
         <div id="view-my-orders" class="view-content" style="display: none;">
@@ -1978,54 +1935,6 @@
             updateCart();
         }
 
-        // Add from inventory card click
-        function addFromInventory(card) {
-            const code = card.dataset.code;
-            const name = card.dataset.name;
-            const kitPrice = parseFloat(card.dataset.kitPrice);
-            const vialPrice = parseFloat(card.dataset.vialPrice);
-            const isLocked = card.dataset.locked === 'true';
-            
-            if (isLocked) {
-                showToast('This product is currently locked');
-                return;
-            }
-            
-            // Ask for order type and quantity
-            const orderTypeChoice = confirm('Add as Kit?\n\nClick OK for Kit\nClick Cancel for Vial');
-            const chosenType = orderTypeChoice ? 'Kit' : 'Vial';
-            
-            const qty = prompt(`How many ${chosenType}s of ${name} would you like to add?`, '1');
-            if (!qty || isNaN(parseInt(qty)) || parseInt(qty) < 1) {
-                return;
-            }
-            
-            const quantity = parseInt(qty);
-            const unitPrice = chosenType === 'Kit' ? kitPrice : vialPrice;
-            
-            // Add to cart with consolidation
-            const existingIndex = cartItems.findIndex(item => 
-                item.product_code === code && item.order_type === chosenType
-            );
-            
-            if (existingIndex >= 0) {
-                cartItems[existingIndex].qty += quantity;
-            } else {
-                cartItems.push({
-                    product_code: code,
-                    product_name: name,
-                    order_type: chosenType,
-                    qty: quantity,
-                    unit_price: unitPrice
-                });
-            }
-            
-            updateCart();
-            showToast(`Added ${quantity} ${chosenType}(s) of ${name} to cart!`);
-            
-            // Scroll to cart
-            document.getElementById('new-order').scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
 
         // Auto-lookup returning customers
         let customerLookupTimeout = null;
@@ -2808,16 +2717,6 @@
             viewOrder(orderId);
         }
 
-        // Inventory Search
-        document.getElementById('inventory-search').addEventListener('input', (e) => {
-            const query = e.target.value.toLowerCase();
-            document.querySelectorAll('.inventory-card').forEach(card => {
-                const code = card.dataset.code.toLowerCase();
-                const name = card.dataset.name;
-                const visible = code.includes(query) || name.includes(query);
-                card.style.display = visible ? '' : 'none';
-            });
-        });
 
         // Modals
         function closeModal(id) {
