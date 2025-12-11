@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>✨ Pep Haulers Hub | Order Form</title>
-    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500&family=Lobster&display=swap" rel="stylesheet">
     <style>
         :root {
             --bg-primary: #fdf8ff;
@@ -178,25 +178,234 @@
         /* Header */
         .header { text-align: center; margin-bottom: 2rem; }
         .header h1 {
-            font-family: 'Cormorant Garamond', serif;
-            font-size: 3.5rem;
-            font-weight: 600;
-            font-style: italic;
-            background: linear-gradient(135deg, #be185d 0%, #c084fc 30%, #e879a9 60%, #d4a574 100%);
+            font-family: 'Lobster', cursive;
+            font-size: 4rem;
+            font-weight: 400;
+            background: linear-gradient(135deg, #ff6b9d 0%, #c44569 20%, #ff9a56 40%, #ffcd3c 60%, #ff6b9d 80%, #c44569 100%);
+            background-size: 200% 200%;
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
-            letter-spacing: -0.02em;
-            text-shadow: 0 0 80px rgba(232, 121, 169, 0.3);
+            letter-spacing: 0.02em;
+            text-shadow: 0 0 60px rgba(255, 107, 157, 0.5), 0 0 120px rgba(196, 69, 105, 0.3);
+            animation: shimmer 3s ease-in-out infinite;
+            filter: drop-shadow(0 4px 8px rgba(196, 69, 105, 0.3));
+        }
+        
+        @keyframes shimmer {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
         }
 
         .header-subtitle {
-            font-family: 'DM Sans', sans-serif;
-            font-size: 1rem;
+            font-family: 'Lobster', cursive;
+            font-size: 1.3rem;
+            background: linear-gradient(90deg, #9f1239 0%, #db2777 50%, #f472b6 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-top: 0.75rem;
+            letter-spacing: 0.05em;
+            text-shadow: 0 0 30px rgba(219, 39, 119, 0.3);
+        }
+        
+        /* Consolidated Stats Section */
+        .stats-banner {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(254, 205, 211, 0.7) 50%, rgba(251, 207, 232, 0.8) 100%);
+            backdrop-filter: blur(20px);
+            border: 2px solid rgba(244, 114, 182, 0.3);
+            border-radius: 24px;
+            padding: 1.5rem 2rem;
+            margin: 1.5rem 0;
+            box-shadow: 0 8px 32px rgba(244, 114, 182, 0.15);
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .stat-item {
+            text-align: center;
+            padding: 1rem;
+            background: rgba(255, 255, 255, 0.6);
+            border-radius: 16px;
+            border: 1px solid rgba(244, 114, 182, 0.2);
+        }
+        
+        .stat-label {
+            font-size: 0.85rem;
             color: var(--text-muted);
-            margin-top: 0.5rem;
-            letter-spacing: 0.2em;
-            text-transform: uppercase;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+        
+        .stat-value {
+            font-family: 'Lobster', cursive;
+            font-size: 2rem;
+            background: linear-gradient(135deg, #be185d 0%, #c084fc 50%, #f472b6 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .stat-count {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-top: 0.25rem;
+        }
+        
+        /* Progress to Goal */
+        .goal-section {
+            margin-top: 1rem;
+        }
+        
+        .goal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+        }
+        
+        .goal-label {
+            font-family: 'Lobster', cursive;
+            font-size: 1.1rem;
+            color: var(--text-primary);
+        }
+        
+        .goal-amount {
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+        
+        .goal-bar {
+            height: 24px;
+            background: linear-gradient(90deg, rgba(255, 255, 255, 0.8), rgba(251, 207, 232, 0.5));
+            border-radius: 12px;
+            overflow: hidden;
+            border: 2px solid rgba(244, 114, 182, 0.3);
+            position: relative;
+        }
+        
+        .goal-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #f472b6 0%, #ec4899 30%, #db2777 60%, #be185d 100%);
+            border-radius: 10px;
+            transition: width 1s ease-out;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .goal-fill::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.4) 50%, transparent 100%);
+            animation: goalShimmer 2s ease-in-out infinite;
+        }
+        
+        @keyframes goalShimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+        
+        .goal-percentage {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-weight: 700;
+            font-size: 0.85rem;
+            color: white;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+        }
+        
+        .goal-reached {
+            background: linear-gradient(90deg, #10b981 0%, #34d399 50%, #6ee7b7 100%) !important;
+        }
+        
+        /* Products with Orders Section */
+        .orders-summary-section {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.85) 0%, rgba(221, 214, 254, 0.5) 100%);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(192, 132, 252, 0.3);
+            border-radius: 20px;
+            padding: 1.5rem;
+            margin-top: 1.5rem;
+        }
+        
+        .orders-summary-title {
+            font-family: 'Lobster', cursive;
+            font-size: 1.5rem;
+            color: var(--text-primary);
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .orders-product-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1rem;
+        }
+        
+        .order-product-card {
+            background: rgba(255, 255, 255, 0.7);
+            border: 1px solid rgba(192, 132, 252, 0.2);
+            border-radius: 12px;
+            padding: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .order-product-info {
+            flex: 1;
+        }
+        
+        .order-product-name {
+            font-weight: 600;
+            color: var(--text-primary);
+            font-size: 0.95rem;
+        }
+        
+        .order-product-code {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        .order-product-stats {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            font-size: 0.85rem;
+        }
+        
+        .order-vials-count {
+            color: var(--accent-primary);
+            font-weight: 600;
+        }
+        
+        .missing-slots {
+            background: linear-gradient(135deg, #fef3c7, #fde68a);
+            color: #92400e;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        
+        .kit-complete {
+            background: linear-gradient(135deg, #d1fae5, #a7f3d0);
+            color: #065f46;
         }
 
         /* Rate Banner - Glass Morphism */
@@ -1047,8 +1256,43 @@
         <!-- Header -->
         <header class="header">
             <h1>✨ Pep Haulers Order Form ✨</h1>
-            <p class="header-subtitle">Your access to high purity (99%) affordable pepperonis</p>
+            <p class="header-subtitle">Your access to high purity (99%) affordable peptide reservations</p>
         </header>
+
+        <!-- Consolidated Order Stats Banner -->
+        <div class="stats-banner">
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <div class="stat-label">📦 Total Kits Value</div>
+                    <div class="stat-value">${{ "%.2f"|format(order_stats.total_kits_usd) }}</div>
+                    <div class="stat-count">{{ order_stats.total_kits_count }} kits ordered</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">🧪 Total Vials Value</div>
+                    <div class="stat-value">${{ "%.2f"|format(order_stats.total_vials_usd) }}</div>
+                    <div class="stat-count">{{ order_stats.total_vials_count }} vials ordered</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">💎 Combined Total</div>
+                    <div class="stat-value">${{ "%.2f"|format(order_stats.combined_total_usd) }}</div>
+                    <div class="stat-count">All active orders</div>
+                </div>
+            </div>
+            
+            <!-- Progress to $1000 Goal -->
+            <div class="goal-section">
+                <div class="goal-header">
+                    <span class="goal-label">🎯 Progress to Goal</span>
+                    <span class="goal-amount">${{ "%.2f"|format(order_stats.combined_total_usd) }} / $1,000</span>
+                </div>
+                <div class="goal-bar">
+                    {% set progress = (order_stats.combined_total_usd / 1000 * 100) if order_stats.combined_total_usd < 1000 else 100 %}
+                    <div class="goal-fill {% if progress >= 100 %}goal-reached{% endif %}" style="width: {{ progress }}%;">
+                        <span class="goal-percentage">{{ "%.0f"|format(progress) }}%</span>
+                    </div>
+                </div>
+            </div>
+        </div>
 
         {% if order_form_locked %}
         <!-- Order Form Locked Banner -->
@@ -1243,6 +1487,31 @@
                 </div>
             </div>
         </div>
+
+        <!-- Products with Active Orders Summary -->
+        {% if products_with_orders %}
+        <div class="orders-summary-section">
+            <h3 class="orders-summary-title">🛒 Products with Active Orders</h3>
+            <div class="orders-product-grid">
+                {% for product in products_with_orders %}
+                <div class="order-product-card">
+                    <div class="order-product-info">
+                        <div class="order-product-name">{{ product.name }}</div>
+                        <div class="order-product-code">{{ product.code }}</div>
+                    </div>
+                    <div class="order-product-stats">
+                        <span class="order-vials-count">{{ product.inventory.total_vials }} vials</span>
+                        {% if product.inventory.slots_to_next_kit > 0 and product.inventory.remaining_vials > 0 %}
+                        <span class="missing-slots">{{ product.inventory.slots_to_next_kit }} to next kit</span>
+                        {% elif product.inventory.remaining_vials == 0 and product.inventory.kits_generated > 0 %}
+                        <span class="missing-slots kit-complete">✓ Kit complete</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
 
         <!-- Full-Width Live Inventory Section -->
         <div class="inventory-full-section">

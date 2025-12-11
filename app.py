@@ -924,6 +924,41 @@ def get_exchange_rate():
         pass
     return FALLBACK_EXCHANGE_RATE
 
+def get_consolidated_order_stats():
+    """Calculate consolidated order stats - total kits USD and total vials USD"""
+    orders = get_orders_from_sheets()
+    products = get_products()
+    product_prices = {p['code']: {'kit_price': p['kit_price'], 'vial_price': p['vial_price']} for p in products}
+    
+    total_kits_usd = 0.0
+    total_vials_usd = 0.0
+    total_kits_count = 0
+    total_vials_count = 0
+    
+    for order in orders:
+        if order.get('Order Status') == 'Cancelled':
+            continue
+        
+        product_code = order.get('Product Code', '')
+        order_type = order.get('Order Type', 'Vial')
+        qty = int(order.get('QTY', 0) or 0)
+        
+        if product_code in product_prices:
+            if order_type == 'Kit':
+                total_kits_usd += product_prices[product_code]['kit_price'] * qty
+                total_kits_count += qty
+            else:
+                total_vials_usd += product_prices[product_code]['vial_price'] * qty
+                total_vials_count += qty
+    
+    return {
+        'total_kits_usd': total_kits_usd,
+        'total_vials_usd': total_vials_usd,
+        'total_kits_count': total_kits_count,
+        'total_vials_count': total_vials_count,
+        'combined_total_usd': total_kits_usd + total_vials_usd
+    }
+
 # Routes
 @app.route('/')
 def index():
@@ -932,22 +967,30 @@ def index():
     products = get_products()
     inventory = get_inventory_stats()
     order_form_lock = get_order_form_lock()
+    order_stats = get_consolidated_order_stats()
     
+    # Filter products with orders for the summary section
+    products_with_orders = []
     for product in products:
         stats = inventory.get(product['code'], {
             'total_vials': 0, 'kits_generated': 0, 'remaining_vials': 0,
-            'slots_to_next_kit': VIALS_PER_KIT, 'max_kits': MAX_KITS_DEFAULT, 'is_locked': False
+            'slots_to_next_kit': VIALS_PER_KIT, 'max_kits': MAX_KITS_DEFAULT, 'is_locked': False,
+            'vials_per_kit': VIALS_PER_KIT
         })
         product['inventory'] = stats
+        if stats.get('total_vials', 0) > 0:
+            products_with_orders.append(product)
     
     return render_template('index.html', 
                          products=products, 
+                         products_with_orders=products_with_orders,
                          exchange_rate=exchange_rate,
                          admin_fee=ADMIN_FEE_PHP,
                          vials_per_kit=VIALS_PER_KIT,
                          order_form_locked=order_form_lock['is_locked'],
                          order_form_lock_message=order_form_lock['message'],
-                         telegram_bot_username=TELEGRAM_BOT_USERNAME)
+                         telegram_bot_username=TELEGRAM_BOT_USERNAME,
+                         order_stats=order_stats)
 
 @app.route('/admin')
 def admin_panel():
