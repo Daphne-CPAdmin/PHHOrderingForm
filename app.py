@@ -619,81 +619,130 @@ def recalculate_order_total(order_id):
         except:
             pass
 
-def upload_to_drive(file_data, filename, order_id):
-    """Upload payment screenshot to Google Drive"""
-    if not drive_service:
-        print("❌ Drive service not initialized!")
-        print(f"  - sheets_client exists: {sheets_client is not None}")
-        print(f"  - drive_service exists: {drive_service is not None}")
-        print("  - Check GOOGLE_CREDENTIALS_JSON env variable on Render")
-        print("  - Make sure the JSON is properly formatted (single line, escaped)")
-        return None
-    
+def upload_to_imgur(file_data, order_id):
+    """Upload image to Imgur as fallback storage"""
     try:
-        from googleapiclient.http import MediaInMemoryUpload
+        # Imgur Client ID for anonymous uploads (free tier)
+        imgur_client_id = os.getenv('IMGUR_CLIENT_ID', 'c4a16f7f1c45c0e')  # Public anonymous ID
         
-        # Use the specific PepHaul Payments folder in Google Drive
-        # Folder: https://drive.google.com/drive/folders/1HOt6b11IWp9CIazujHJMkbyCxQSrwFgg
-        folder_id = os.getenv('PAYMENT_DRIVE_FOLDER_ID', '1HOt6b11IWp9CIazujHJMkbyCxQSrwFgg')
-        
-        print(f"Uploading to folder: {folder_id}")
-        
-        # Decode base64 if needed
+        # Clean base64 data
         if ',' in file_data:
             file_data = file_data.split(',')[1]
         
-        file_bytes = base64.b64decode(file_data)
-        
-        # Detect mime type from data
-        mime_type = 'image/jpeg'
-        if file_data.startswith('/9j/'):
-            mime_type = 'image/jpeg'
-        elif file_data.startswith('iVBOR'):
-            mime_type = 'image/png'
-        elif file_data.startswith('R0lGO'):
-            mime_type = 'image/gif'
-        
-        # Generate unique filename with timestamp
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        safe_filename = f'{order_id}_payment_{timestamp}.jpg'
-        
-        # Upload file
-        file_metadata = {
-            'name': safe_filename,
-            'parents': [folder_id]
+        headers = {
+            'Authorization': f'Client-ID {imgur_client_id}'
         }
         
-        media = MediaInMemoryUpload(file_bytes, mimetype=mime_type, resumable=True)
+        data = {
+            'image': file_data,
+            'type': 'base64',
+            'title': f'PepHaul Payment - {order_id}',
+            'description': f'Payment screenshot for order {order_id}'
+        }
         
-        print(f"Creating file: {safe_filename}")
+        print(f"📤 Uploading to Imgur for order {order_id}...")
+        response = requests.post('https://api.imgur.com/3/image', headers=headers, data=data, timeout=30)
         
-        file = drive_service.files().create(
-            body=file_metadata,
-            media_body=media,
-            fields='id,webViewLink',
-            supportsAllDrives=True
-        ).execute()
-        
-        print(f"File created with ID: {file.get('id')}")
-        
-        # Make file viewable by anyone with link
+        if response.status_code == 200:
+            result = response.json()
+            link = result['data']['link']
+            print(f"✅ Imgur upload successful: {link}")
+            return link
+        else:
+            print(f"❌ Imgur upload failed: {response.status_code} - {response.text}")
+            return None
+            
+    except Exception as e:
+        print(f"❌ Imgur upload error: {e}")
+        return None
+
+def upload_to_drive(file_data, filename, order_id):
+    """Upload payment screenshot - tries Google Drive first, then Imgur as fallback"""
+    
+    # Try Google Drive first if configured
+    if drive_service:
         try:
-            drive_service.permissions().create(
-                fileId=file['id'],
-                body={'type': 'anyone', 'role': 'reader'},
+            from googleapiclient.http import MediaInMemoryUpload
+            
+            # Use the specific PepHaul Payments folder in Google Drive
+            folder_id = os.getenv('PAYMENT_DRIVE_FOLDER_ID', '1HOt6b11IWp9CIazujHJMkbyCxQSrwFgg')
+            
+            print(f"📤 Attempting Google Drive upload to folder: {folder_id}")
+            
+            # Decode base64 if needed
+            clean_data = file_data
+            if ',' in file_data:
+                clean_data = file_data.split(',')[1]
+            
+            file_bytes = base64.b64decode(clean_data)
+            
+            # Detect mime type from data
+            mime_type = 'image/jpeg'
+            if clean_data.startswith('/9j/'):
+                mime_type = 'image/jpeg'
+            elif clean_data.startswith('iVBOR'):
+                mime_type = 'image/png'
+            elif clean_data.startswith('R0lGO'):
+                mime_type = 'image/gif'
+            
+            # Generate unique filename with timestamp
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            safe_filename = f'{order_id}_payment_{timestamp}.jpg'
+            
+            # Upload file
+            file_metadata = {
+                'name': safe_filename,
+                'parents': [folder_id]
+            }
+            
+            media = MediaInMemoryUpload(file_bytes, mimetype=mime_type, resumable=True)
+            
+            print(f"Creating file: {safe_filename}")
+            
+            file = drive_service.files().create(
+                body=file_metadata,
+                media_body=media,
+                fields='id,webViewLink',
                 supportsAllDrives=True
             ).execute()
-            print("Permissions set successfully")
-        except Exception as perm_error:
-            print(f"Warning: Could not set permissions: {perm_error}")
-        
-        return file.get('webViewLink', f"https://drive.google.com/file/d/{file['id']}/view")
-        
-    except Exception as e:
-        print(f"Error uploading to Drive: {e}")
-        import traceback
-        traceback.print_exc()
-        return None
+            
+            print(f"✅ File created with ID: {file.get('id')}")
+            
+            # Make file viewable by anyone with link
+            try:
+                drive_service.permissions().create(
+                    fileId=file['id'],
+                    body={'type': 'anyone', 'role': 'reader'},
+                    supportsAllDrives=True
+                ).execute()
+                print("Permissions set successfully")
+            except Exception as perm_error:
+                print(f"Warning: Could not set permissions: {perm_error}")
+            
+            return file.get('webViewLink', f"https://drive.google.com/file/d/{file['id']}/view")
+            
+        except Exception as e:
+            error_str = str(e)
+            print(f"❌ Google Drive upload failed: {e}")
+            
+            # Check if it's the storage quota error
+            if 'storage quota' in error_str.lower() or 'storageQuotaExceeded' in error_str:
+                print("⚠️ Service Account storage quota exceeded - falling back to Imgur")
+            else:
+                import traceback
+                traceback.print_exc()
+    else:
+        print("⚠️ Google Drive not configured - using Imgur fallback")
+    
+    # Fallback to Imgur
+    print("🔄 Trying Imgur as fallback storage...")
+    imgur_link = upload_to_imgur(file_data, order_id)
+    
+    if imgur_link:
+        return imgur_link
+    
+    print("❌ All upload methods failed")
+    return None
 
 def get_inventory_stats():
     """Calculate inventory statistics with product-specific vials per kit"""
