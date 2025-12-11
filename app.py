@@ -8,11 +8,12 @@ import requests
 import json
 import os
 import base64
-from datetime import datetime
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from collections import defaultdict
 from functools import wraps
 import secrets
+import time
 
 # Load environment variables
 load_dotenv()
@@ -28,6 +29,33 @@ ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD', 'pephaul2024')  # Change in product
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '')  # Create bot via @BotFather
 TELEGRAM_ADMIN_CHAT_ID = os.getenv('TELEGRAM_ADMIN_CHAT_ID', '')  # Admin's Telegram chat ID
 TELEGRAM_BOT_USERNAME = os.getenv('TELEGRAM_BOT_USERNAME', 'pephaul_bot')  # Bot username (without @)
+
+# Simple cache to reduce Google Sheets API calls
+_cache = {}
+_cache_timestamps = {}
+CACHE_DURATION = 30  # seconds
+
+def get_cached(key, fetch_func, cache_duration=CACHE_DURATION):
+    """Get cached data or fetch if expired"""
+    now = time.time()
+    if key in _cache and key in _cache_timestamps:
+        if now - _cache_timestamps[key] < cache_duration:
+            return _cache[key]
+    
+    # Cache miss or expired - fetch new data
+    data = fetch_func()
+    _cache[key] = data
+    _cache_timestamps[key] = now
+    return data
+
+def clear_cache(key=None):
+    """Clear specific cache key or all cache"""
+    if key:
+        _cache.pop(key, None)
+        _cache_timestamps.pop(key, None)
+    else:
+        _cache.clear()
+        _cache_timestamps.clear()
 
 def send_telegram_notification(message, parse_mode='HTML'):
     """Send notification to admin via Telegram bot"""
@@ -197,8 +225,8 @@ def set_product_lock(product_code, is_locked, max_kits=None, admin_name='Admin')
 _order_form_locked = False
 _order_form_lock_message = ""
 
-def get_order_form_lock():
-    """Get order form lock status"""
+def _fetch_order_form_lock():
+    """Internal function to fetch lock status from sheets"""
     global _order_form_locked, _order_form_lock_message
     
     # Try to get from Google Sheets for persistence
@@ -228,6 +256,10 @@ def get_order_form_lock():
             print(f"Error getting order form lock: {e}")
     
     return {'is_locked': _order_form_locked, 'message': _order_form_lock_message}
+
+def get_order_form_lock():
+    """Get order form lock status (cached)"""
+    return get_cached('settings_lock', _fetch_order_form_lock, cache_duration=60)
 
 def set_order_form_lock(is_locked, message=''):
     """Set order form lock status"""
@@ -271,6 +303,9 @@ def set_order_form_lock(is_locked, message=''):
             worksheet.update_cell(message_row, 2, message)
             worksheet.update_cell(message_row, 3, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
             
+            # Clear cache since settings changed
+            clear_cache('settings_lock')
+            
             return True
         except Exception as e:
             print(f"Error setting order form lock: {e}")
@@ -281,8 +316,8 @@ def set_order_form_lock(is_locked, message=''):
 # Order Goal Settings
 _order_goal = 1000.0  # Default goal
 
-def get_order_goal():
-    """Get order goal from Settings sheet"""
+def _fetch_order_goal():
+    """Internal function to fetch order goal from sheets"""
     global _order_goal
     
     if sheets_client:
@@ -302,6 +337,10 @@ def get_order_goal():
             print(f"Error getting order goal: {e}")
     
     return _order_goal
+
+def get_order_goal():
+    """Get order goal from Settings sheet (cached)"""
+    return get_cached('settings_goal', _fetch_order_goal, cache_duration=60)
 
 def set_order_goal(goal_amount):
     """Set order goal in Settings sheet"""
@@ -334,6 +373,9 @@ def set_order_goal(goal_amount):
             worksheet.update_cell(goal_row, 2, str(goal_amount))
             worksheet.update_cell(goal_row, 3, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
             
+            # Clear cache since settings changed
+            clear_cache('settings_goal')
+            
             return True
         except Exception as e:
             print(f"Error setting order goal: {e}")
@@ -341,8 +383,8 @@ def set_order_goal(goal_amount):
     
     return True
 
-def get_orders_from_sheets():
-    """Read existing orders from PepHaul Entry tab"""
+def _fetch_orders_from_sheets():
+    """Internal function to fetch orders from sheets (called by cache)"""
     if not sheets_client:
         return []
     
@@ -354,6 +396,10 @@ def get_orders_from_sheets():
     except Exception as e:
         print(f"Error reading orders: {e}")
         return []
+
+def get_orders_from_sheets():
+    """Read existing orders from PepHaul Entry tab (cached)"""
+    return get_cached('orders', _fetch_orders_from_sheets, cache_duration=30)
 
 def get_order_by_id(order_id):
     """Get a specific order by ID"""
@@ -428,7 +474,7 @@ def save_order_to_sheets(order_data, order_id=None):
                 order_id,                           # All rows have Order ID
                 order_date,                         # All rows have Order Date
                 order_data['full_name'],            # All rows have Full Name
-                order_data['email'],                # All rows have Email
+                order_data.get('email', ''),        # Email (optional/empty)
                 order_data['telegram'],             # All rows have Telegram
                 item['product_code'],
                 item.get('product_name', ''),
@@ -452,6 +498,9 @@ def save_order_to_sheets(order_data, order_id=None):
         if rows_to_add:
             end_row = next_row + len(rows_to_add) - 1
             worksheet.update(f'A{next_row}:U{end_row}', rows_to_add)
+        
+        # Clear cache since orders changed
+        clear_cache('orders')
         
         return order_id
         
@@ -482,6 +531,9 @@ def update_order_status(order_id, status=None, locked=None, payment_status=None,
             if payment_screenshot:
                 worksheet.update_cell(row, 19, payment_screenshot)
                 worksheet.update_cell(row, 20, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+        
+        # Clear cache since orders changed
+        clear_cache('orders')
         
         return True
     except Exception as e:
@@ -592,6 +644,9 @@ def add_items_to_order(order_id, new_items, exchange_rate):
             
             end_row = next_row + len(rows_to_add) - 1
             worksheet.update(f'A{next_row}:U{end_row}', rows_to_add)
+        
+        # Clear cache since orders changed
+        clear_cache('orders')
         
         # Recalculate totals
         recalculate_order_total(order_id)
@@ -1436,7 +1491,6 @@ def api_submit_order():
 
 <b>Order ID:</b> {order_id}
 <b>Customer:</b> {order_data['full_name']}
-<b>Email:</b> {order_data['email']}
 <b>Telegram:</b> {order_data.get('telegram', 'N/A')}
 
 <b>Items:</b>
@@ -1615,6 +1669,9 @@ def update_item_quantity(order_id, product_code, order_type, new_qty):
             new_grand_total = new_subtotal_php + ADMIN_FEE_PHP
             worksheet.update(f'{chr(65 + grand_total_col)}{first_order_row}', [[new_grand_total]])
         
+        # Clear cache since orders changed
+        clear_cache('orders')
+        
         print(f"Updated {product_code} qty to {new_qty} for order {order_id}")
         return True
         
@@ -1693,6 +1750,9 @@ def wipe_order_quantities(order_id):
             first_row = min(order_rows)
             worksheet.update_cell(first_row, col_admin_fee + 1, 0)
             worksheet.update_cell(first_row, col_grand_total + 1, 0)
+        
+        # Clear cache since orders changed
+        clear_cache('orders')
         
         return True
     except Exception as e:
@@ -1876,6 +1936,9 @@ def api_save_mailing_address(order_id):
         worksheet.update_cell(cell.row, mailing_name_col, mailing_name)
         worksheet.update_cell(cell.row, mailing_phone_col, mailing_phone)
         worksheet.update_cell(cell.row, mailing_address_col, mailing_address)
+        
+        # Clear cache since orders changed
+        clear_cache('orders')
         
         # Send notification to admin
         order = get_order_by_id(order_id)
