@@ -2312,6 +2312,66 @@ def api_admin_mark_unpaid(order_id):
         return jsonify({'success': True})
     return jsonify({'error': 'Failed to update payment status'}), 500
 
+@app.route('/api/admin/orders/<order_id>/send-reminder', methods=['POST'])
+def api_admin_send_reminder(order_id):
+    """Admin: Send payment reminder via Telegram"""
+    if not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    if not TELEGRAM_BOT_TOKEN:
+        return jsonify({'error': 'Telegram bot not configured'}), 500
+    
+    # Get order details
+    order = get_order_by_id(order_id)
+    if not order:
+        return jsonify({'error': 'Order not found'}), 404
+    
+    telegram_handle = order.get('telegram', '').strip().lower()
+    if not telegram_handle:
+        return jsonify({'error': 'No Telegram username found for this order'}), 400
+    
+    # Remove @ if present
+    if telegram_handle.startswith('@'):
+        telegram_handle = telegram_handle[1:]
+    
+    # Check if we have their chat_id
+    chat_id = telegram_customers.get(telegram_handle) or telegram_customers.get(f"@{telegram_handle}")
+    
+    if not chat_id:
+        return jsonify({
+            'error': f'Cannot send message to @{telegram_handle}',
+            'message': f'Customer needs to message the bot @{TELEGRAM_BOT_USERNAME} first'
+        }), 400
+    
+    # Create reminder message
+    grand_total = order.get('grand_total_php', 0)
+    items_text = '\n'.join([f"• {item['product_name']} ({item['order_type']} x{item['qty']})" for item in order.get('items', [])])
+    
+    message = f"""🔔 <b>Payment Reminder - PepHaul Order</b>
+
+<b>Order ID:</b> {order_id}
+<b>Name:</b> {order.get('full_name', '')}
+
+<b>Your Items:</b>
+{items_text}
+
+<b>Total Amount:</b> ₱{grand_total:,.2f}
+
+Dear customer, this is a friendly reminder that we haven't received your payment yet.
+
+Please send your payment and upload the screenshot through the order form:
+https://pephaul-order-form.onrender.com
+
+If you've already paid, please upload your payment screenshot so we can confirm your order.
+
+Thank you! 💜"""
+    
+    # Send reminder
+    if send_customer_telegram(chat_id, message):
+        return jsonify({'success': True, 'message': f'Reminder sent to @{telegram_handle}'})
+    else:
+        return jsonify({'error': 'Failed to send Telegram message'}), 500
+
 # Initialize on startup
 init_google_services()
 ensure_worksheets_exist()

@@ -933,7 +933,7 @@
                         <td style="font-size: 0.85rem;">${order.order_date}</td>
                         <td>
                             <div style="font-weight: 500;">${order.full_name}</div>
-                            <div style="font-size: 0.8rem; color: var(--text-muted);">${order.email}</div>
+                            <div style="font-size: 0.8rem; color: var(--text-muted);">${order.telegram ? '@' + order.telegram.replace('@', '') : ''}</div>
                         </td>
                         <td><div class="order-items-preview">${itemsPreview.length > 30 ? itemsPreview.substring(0, 30) + '...' : itemsPreview}</div></td>
                         <td style="font-family: 'JetBrains Mono', monospace; font-weight: 600;">₱${order.grand_total_php.toLocaleString('en-PH', {minimumFractionDigits: 2})}</td>
@@ -944,10 +944,11 @@
                                 : '<span style="color: var(--text-muted);">—</span>'}
                         </td>
                         <td>
-                            <div style="display: flex; gap: 0.5rem;">
+                            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
                                 <button class="btn-sm btn-view" onclick="viewOrderDetails('${order.order_id}')">View</button>
                                 ${!isPaid 
-                                    ? `<button class="btn-sm btn-confirm" onclick="confirmPayment('${order.order_id}')">✓ Confirm</button>` 
+                                    ? `<button class="btn-sm btn-confirm" onclick="confirmPayment('${order.order_id}')">✓ Confirm</button>
+                                       <button class="btn-sm" style="background: var(--accent-violet); color: white;" onclick="sendReminder('${order.order_id}')">📲 Remind</button>` 
                                     : ''}
                             </div>
                         </td>
@@ -1069,6 +1070,28 @@
             } catch (error) {
                 console.error('Error confirming payment:', error);
                 showToast('Error confirming payment');
+            }
+        }
+
+        // Send payment reminder
+        async function sendReminder(orderId) {
+            if (!confirm(`Send payment reminder via Telegram for order ${orderId}?`)) return;
+            
+            try {
+                const response = await fetch(`/api/admin/orders/${orderId}/send-reminder`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    showToast(result.message || 'Reminder sent! 📲');
+                } else {
+                    alert(result.error || 'Failed to send reminder\n\n' + (result.message || ''));
+                }
+            } catch (error) {
+                console.error('Error sending reminder:', error);
+                showToast('Error sending reminder');
             }
         }
 
