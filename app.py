@@ -149,11 +149,11 @@ def ensure_worksheets_exist():
         if 'PepHaul Entry' not in existing_sheets:
             worksheet = spreadsheet.add_worksheet(title='PepHaul Entry', rows=1000, cols=25)
             headers = [
-                'Order ID', 'Order Date', 'Full Name', 'Email', 'Telegram Username',
+                'Order ID', 'Order Date', 'Name', 'Telegram Username',
                 'Product Code', 'Product Name', 'Order Type', 'QTY', 'Unit Price USD',
                 'Line Total USD', 'Exchange Rate', 'Line Total PHP', 'Admin Fee PHP',
                 'Grand Total PHP', 'Order Status', 'Locked', 'Confirmed Paid?', 
-                'Payment Screenshot', 'Payment Date', 'Notes'
+                'Payment Screenshot Link', 'Remarks'
             ]
             worksheet.update('A1:U1', [headers])
         
@@ -411,11 +411,10 @@ def get_order_by_id(order_id):
     
     # Reconstruct order
     first_item = order_items[0]
-    order = {
+        order = {
         'order_id': order_id,
         'order_date': first_item.get('Order Date', ''),
-        'full_name': first_item.get('Full Name', ''),
-        'email': first_item.get('Email', ''),
+        'full_name': first_item.get('Name', first_item.get('Full Name', '')),
         'telegram': first_item.get('Telegram Username', ''),
         'exchange_rate': float(first_item.get('Exchange Rate', FALLBACK_EXCHANGE_RATE) or FALLBACK_EXCHANGE_RATE),
         'admin_fee_php': float(first_item.get('Admin Fee PHP', ADMIN_FEE_PHP) or 0),
@@ -423,10 +422,7 @@ def get_order_by_id(order_id):
         'status': first_item.get('Order Status', 'Pending'),
         'locked': str(first_item.get('Locked', 'No')).lower() == 'yes',
         'payment_status': first_item.get('Confirmed Paid?', first_item.get('Payment Status', 'Unpaid')),
-        'payment_screenshot': first_item.get('Payment Screenshot', ''),
-        'mailing_name': first_item.get('Mailing Name', ''),
-        'mailing_phone': first_item.get('Mailing Phone', ''),
-        'mailing_address': first_item.get('Mailing Address', ''),
+        'payment_screenshot': first_item.get('Payment Screenshot Link', first_item.get('Payment Screenshot', '')),
         'items': []
     }
     
@@ -473,8 +469,7 @@ def save_order_to_sheets(order_data, order_id=None):
             row = [
                 order_id,                           # All rows have Order ID
                 order_date,                         # All rows have Order Date
-                order_data['full_name'],            # All rows have Full Name
-                order_data.get('email', ''),        # Email (optional/empty)
+                order_data['full_name'],            # All rows have Name
                 order_data['telegram'],             # All rows have Telegram
                 item['product_code'],
                 item.get('product_name', ''),
@@ -489,15 +484,14 @@ def save_order_to_sheets(order_data, order_id=None):
                 'Pending' if i == 0 else '',                 # Only first row
                 'No' if i == 0 else '',                      # Only first row (Locked)
                 'Unpaid' if i == 0 else '',                  # Only first row (Confirmed Paid?)
-                '',                                          # Payment Screenshot - only first row
-                '',                                          # Payment Date
-                ''                                           # Notes
+                '',                                          # Payment Screenshot Link - only first row
+                ''                                           # Remarks
             ]
             rows_to_add.append(row)
         
         if rows_to_add:
             end_row = next_row + len(rows_to_add) - 1
-            worksheet.update(f'A{next_row}:U{end_row}', rows_to_add)
+            worksheet.update(f'A{next_row}:S{end_row}', rows_to_add)
         
         # Clear cache since orders changed
         clear_cache('orders')
@@ -601,16 +595,14 @@ def add_items_to_order(order_id, new_items, exchange_rate):
             next_row = len(all_values) + 1
             
             # Get customer info from the first row of this order
-            order_info = {'full_name': '', 'email': '', 'telegram': '', 'order_date': ''}
-            col_full_name = headers.index('Full Name') if 'Full Name' in headers else 2
-            col_email = headers.index('Email') if 'Email' in headers else 3
-            col_telegram = headers.index('Telegram Username') if 'Telegram Username' in headers else 4
+            order_info = {'full_name': '', 'telegram': '', 'order_date': ''}
+            col_full_name = headers.index('Name') if 'Name' in headers else (headers.index('Full Name') if 'Full Name' in headers else 2)
+            col_telegram = headers.index('Telegram Username') if 'Telegram Username' in headers else 3
             col_order_date = headers.index('Order Date') if 'Order Date' in headers else 1
             
             for row in all_values[1:]:
                 if len(row) > col_indices['order_id'] and row[col_indices['order_id']] == order_id:
                     order_info['full_name'] = row[col_full_name] if len(row) > col_full_name else ''
-                    order_info['email'] = row[col_email] if len(row) > col_email else ''
                     order_info['telegram'] = row[col_telegram] if len(row) > col_telegram else ''
                     order_info['order_date'] = row[col_order_date] if len(row) > col_order_date else ''
                     break
@@ -620,8 +612,7 @@ def add_items_to_order(order_id, new_items, exchange_rate):
                 row = [
                     order_id,                           # All rows have Order ID
                     order_info['order_date'],           # All rows have Order Date
-                    order_info['full_name'],            # All rows have Full Name
-                    order_info['email'],                # All rows have Email
+                    order_info['full_name'],            # All rows have Name
                     order_info['telegram'],             # All rows have Telegram
                     item['product_code'],
                     item.get('product_name', ''),
@@ -636,14 +627,13 @@ def add_items_to_order(order_id, new_items, exchange_rate):
                     '',                                 # Order Status - only on first row
                     '',                                 # Locked - only on first row
                     '',                                 # Confirmed Paid? - only on first row
-                    '',                                 # Payment Screenshot
-                    '',                                 # Payment Date
-                    f'Added to {order_id}'              # Notes
+                    '',                                 # Payment Screenshot Link
+                    f'Added to {order_id}'              # Remarks
                 ]
                 rows_to_add.append(row)
             
             end_row = next_row + len(rows_to_add) - 1
-            worksheet.update(f'A{next_row}:U{end_row}', rows_to_add)
+            worksheet.update(f'A{next_row}:S{end_row}', rows_to_add)
         
         # Clear cache since orders changed
         clear_cache('orders')
@@ -1325,8 +1315,7 @@ def api_orders_lookup():
             grouped[order_id] = {
                 'order_id': order_id,
                 'order_date': order.get('Order Date', ''),
-                'full_name': order.get('Full Name', ''),
-                'email': order.get('Email', ''),
+                'full_name': order.get('Name', order.get('Full Name', '')),
                 'telegram': order.get('Telegram Username', ''),
                 'grand_total_php': float(order.get('Grand Total PHP', 0) or 0),
                 'status': order.get('Order Status', 'Pending'),
@@ -1361,8 +1350,7 @@ def api_orders():
             grouped[order_id] = {
                 'order_id': order_id,
                 'order_date': order.get('Order Date', ''),
-                'full_name': order.get('Full Name', ''),
-                'email': order.get('Email', ''),
+                'full_name': order.get('Name', order.get('Full Name', '')),
                 'telegram': order.get('Telegram Username', ''),
                 'grand_total_php': float(order.get('Grand Total PHP', 0) or 0),
                 'status': order.get('Order Status', 'Pending'),
@@ -1402,15 +1390,15 @@ def api_search_orders():
         if not order_id:
             continue
             
-        name = str(order.get('Full Name', '')).lower()
-        email = str(order.get('Email', '')).lower()
+        name = str(order.get('Name', order.get('Full Name', ''))).lower()
+        telegram = str(order.get('Telegram Username', '')).lower()
         
-        if query in name or query in email or query in order_id.lower():
+        if query in name or query in telegram or query in order_id.lower():
             if order_id not in matching:
                 matching[order_id] = {
                     'order_id': order_id,
-                    'full_name': order.get('Full Name', ''),
-                    'email': order.get('Email', ''),
+                    'full_name': order.get('Name', order.get('Full Name', '')),
+                    'telegram': order.get('Telegram Username', ''),
                     'status': order.get('Order Status', 'Pending'),
                     'payment_status': order.get('Confirmed Paid?', order.get('Payment Status', 'Unpaid')),
                     'grand_total_php': float(order.get('Grand Total PHP', 0) or 0)
@@ -1821,6 +1809,49 @@ def api_upload_payment(order_id):
     print(f"❌ Upload failed for order {order_id}")
     return jsonify({'error': 'Upload failed - please check server logs'}), 500
 
+@app.route('/api/orders/<order_id>/payment-link', methods=['POST'])
+def api_submit_payment_link(order_id):
+    """Submit payment screenshot link (Google Drive, Imgur, etc.)"""
+    data = request.json
+    payment_link = data.get('payment_link', '').strip()
+    
+    if not payment_link:
+        return jsonify({'error': 'No payment link provided'}), 400
+    
+    # Validate URL format
+    try:
+        from urllib.parse import urlparse
+        result = urlparse(payment_link)
+        if not all([result.scheme, result.netloc]):
+            raise ValueError("Invalid URL")
+    except:
+        return jsonify({'error': 'Invalid URL format'}), 400
+    
+    print(f"🔗 Payment link submitted for order {order_id}: {payment_link}")
+    
+    # Update order with payment link
+    if update_order_status(order_id, payment_status='Paid', payment_screenshot=payment_link):
+        # Get order details for notification
+        order = get_order_by_id(order_id)
+        if order:
+            telegram_msg = f"""💰 <b>Payment Link Submitted!</b>
+
+<b>Order ID:</b> {order_id}
+<b>Customer:</b> {order.get('full_name', 'N/A')}
+<b>Telegram:</b> {order.get('telegram', 'N/A')}
+<b>Amount:</b> ₱{order.get('grand_total_php', 0):,.2f}
+
+<b>Payment Link:</b> <a href="{payment_link}">View Payment</a>
+
+⚠️ Please verify and confirm payment in Admin Panel."""
+            send_telegram_notification(telegram_msg)
+        
+        print(f"✅ Payment link saved successfully")
+        return jsonify({'success': True, 'link': payment_link})
+    
+    print(f"❌ Failed to save payment link for order {order_id}")
+    return jsonify({'error': 'Failed to save payment link'}), 500
+
 @app.route('/api/upload-payment', methods=['POST'])
 def api_upload_payment_generic():
     """Upload payment screenshot (generic endpoint)"""
@@ -2103,14 +2134,13 @@ def api_admin_orders():
             grouped[order_id] = {
                 'order_id': order_id,
                 'order_date': order.get('Order Date', ''),
-                'full_name': order.get('Full Name', ''),
-                'email': order.get('Email', ''),
+                'full_name': order.get('Name', order.get('Full Name', '')),
                 'telegram': order.get('Telegram Username', ''),
                 'grand_total_php': float(order.get('Grand Total PHP', 0) or 0),
                 'status': order.get('Order Status', 'Pending'),
                 'locked': str(order.get('Locked', 'No')).lower() == 'yes',
                 'payment_status': order.get('Confirmed Paid?', order.get('Payment Status', 'Unpaid')),
-                'payment_screenshot': order.get('Payment Screenshot', ''),
+                'payment_screenshot': order.get('Payment Screenshot Link', order.get('Payment Screenshot', '')),
                 'items': []
             }
         
@@ -2135,6 +2165,39 @@ def api_admin_confirm_payment(order_id):
         return jsonify({'error': 'Unauthorized'}), 401
     
     if update_order_status(order_id, payment_status='Paid'):
+        # Get order details for customer notification
+        order = get_order_by_id(order_id)
+        if order:
+            # Send notification to customer via Telegram
+            telegram_handle = order.get('telegram', '').strip().lower()
+            if telegram_handle:
+                if telegram_handle.startswith('@'):
+                    telegram_handle = telegram_handle[1:]
+                
+                chat_id = telegram_customers.get(telegram_handle) or telegram_customers.get(f"@{telegram_handle}")
+                
+                if chat_id:
+                    items_text = '\n'.join([f"• {item['product_name']} ({item['order_type']} x{item['qty']})" for item in order.get('items', [])])
+                    
+                    customer_msg = f"""✅ <b>Payment Confirmed!</b> ✅
+
+<b>Order ID:</b> {order_id}
+<b>Name:</b> {order.get('full_name', '')}
+
+<b>Your Items:</b>
+{items_text}
+
+<b>Grand Total:</b> ₱{order.get('grand_total_php', 0):,.2f}
+
+🎉 Your payment has been confirmed by admin! Your order is now being processed.
+
+Thank you for your order! 💜"""
+                    
+                    send_customer_telegram(chat_id, customer_msg)
+                    print(f"✅ Payment confirmation sent to customer @{telegram_handle}")
+                else:
+                    print(f"⚠️ Customer @{telegram_handle} not registered for Telegram notifications")
+        
         return jsonify({'success': True})
     return jsonify({'error': 'Failed to confirm payment'}), 500
 
@@ -2151,6 +2214,39 @@ def api_admin_confirm_payment_post():
         return jsonify({'error': 'Order ID required'}), 400
     
     if update_order_status(order_id, payment_status='Paid'):
+        # Get order details for customer notification
+        order = get_order_by_id(order_id)
+        if order:
+            # Send notification to customer via Telegram
+            telegram_handle = order.get('telegram', '').strip().lower()
+            if telegram_handle:
+                if telegram_handle.startswith('@'):
+                    telegram_handle = telegram_handle[1:]
+                
+                chat_id = telegram_customers.get(telegram_handle) or telegram_customers.get(f"@{telegram_handle}")
+                
+                if chat_id:
+                    items_text = '\n'.join([f"• {item['product_name']} ({item['order_type']} x{item['qty']})" for item in order.get('items', [])])
+                    
+                    customer_msg = f"""✅ <b>Payment Confirmed!</b> ✅
+
+<b>Order ID:</b> {order_id}
+<b>Name:</b> {order.get('full_name', '')}
+
+<b>Your Items:</b>
+{items_text}
+
+<b>Grand Total:</b> ₱{order.get('grand_total_php', 0):,.2f}
+
+🎉 Your payment has been confirmed by admin! Your order is now being processed.
+
+Thank you for your order! 💜"""
+                    
+                    send_customer_telegram(chat_id, customer_msg)
+                    print(f"✅ Payment confirmation sent to customer @{telegram_handle}")
+                else:
+                    print(f"⚠️ Customer @{telegram_handle} not registered for Telegram notifications")
+        
         return jsonify({'success': True})
     return jsonify({'error': 'Failed to confirm payment'}), 500
 
