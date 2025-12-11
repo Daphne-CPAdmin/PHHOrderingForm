@@ -800,58 +800,68 @@ def upload_to_drive(file_data, filename, order_id):
 
 def _fetch_inventory_stats():
     """Internal function to fetch and calculate inventory statistics"""
-    orders = get_orders_from_sheets()
-    product_stats = defaultdict(lambda: {'total_vials': 0, 'kit_orders': 0, 'vial_orders': 0})
-    
-    # Build product lookup for vials_per_kit
-    products = get_products()
-    product_vials_map = {p['code']: p.get('vials_per_kit', VIALS_PER_KIT) for p in products}
-    
-    for order in orders:
-        if order.get('Order Status') == 'Cancelled':
-            continue
+    try:
+        orders = get_orders_from_sheets()
+        if not orders:
+            orders = []
+        
+        product_stats = defaultdict(lambda: {'total_vials': 0, 'kit_orders': 0, 'vial_orders': 0})
+        
+        # Build product lookup for vials_per_kit
+        products = get_products()
+        product_vials_map = {p['code']: p.get('vials_per_kit', VIALS_PER_KIT) for p in products}
+        
+        for order in orders:
+            if order.get('Order Status') == 'Cancelled':
+                continue
+                
+            product_code = order.get('Product Code', '')
+            if not product_code:
+                continue
+                
+            order_type = order.get('Order Type', 'Vial')
+            qty = int(order.get('QTY', 0) or 0)
+            vials_per_kit = product_vials_map.get(product_code, VIALS_PER_KIT)
             
-        product_code = order.get('Product Code', '')
-        if not product_code:
-            continue
+            if order_type == 'Kit':
+                product_stats[product_code]['total_vials'] += qty * vials_per_kit
+                product_stats[product_code]['kit_orders'] += qty
+            else:
+                product_stats[product_code]['total_vials'] += qty
+                product_stats[product_code]['vial_orders'] += qty
+        
+        # Get product locks
+        locks = get_product_locks()
+        
+        inventory = {}
+        for product_code, stats in product_stats.items():
+            vials_per_kit = product_vials_map.get(product_code, VIALS_PER_KIT)
+            total_vials = stats['total_vials']
+            kits_generated = total_vials // vials_per_kit
+            remaining_vials = total_vials % vials_per_kit
+            slots_to_next_kit = vials_per_kit - remaining_vials if remaining_vials > 0 else 0
             
-        order_type = order.get('Order Type', 'Vial')
-        qty = int(order.get('QTY', 0) or 0)
-        vials_per_kit = product_vials_map.get(product_code, VIALS_PER_KIT)
+            lock_info = locks.get(product_code, {})
+            max_kits = lock_info.get('max_kits', MAX_KITS_DEFAULT)
+            is_locked = lock_info.get('is_locked', False) or kits_generated >= max_kits
+            
+            inventory[product_code] = {
+                'total_vials': total_vials,
+                'kits_generated': kits_generated,
+                'remaining_vials': remaining_vials,
+                'slots_to_next_kit': slots_to_next_kit,
+                'vials_per_kit': vials_per_kit,
+                'max_kits': max_kits,
+                'is_locked': is_locked
+            }
         
-        if order_type == 'Kit':
-            product_stats[product_code]['total_vials'] += qty * vials_per_kit
-            product_stats[product_code]['kit_orders'] += qty
-        else:
-            product_stats[product_code]['total_vials'] += qty
-            product_stats[product_code]['vial_orders'] += qty
-    
-    # Get product locks
-    locks = get_product_locks()
-    
-    inventory = {}
-    for product_code, stats in product_stats.items():
-        vials_per_kit = product_vials_map.get(product_code, VIALS_PER_KIT)
-        total_vials = stats['total_vials']
-        kits_generated = total_vials // vials_per_kit
-        remaining_vials = total_vials % vials_per_kit
-        slots_to_next_kit = vials_per_kit - remaining_vials if remaining_vials > 0 else 0
-        
-        lock_info = locks.get(product_code, {})
-        max_kits = lock_info.get('max_kits', MAX_KITS_DEFAULT)
-        is_locked = lock_info.get('is_locked', False) or kits_generated >= max_kits
-        
-        inventory[product_code] = {
-            'total_vials': total_vials,
-            'kits_generated': kits_generated,
-            'remaining_vials': remaining_vials,
-            'slots_to_next_kit': slots_to_next_kit,
-            'vials_per_kit': vials_per_kit,
-            'max_kits': max_kits,
-            'is_locked': is_locked
-        }
-    
-    return inventory
+        return inventory
+    except Exception as e:
+        print(f"Error calculating inventory stats: {e}")
+        import traceback
+        traceback.print_exc()
+        # Return empty inventory
+        return {}
 
 def get_inventory_stats():
     """Get inventory statistics with caching"""
@@ -1096,38 +1106,54 @@ def get_exchange_rate():
 
 def _fetch_consolidated_order_stats():
     """Internal function to calculate consolidated order stats"""
-    orders = get_orders_from_sheets()
-    products = get_products()
-    product_prices = {p['code']: {'kit_price': p['kit_price'], 'vial_price': p['vial_price']} for p in products}
-    
-    total_kits_usd = 0.0
-    total_vials_usd = 0.0
-    total_kits_count = 0
-    total_vials_count = 0
-    
-    for order in orders:
-        if order.get('Order Status') == 'Cancelled':
-            continue
+    try:
+        orders = get_orders_from_sheets()
+        if not orders:
+            orders = []
         
-        product_code = order.get('Product Code', '')
-        order_type = order.get('Order Type', 'Vial')
-        qty = int(order.get('QTY', 0) or 0)
+        products = get_products()
+        product_prices = {p['code']: {'kit_price': p['kit_price'], 'vial_price': p['vial_price']} for p in products}
         
-        if product_code in product_prices:
-            if order_type == 'Kit':
-                total_kits_usd += product_prices[product_code]['kit_price'] * qty
-                total_kits_count += qty
-            else:
-                total_vials_usd += product_prices[product_code]['vial_price'] * qty
-                total_vials_count += qty
-    
-    return {
-        'total_kits_usd': total_kits_usd,
-        'total_vials_usd': total_vials_usd,
-        'total_kits_count': total_kits_count,
-        'total_vials_count': total_vials_count,
-        'combined_total_usd': total_kits_usd + total_vials_usd
-    }
+        total_kits_usd = 0.0
+        total_vials_usd = 0.0
+        total_kits_count = 0
+        total_vials_count = 0
+        
+        for order in orders:
+            if order.get('Order Status') == 'Cancelled':
+                continue
+            
+            product_code = order.get('Product Code', '')
+            order_type = order.get('Order Type', 'Vial')
+            qty = int(order.get('QTY', 0) or 0)
+            
+            if product_code in product_prices:
+                if order_type == 'Kit':
+                    total_kits_usd += product_prices[product_code]['kit_price'] * qty
+                    total_kits_count += qty
+                else:
+                    total_vials_usd += product_prices[product_code]['vial_price'] * qty
+                    total_vials_count += qty
+        
+        return {
+            'total_kits_usd': total_kits_usd,
+            'total_vials_usd': total_vials_usd,
+            'total_kits_count': total_kits_count,
+            'total_vials_count': total_vials_count,
+            'combined_total_usd': total_kits_usd + total_vials_usd
+        }
+    except Exception as e:
+        print(f"Error calculating order stats: {e}")
+        import traceback
+        traceback.print_exc()
+        # Return default stats
+        return {
+            'total_kits_usd': 0.0,
+            'total_vials_usd': 0.0,
+            'total_kits_count': 0,
+            'total_vials_count': 0,
+            'combined_total_usd': 0.0
+        }
 
 def get_consolidated_order_stats():
     """Get consolidated order stats with caching"""
