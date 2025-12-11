@@ -1137,37 +1137,43 @@ def get_consolidated_order_stats():
 @app.route('/')
 def index():
     """Main order form page"""
-    exchange_rate = get_exchange_rate()
-    products = get_products()
-    inventory = get_inventory_stats()
-    order_form_lock = get_order_form_lock()
-    order_stats = get_consolidated_order_stats()
-    
-    # Filter products with orders for the summary section
-    products_with_orders = []
-    for product in products:
-        stats = inventory.get(product['code'], {
-            'total_vials': 0, 'kits_generated': 0, 'remaining_vials': 0,
-            'slots_to_next_kit': VIALS_PER_KIT, 'max_kits': MAX_KITS_DEFAULT, 'is_locked': False,
-            'vials_per_kit': VIALS_PER_KIT
-        })
-        product['inventory'] = stats
-        if stats.get('total_vials', 0) > 0:
-            products_with_orders.append(product)
-    
-    order_goal = get_order_goal()
-    
-    return render_template('index.html', 
-                         products=products, 
-                         products_with_orders=products_with_orders,
-                         exchange_rate=exchange_rate,
-                         admin_fee=ADMIN_FEE_PHP,
-                         vials_per_kit=VIALS_PER_KIT,
-                         order_form_locked=order_form_lock['is_locked'],
-                         order_form_lock_message=order_form_lock['message'],
-                         telegram_bot_username=TELEGRAM_BOT_USERNAME,
-                         order_stats=order_stats,
-                         order_goal=order_goal)
+    try:
+        exchange_rate = get_exchange_rate()
+        products = get_products()
+        inventory = get_inventory_stats()
+        order_form_lock = get_order_form_lock()
+        order_stats = get_consolidated_order_stats()
+        
+        # Filter products with orders for the summary section
+        products_with_orders = []
+        for product in products:
+            stats = inventory.get(product['code'], {
+                'total_vials': 0, 'kits_generated': 0, 'remaining_vials': 0,
+                'slots_to_next_kit': VIALS_PER_KIT, 'max_kits': MAX_KITS_DEFAULT, 'is_locked': False,
+                'vials_per_kit': VIALS_PER_KIT
+            })
+            product['inventory'] = stats
+            if stats.get('total_vials', 0) > 0:
+                products_with_orders.append(product)
+        
+        order_goal = get_order_goal()
+        
+        return render_template('index.html', 
+                             products=products, 
+                             products_with_orders=products_with_orders,
+                             exchange_rate=exchange_rate,
+                             admin_fee=ADMIN_FEE_PHP,
+                             vials_per_kit=VIALS_PER_KIT,
+                             order_form_locked=order_form_lock['is_locked'],
+                             order_form_lock_message=order_form_lock['message'],
+                             telegram_bot_username=TELEGRAM_BOT_USERNAME,
+                             order_stats=order_stats,
+                             order_goal=order_goal)
+    except Exception as e:
+        app.logger.error(f"Error loading index page: {str(e)}")
+        import traceback
+        app.logger.error(traceback.format_exc())
+        return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
 
 @app.route('/admin')
 def admin_panel():
