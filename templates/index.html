@@ -181,7 +181,7 @@
             font-family: 'Lobster', cursive;
             font-size: 4rem;
             font-weight: 400;
-            background: linear-gradient(135deg, #ff6b9d 0%, #c44569 20%, #ff9a56 40%, #ffcd3c 60%, #ff6b9d 80%, #c44569 100%);
+            background: linear-gradient(135deg, #4c1d95 0%, #5b21b6 20%, #6d28d9 40%, #7c3aed 60%, #8b5cf6 80%, #9333ea 100%);
             background-size: 200% 200%;
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
@@ -453,11 +453,13 @@
             font-weight: 600; 
             background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);
             -webkit-background-clip: text;
+            background-clip: text;
             -webkit-text-fill-color: transparent;
         }
         .rate-value.amber { 
             background: linear-gradient(135deg, var(--accent-gold) 0%, #f59e0b 100%);
             -webkit-background-clip: text;
+            background-clip: text;
         }
 
         /* Main Grid */
@@ -1327,7 +1329,7 @@
         <!-- Navigation -->
         <nav class="nav-bar">
             <div class="nav-tabs">
-                <button class="nav-tab active" data-view="new-order">New / Update Order</button>
+                <button class="nav-tab active" data-view="new-order">Customer Order View</button>
             </div>
             <a href="/admin" class="nav-tab admin">Admin Panel</a>
         </nav>
@@ -1365,9 +1367,14 @@
                     <span class="goal-amount">${{ "%.2f"|format(order_stats.combined_total_usd) }} / ${{ "%.0f"|format(order_goal) }}</span>
                 </div>
                 <div class="goal-bar">
-                    {% set progress = (order_stats.combined_total_usd / order_goal * 100) if order_stats.combined_total_usd < order_goal else 100 %}
-                    <div class="goal-fill {% if progress >= 100 %}goal-reached{% endif %}" style="width: {{ progress }}%;">
-                        <span class="goal-percentage">{{ "%.0f"|format(progress) }}%</span>
+                    {% if order_goal > 0 %}
+                        {% set calculated_progress = (order_stats.combined_total_usd / order_goal * 100) %}
+                        {% set progress = calculated_progress if calculated_progress < 100 else 100 %}
+                    {% else %}
+                        {% set progress = 0 %}
+                    {% endif %}
+                    <div class="goal-fill{% if progress >= 100 %} goal-reached{% endif %}" style="width: {{ progress|round(0, 'floor') }}%;">
+                        <span class="goal-percentage">{{ progress|round(0, 'floor') }}%</span>
                     </div>
                 </div>
             </div>
@@ -1405,7 +1412,7 @@
             <div class="main-grid">
                 <!-- Order Form -->
                 <div class="card">
-                    <h2 class="card-title"><span class="icon">📦</span> New / Update Order</h2>
+                    <h2 class="card-title"><span class="icon">📦</span> Customer Order View</h2>
 
                     <div class="form-row" style="margin-bottom: 1.5rem;">
                         <div class="form-group">
@@ -1830,9 +1837,9 @@
 
     <script>
         // Config
-        const EXCHANGE_RATE = {{ exchange_rate }};
-        const ADMIN_FEE = {{ admin_fee }};
-        const VIALS_PER_KIT = {{ vials_per_kit }};
+        const EXCHANGE_RATE = {{ exchange_rate|default(59.0)|tojson }};
+        const ADMIN_FEE = {{ admin_fee|default(300.0)|tojson }};
+        const VIALS_PER_KIT = {{ vials_per_kit|default(10)|tojson }};
         
         // State
         let selectedProduct = null;
@@ -2777,7 +2784,7 @@
             if (!input) return;
             
             const currentQty = parseInt(input.value) || 0;
-            const maxQty = orderType === 'Kit' ? 5 : 10;
+            const maxQty = parseInt(input.getAttribute('max')) || 99;
             let newQty = currentQty + delta;
             
             // Enforce min/max limits
