@@ -937,9 +937,11 @@ def get_inventory_stats():
 def _fetch_products_from_sheets():
     """Internal function to fetch products from Price List tab"""
     if not sheets_client:
+        print("⚠️ sheets_client is None - cannot fetch products from Google Sheets")
         return None
     
     try:
+        print("📊 Fetching products from Google Sheets 'Price List' tab...")
         spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
         
         # Try to find Price List worksheet
@@ -947,6 +949,7 @@ def _fetch_products_from_sheets():
         
         # Get all records
         records = worksheet.get_all_records()
+        print(f"📋 Found {len(records)} records in Price List tab")
         
         products = []
         for record in records:
@@ -966,7 +969,8 @@ def _fetch_products_from_sheets():
                 kit_price = float(kit_price_str.replace('$', '').replace(',', '').strip() or 0)
                 vial_price = float(vial_price_str.replace('$', '').replace(',', '').strip() or 0)
                 vials_per_kit = int(float(vials_per_kit_str.strip() or 10))
-            except (ValueError, AttributeError):
+            except (ValueError, AttributeError) as parse_error:
+                print(f"⚠️ Failed to parse product {code}: {parse_error}")
                 continue
             
             # Skip if prices are 0
@@ -981,10 +985,13 @@ def _fetch_products_from_sheets():
                 'vials_per_kit': vials_per_kit
             })
         
+        print(f"✅ Successfully loaded {len(products)} products from Google Sheets")
         return products if products else None
         
     except Exception as e:
-        print(f"Error reading products from sheet: {e}")
+        print(f"❌ Error reading products from sheet: {e}")
+        import traceback
+        traceback.print_exc()
         import traceback
         traceback.print_exc()
         return None
@@ -993,15 +1000,20 @@ def get_products():
     """Get products from Google Sheet Price List tab, fallback to hardcoded list"""
     # Try to get from sheet first (with caching)
     try:
+        print("🔄 Attempting to load products from Google Sheets...")
         cached_products = get_cached('products_sheet', _fetch_products_from_sheets, cache_duration=300)  # 5 minutes
         if cached_products and len(cached_products) > 0:
-            print(f"Loaded {len(cached_products)} products from Google Sheet")
+            print(f"✅ Loaded {len(cached_products)} products from Google Sheet")
             return cached_products
+        else:
+            print(f"⚠️ Cached products is empty or None: {cached_products}")
     except Exception as e:
-        print(f"Error loading products from sheet, using fallback: {e}")
+        print(f"❌ Error loading products from sheet, using fallback: {e}")
+        import traceback
+        traceback.print_exc()
     
     # Fallback to hardcoded list
-    print("Using hardcoded product list (fallback)")
+    print("⚠️ Using hardcoded product list (fallback)")
     return [
         # Tirzepatide
         {"code": "TR5", "name": "Tirzepatide - 5mg", "kit_price": 45, "vial_price": 4.5, "vials_per_kit": 10},
@@ -1450,7 +1462,9 @@ def api_exchange_rate():
 
 @app.route('/api/products')
 def api_products():
+    print("🎯 API /api/products called - fetching products...")
     products = get_products()
+    print(f"📦 Got {len(products)} products from get_products()")
     inventory = get_inventory_stats()
     for product in products:
         vials_per_kit = product.get('vials_per_kit', VIALS_PER_KIT)
