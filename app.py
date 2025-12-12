@@ -170,9 +170,9 @@ def ensure_worksheets_exist():
                 'Product Code', 'Product Name', 'Order Type', 'QTY', 'Unit Price USD',
                 'Line Total USD', 'Exchange Rate', 'Line Total PHP', 'Admin Fee PHP',
                 'Grand Total PHP', 'Order Status', 'Locked', 'Payment Status', 
-                'Remarks', 'Link to Payment', 'Payment Date'
+                'Remarks', 'Link to Payment', 'Payment Date', 'Full Name', 'Contact Number', 'Mailing Address'
             ]
-            worksheet.update('A1:T1', [headers])
+            worksheet.update('A1:W1', [headers])
         
         # Product Locks tab (for admin)
         if 'Product Locks' not in existing_sheets:
@@ -250,6 +250,8 @@ def populate_pephauler_orders_tab():
                     'locked': order.get('Locked', 'No'),
                     'payment_status': order.get('Payment Status', order.get('Confirmed Paid?', 'Unpaid')),
                     'payment_screenshot': order.get('Link to Payment', order.get('Payment Screenshot Link', order.get('Payment Screenshot', ''))),
+                    'full_name': order.get('Full Name', order.get('Name', '')),
+                    'contact_number': order.get('Contact Number', ''),
                     'mailing_address': order.get('Mailing Address', ''),
                     'remarks': order.get('Remarks', ''),
                     'items': []
@@ -613,6 +615,9 @@ def get_order_by_id(order_id):
         'locked': str(first_item.get('Locked', 'No')).lower() == 'yes',
         'payment_status': first_item.get('Payment Status', first_item.get('Confirmed Paid?', 'Unpaid')),
         'payment_screenshot': first_item.get('Link to Payment', first_item.get('Payment Screenshot Link', first_item.get('Payment Screenshot', ''))),
+        'full_name': first_item.get('Full Name', first_item.get('Name', '')),
+        'contact_number': first_item.get('Contact Number', ''),
+        'mailing_address': first_item.get('Mailing Address', ''),
         'items': []
     }
     
@@ -676,13 +681,16 @@ def save_order_to_sheets(order_data, order_id=None):
                 'Unpaid' if i == 0 else '',                  # Only first row (Payment Status)
                 '',                                          # Remarks - only first row
                 '',                                          # Link to Payment - only first row
-                ''                                           # Payment Date - only first row
+                '',                                          # Payment Date - only first row
+                order_data.get('full_name', ''),            # Full Name - only first row
+                order_data.get('contact_number', ''),       # Contact Number - only first row
+                order_data.get('mailing_address', '')       # Mailing Address - only first row
             ]
             rows_to_add.append(row)
         
         if rows_to_add:
             end_row = next_row + len(rows_to_add) - 1
-            worksheet.update(f'A{next_row}:T{end_row}', rows_to_add)
+            worksheet.update(f'A{next_row}:W{end_row}', rows_to_add)
         
         # Clear cache since orders changed
         clear_cache('orders')
@@ -824,12 +832,15 @@ def add_items_to_order(order_id, new_items, exchange_rate):
                     '',                                 # Payment Status - only on first row
                     f'Added to {order_id}',            # Remarks
                     '',                                 # Link to Payment
-                    ''                                  # Payment Date
+                    '',                                 # Payment Date
+                    '',                                 # Full Name
+                    '',                                 # Contact Number
+                    ''                                  # Mailing Address
                 ]
                 rows_to_add.append(row)
             
             end_row = next_row + len(rows_to_add) - 1
-            worksheet.update(f'A{next_row}:T{end_row}', rows_to_add)
+            worksheet.update(f'A{next_row}:W{end_row}', rows_to_add)
         
         # Clear cache since orders changed
         clear_cache('orders')
@@ -1643,7 +1654,10 @@ def api_orders_lookup():
                 'grand_total_php': float(order.get('Grand Total PHP', 0) or 0),
                 'status': order.get('Order Status', 'Pending'),
                 'payment_status': order.get('Payment Status', order.get('Confirmed Paid?', 'Unpaid')),
-                'payment_screenshot': order.get('Payment Screenshot Link', order.get('Payment Screenshot', '')),
+                'payment_screenshot': order.get('Link to Payment', order.get('Payment Screenshot Link', order.get('Payment Screenshot', ''))),
+                'full_name': order.get('Full Name', order.get('Name', '')),
+                'contact_number': order.get('Contact Number', ''),
+                'mailing_address': order.get('Mailing Address', ''),
                 'items': []
             }
         
@@ -2295,26 +2309,26 @@ def api_save_mailing_address(order_id):
         # Get headers to find mailing address columns
         headers = worksheet.row_values(1)
         
-        # Find or create mailing columns
+        # Find mailing columns (using correct column names)
         mailing_name_col = None
         mailing_phone_col = None
         mailing_address_col = None
         
         for i, header in enumerate(headers):
-            if header == 'Mailing Name':
+            if header == 'Full Name':
                 mailing_name_col = i + 1
-            elif header == 'Mailing Phone':
+            elif header == 'Contact Number':
                 mailing_phone_col = i + 1
             elif header == 'Mailing Address':
                 mailing_address_col = i + 1
         
-        # If columns don't exist, add them
+        # If columns don't exist, add them (shouldn't happen if headers are correct, but handle gracefully)
         if mailing_name_col is None:
             mailing_name_col = len(headers) + 1
-            worksheet.update_cell(1, mailing_name_col, 'Mailing Name')
+            worksheet.update_cell(1, mailing_name_col, 'Full Name')
         if mailing_phone_col is None:
             mailing_phone_col = len(headers) + 2 if mailing_name_col == len(headers) + 1 else len(headers) + 1
-            worksheet.update_cell(1, mailing_phone_col, 'Mailing Phone')
+            worksheet.update_cell(1, mailing_phone_col, 'Contact Number')
         if mailing_address_col is None:
             next_col = max(mailing_name_col, mailing_phone_col) + 1
             worksheet.update_cell(1, next_col, 'Mailing Address')
@@ -2526,7 +2540,10 @@ def api_admin_orders():
                 'status': order.get('Order Status', 'Pending'),
                 'locked': str(order.get('Locked', 'No')).lower() == 'yes',
                 'payment_status': order.get('Payment Status', order.get('Confirmed Paid?', 'Unpaid')),
-                'payment_screenshot': order.get('Payment Screenshot Link', order.get('Payment Screenshot', '')),
+                'payment_screenshot': order.get('Link to Payment', order.get('Payment Screenshot Link', order.get('Payment Screenshot', ''))),
+                'full_name': order.get('Full Name', order.get('Name', '')),
+                'contact_number': order.get('Contact Number', ''),
+                'mailing_address': order.get('Mailing Address', ''),
                 'items': []
             }
         
