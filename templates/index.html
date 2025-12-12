@@ -1328,7 +1328,6 @@
         <nav class="nav-bar">
             <div class="nav-tabs">
                 <button class="nav-tab active" data-view="new-order">New / Update Order</button>
-                <button class="nav-tab" data-view="my-orders">View Orders</button>
             </div>
             <a href="/admin" class="nav-tab admin">Admin Panel</a>
         </nav>
@@ -1415,7 +1414,8 @@
                         </div>
                         <div class="form-group">
                             <label class="form-label">Telegram Username</label>
-                            <input type="text" class="form-input" id="telegram" placeholder="@username">
+                            <input type="text" class="form-input" id="telegram" placeholder="@username (enter to view/update your orders)">
+                            <small style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.25rem; display: block;">💡 Enter your Telegram username first and your existing orders will auto-populate below</small>
                         </div>
                     </div>
 
@@ -1684,21 +1684,6 @@
             {% endif %}
         </div>
 
-
-        <!-- View: My Orders -->
-        <div id="view-my-orders" class="view-content" style="display: none;">
-            <div class="card">
-                <h2 class="card-title"><span class="icon">📋</span> My Orders</h2>
-                
-                <div class="orders-search">
-                    <input type="text" class="form-input" id="order-search" placeholder="Search by name, telegram, or order ID...">
-                </div>
-
-                <div id="orders-list" class="orders-list">
-                    <div class="cart-empty">Loading orders...</div>
-                </div>
-            </div>
-        </div>
     </div>
 
     <!-- Order Summary Modal -->
@@ -1794,10 +1779,10 @@
                     
                     <!-- Payment Instructions -->
                     <div style="text-align: center; padding: 1.5rem; background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(20, 184, 166, 0.1)); border-radius: 12px;">
-                        <p style="font-size: 1rem; font-weight: 600; color: var(--accent-emerald); margin-bottom: 0.5rem;">📱 To complete your order:</p>
-                        <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 0.75rem;">View your order details to mark payment as sent</p>
-                        <button class="btn btn-primary" onclick="switchView('view-my-orders'); loadOrders(); closeModal('order-modal');">
-                            View My Orders
+                        <p style="font-size: 1rem; font-weight: 600; color: var(--accent-emerald); margin-bottom: 0.5rem;">📱 Order submitted successfully!</p>
+                        <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 0.75rem;">Enter your Telegram username in the form to view and update your orders</p>
+                        <button class="btn btn-primary" onclick="closeModal('order-modal');">
+                            Got it!
                         </button>
                     </div>
                 </div>
@@ -1884,7 +1869,7 @@
         const selectedProductDiv = document.getElementById('selected-product');
         const quantityInput = document.getElementById('quantity');
 
-        // Navigation
+        // Navigation (simplified - single tab only)
         document.querySelectorAll('.nav-tab[data-view]').forEach(tab => {
             tab.addEventListener('click', () => {
                 document.querySelectorAll('.nav-tab[data-view]').forEach(t => t.classList.remove('active'));
@@ -1892,8 +1877,6 @@
                 
                 document.querySelectorAll('.view-content').forEach(v => v.style.display = 'none');
                 document.getElementById('view-' + tab.dataset.view).style.display = 'block';
-                
-                if (tab.dataset.view === 'my-orders') loadOrders();
             });
         });
 
@@ -2220,9 +2203,11 @@
         }
         
         function viewMyExistingOrders() {
-            // Switch to My Orders tab and load orders
-            switchView('view-my-orders');
-            loadOrders();
+            // Scroll to orders section (orders auto-populate when telegram username is entered)
+            const section = document.getElementById('my-orders-section');
+            if (section && section.style.display !== 'none') {
+                section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
         }
         
         // Add event listeners for customer lookup
@@ -2325,43 +2310,16 @@
 
         // Payment Upload removed - customers now use "Payment Sent" button from order details
 
-        // Load Orders
-        async function loadOrders() {
-            const list = document.getElementById('orders-list');
-            list.innerHTML = '<div class="cart-empty">Loading...</div>';
-            
-            try {
-                const response = await fetch('/api/orders');
-                const orders = await response.json();
-                
-                if (orders.length === 0) {
-                    list.innerHTML = '<div class="cart-empty">No orders found</div>';
-                    return;
-                }
-                
-                list.innerHTML = orders.map(order => `
-                    <div class="order-card" onclick="viewOrder('${order.order_id}')">
-                        <div class="order-card-header">
-                            <span class="order-card-id">${order.order_id}</span>
-                            <span class="order-card-date">${order.order_date}</span>
-                        </div>
-                        <div class="order-card-customer">${order.full_name}</div>
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <div>
-                                <span class="status-badge ${order.status.toLowerCase()}">${order.status}</span>
-                                <span class="status-badge ${order.payment_status.toLowerCase().replace(/\s+/g, '-').replace('waiting-for-confirmation', 'waiting')}">${order.payment_status}</span>
-                            </div>
-                            <span class="order-card-total">₱${order.grand_total_php.toFixed(2)}</span>
-                        </div>
-                    </div>
-                `).join('');
-            } catch (error) {
-                list.innerHTML = '<div class="cart-empty">Error loading orders</div>';
-            }
-        }
-
-        // Search Orders
-        document.getElementById('order-search').addEventListener('input', async (e) => {
+        // Load Orders - REMOVED (functionality moved to auto-populate on Telegram username entry)
+        // This reduces memory usage and API calls
+        
+        // Search Orders - REMOVED (View Orders tab removed)
+        // Orders now auto-populate when customer enters Telegram username
+        
+        // Placeholder for removed order-search event listener
+        const orderSearchElement = document.getElementById('order-search');
+        if (orderSearchElement) {
+            orderSearchElement.addEventListener('input', async (e) => {
             const query = e.target.value.trim();
             if (query.length < 2) { loadOrders(); return; }
             
