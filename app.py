@@ -1872,7 +1872,7 @@ def update_item_quantity(order_id, product_code, order_type, new_qty):
 
 @app.route('/api/orders/<order_id>/cancel', methods=['POST'])
 def api_cancel_order(order_id):
-    """Cancel an order and wipe quantities to reset inventory"""
+    """Cancel an order and delete all its rows from Google Sheets"""
     order = get_order_by_id(order_id)
     if not order:
         return jsonify({'error': 'Order not found'}), 404
@@ -1880,10 +1880,10 @@ def api_cancel_order(order_id):
     if order['locked']:
         return jsonify({'error': 'Order is locked'}), 403
     
-    # Wipe quantities for this order to reset inventory
-    if wipe_order_quantities(order_id):
-        if update_order_status(order_id, status='Cancelled'):
-            return jsonify({'success': True})
+    # Delete all rows for this order
+    if delete_order_rows(order_id):
+        print(f"✅ Order {order_id} cancelled and all rows deleted")
+        return jsonify({'success': True, 'message': f'Order {order_id} cancelled and removed from sheets'})
     
     return jsonify({'error': 'Failed to cancel order'}), 500
 
@@ -1930,17 +1930,18 @@ def wipe_order_quantities(order_id):
             if cell.row not in order_rows:
                 order_rows.append(cell.row)
         
-        # Wipe quantities and totals for all order rows
-        for row_num in order_rows:
-            worksheet.update_cell(row_num, col_qty + 1, 0)  # QTY = 0
-            worksheet.update_cell(row_num, col_line_total_usd + 1, 0)  # Line Total USD = 0
-            worksheet.update_cell(row_num, col_line_total_php + 1, 0)  # Line Total PHP = 0
+        if not order_rows:
+            print(f"⚠️ No rows found for order {order_id}")
+            return False
         
-        # Wipe grand total on first row
-        if order_rows:
-            first_row = min(order_rows)
-            worksheet.update_cell(first_row, col_admin_fee + 1, 0)
-            worksheet.update_cell(first_row, col_grand_total + 1, 0)
+        print(f"🗑️ Deleting {len(order_rows)} rows for order {order_id}: {order_rows}")
+        
+        # Delete rows in reverse order (from bottom to top) to avoid index shifting
+        for row_num in sorted(order_rows, reverse=True):
+            worksheet.delete_rows(row_num)
+            print(f"  Deleted row {row_num}")
+        
+        print(f"✅ Successfully deleted all rows for order {order_id}")
         
         # Clear cache since orders changed
         clear_cache('orders')
@@ -1949,7 +1950,9 @@ def wipe_order_quantities(order_id):
         
         return True
     except Exception as e:
-        print(f"Error wiping order quantities: {e}")
+        print(f"❌ Error deleting order rows: {e}")
+        import traceback
+        traceback.print_exc()
         return False
 
 @app.route('/api/orders/<order_id>/lock', methods=['POST'])
@@ -2479,6 +2482,113 @@ Thank you for your order! 💜"""
         
         return jsonify({'success': True})
     return jsonify({'error': 'Failed to confirm payment'}), 500
+
+@app.route('/api/admin/orders/<order_id>/notify-customer', methods=['POST'])
+def api_admin_notify_customer(order_id):
+    """Admin: Send payment confirmation notification to customer via Telegram"""
+    if not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    # Get order details
+    order = get_order_by_id(order_id)
+    if not order:
+        return jsonify({'error': 'Order not found'}), 404
+    
+    # Check if payment is confirmed
+    if order.get('payment_status') != 'Paid':
+        return jsonify({'error': 'Order payment not confirmed yet'}), 400
+    
+    telegram_handle = order.get('telegram', '').strip().lower()
+    if not telegram_handle:
+        return jsonify({'error': 'No Telegram username found for this order'}), 400
+    
+    # Remove @ if present
+    if telegram_handle.startswith('@'):
+        telegram_handle = telegram_handle[1:]
+    
+    # Check if customer has messaged the bot
+    chat_id = telegram_customers.get(telegram_handle) or telegram_customers.get(f"@{telegram_handle}")
+    
+    if not chat_id:
+        return jsonify({
+            'error': f'Customer @{telegram_handle} hasn\'t messaged @{TELEGRAM_BOT_USERNAME} yet',
+            'telegram_handle': telegram_handle,
+            'bot_username': TELEGRAM_BOT_USERNAME
+        }), 404
+    
+    # Send notification
+    items_text = '\n'.join([f"• {item['product_name']} ({item['order_type']} x{item['qty']})" for item in order.get('items', [])])
+    
+    customer_msg = f"""✅ <b>Payment Confirmed!</b> ✅
+
+<b>Order ID:</b> {order_id}
+<b>Name:</b> {order.get('full_name', '')}
+
+<b>Your Items:</b>
+{items_text}
+
+<b>Grand Total:</b> ₱{order.get('grand_total_php', 0):,.2f}
+
+🎉 Your payment has been confirmed! Your order is now being processed.
+
+Thank you for your order! 💜"""
+    
+    if send_customer_telegram(chat_id, customer_msg):
+        print(f"✅ Manual payment confirmation sent to customer @{telegram_handle}")
+        return jsonify({
+            'success': True,
+            'message': f'Payment confirmation sent to @{telegram_handle} via Telegram'
+        })
+    else:
+        return jsonify({'error': 'Failed to send Telegram notification'}), 500
+
+@app.route('/api/admin/orders/<order_id>/lock', methods=['POST'])
+def api_admin_lock_order(order_id):
+    """Admin: Lock/unlock a specific order"""
+    if not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    data = request.json or {}
+    is_locked = data.get('locked', True)
+    
+    if update_order_status(order_id, locked=is_locked):
+        action = 'locked' if is_locked else 'unlocked'
+        print(f"✅ Order {order_id} {action}")
+        return jsonify({'success': True, 'message': f'Order {action} successfully'})
+    
+    return jsonify({'error': 'Failed to update order lock status'}), 500
+
+@app.route('/api/admin/orders/bulk-lock', methods=['POST'])
+def api_admin_bulk_lock_orders():
+    """Admin: Lock/unlock multiple orders at once"""
+    if not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    data = request.json or {}
+    order_ids = data.get('order_ids', [])
+    is_locked = data.get('locked', True)
+    
+    if not order_ids:
+        return jsonify({'error': 'No order IDs provided'}), 400
+    
+    success_count = 0
+    failed_count = 0
+    
+    for order_id in order_ids:
+        if update_order_status(order_id, locked=is_locked):
+            success_count += 1
+        else:
+            failed_count += 1
+    
+    action = 'locked' if is_locked else 'unlocked'
+    print(f"✅ Bulk {action}: {success_count} succeeded, {failed_count} failed")
+    
+    return jsonify({
+        'success': True,
+        'message': f'{success_count} orders {action} successfully',
+        'success_count': success_count,
+        'failed_count': failed_count
+    })
 
 @app.route('/api/admin/confirm-payment', methods=['POST'])
 def api_admin_confirm_payment_post():

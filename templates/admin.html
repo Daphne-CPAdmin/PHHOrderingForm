@@ -163,6 +163,14 @@
         .products-table tr:hover {
             background: rgba(139, 92, 246, 0.05);
         }
+        
+        .products-table tr.locked-order {
+            background: rgba(245, 158, 11, 0.05);
+        }
+        
+        .products-table tr.locked-order:hover {
+            background: rgba(245, 158, 11, 0.1);
+        }
 
         .product-code {
             font-family: 'JetBrains Mono', monospace;
@@ -549,7 +557,7 @@
                     View all orders and confirm payments after verification.
                 </p>
 
-                <div class="search-bar" style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                <div class="search-bar" style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem;">
                     <input type="text" class="search-input" id="order-search" placeholder="Search orders by name, telegram, or order ID...">
                     <select class="form-input" id="payment-filter" style="width: auto; padding: 0.75rem 1rem;">
                         <option value="all">All Orders</option>
@@ -557,18 +565,29 @@
                         <option value="paid">Paid Only</option>
                     </select>
                 </div>
+                
+                <!-- Bulk Actions -->
+                <div id="bulk-actions" style="display: none; margin-bottom: 1rem; padding: 1rem; background: linear-gradient(135deg, #fdf4ff 0%, #fce7f3 100%); border-radius: 12px; border: 2px solid var(--accent-primary);">
+                    <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+                        <span style="font-weight: 600; color: var(--text-primary);"><span id="selected-count">0</span> orders selected</span>
+                        <button class="btn-sm" style="background: #f59e0b; color: white;" onclick="bulkLockOrders(true)">🔒 Lock Selected</button>
+                        <button class="btn-sm" style="background: #10b981; color: white;" onclick="bulkLockOrders(false)">🔓 Unlock Selected</button>
+                        <button class="btn-sm" style="background: var(--bg-input); border: 1px solid var(--border);" onclick="clearSelection()">Clear Selection</button>
+                    </div>
+                </div>
 
                 <div class="table-container">
                     <table class="products-table" id="orders-table">
                         <thead>
                             <tr>
+                                <th style="width: 40px;"><input type="checkbox" id="select-all-orders" onchange="toggleSelectAll(this)" style="cursor: pointer;"></th>
                                 <th>Order ID</th>
                                 <th>Date</th>
                                 <th>Customer</th>
                                 <th>Items</th>
                                 <th>Total (PHP)</th>
-                                <th>Payment Status</th>
-                                <th>Screenshot</th>
+                                <th>Payment</th>
+                                <th>Status</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -925,16 +944,18 @@
             const tbody = document.getElementById('orders-tbody');
             
             if (orders.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 2rem; color: var(--text-muted);">No orders found</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; padding: 2rem; color: var(--text-muted);">No orders found</td></tr>';
                 return;
             }
             
             tbody.innerHTML = orders.map(order => {
                 const itemsPreview = order.items.map(i => `${i.product_code} (${i.qty})`).join(', ');
                 const isPaid = order.payment_status && order.payment_status.toLowerCase() === 'paid';
+                const isLocked = order.locked === true;
                 
                 return `
-                    <tr data-order-id="${order.order_id}">
+                    <tr data-order-id="${order.order_id}" class="${isLocked ? 'locked-order' : ''}">
+                        <td><input type="checkbox" class="order-checkbox" value="${order.order_id}" onchange="updateBulkActions()" style="cursor: pointer;"></td>
                         <td><span class="product-code">${order.order_id}</span></td>
                         <td style="font-size: 0.85rem;">${order.order_date}</td>
                         <td>
@@ -945,22 +966,29 @@
                         <td style="font-family: 'JetBrains Mono', monospace; font-weight: 600;">₱${order.grand_total_php.toLocaleString('en-PH', {minimumFractionDigits: 2})}</td>
                         <td><span class="payment-badge ${order.payment_status.toLowerCase().replace(/\s+/g, '-').replace('waiting-for-confirmation', 'waiting')}">${order.payment_status}</span></td>
                         <td>
-                            ${order.payment_screenshot 
-                                ? `<a href="${order.payment_screenshot}" target="_blank" class="screenshot-link">📷 View</a>` 
-                                : '<span style="color: var(--text-muted);">—</span>'}
+                            ${isLocked 
+                                ? '<span style="color: #f59e0b; font-weight: 600;">🔒 Locked</span>'
+                                : '<span style="color: #10b981; font-weight: 600;">🔓 Open</span>'}
                         </td>
                         <td>
                             <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
                                 <button class="btn-sm btn-view" onclick="viewOrderDetails('${order.order_id}')">View</button>
+                                ${isLocked 
+                                    ? `<button class="btn-sm" style="background: #10b981; color: white;" onclick="toggleOrderLock('${order.order_id}', false)">🔓 Unlock</button>`
+                                    : `<button class="btn-sm" style="background: #f59e0b; color: white;" onclick="toggleOrderLock('${order.order_id}', true)">🔒 Lock</button>`}
                                 ${!isPaid 
                                     ? `<button class="btn-sm btn-confirm" onclick="confirmPayment('${order.order_id}')">✓ Confirm</button>
                                        <button class="btn-sm" style="background: var(--accent-violet); color: white;" onclick="sendReminder('${order.order_id}')">📲 Remind</button>` 
-                                    : ''}
+                                    : `<button class="btn-sm" style="background: #0ea5e9; color: white;" onclick="notifyCustomer('${order.order_id}')">📱 Notify</button>`}
                             </div>
                         </td>
                     </tr>
                 `;
             }).join('');
+            
+            // Reset select all checkbox
+            document.getElementById('select-all-orders').checked = false;
+            updateBulkActions();
         }
 
         // Filter orders
@@ -1043,7 +1071,8 @@
 
             const footer = document.getElementById('order-modal-footer');
             footer.innerHTML = `
-                ${!isPaid ? `<button class="btn btn-violet" style="padding: 0.75rem 1.5rem;" onclick="confirmPayment('${order.order_id}'); closeOrderModal();">✓ Confirm Payment</button>` : ''}
+                ${!isPaid ? `<button class="btn btn-violet" style="padding: 0.75rem 1.5rem;" onclick="confirmPayment('${order.order_id}'); closeOrderModal();">✓ Confirm Payment</button>` : 
+                           `<button class="btn" style="padding: 0.75rem 1.5rem; background: #0ea5e9; color: white;" onclick="notifyCustomer('${order.order_id}')">📱 Notify Customer</button>`}
                 <button class="btn" style="padding: 0.75rem 1.5rem; background: var(--bg-input); border: 1px solid var(--border);" onclick="closeOrderModal()">Close</button>
             `;
 
@@ -1075,6 +1104,125 @@
             } catch (error) {
                 console.error('Error confirming payment:', error);
                 showToast('Error confirming payment');
+            }
+        }
+
+        // ===== ORDER LOCKING FUNCTIONS =====
+        
+        // Toggle select all checkbox
+        function toggleSelectAll(checkbox) {
+            const checkboxes = document.querySelectorAll('.order-checkbox');
+            checkboxes.forEach(cb => cb.checked = checkbox.checked);
+            updateBulkActions();
+        }
+        
+        // Update bulk actions visibility based on selection
+        function updateBulkActions() {
+            const checkboxes = document.querySelectorAll('.order-checkbox:checked');
+            const bulkActions = document.getElementById('bulk-actions');
+            const selectedCount = document.getElementById('selected-count');
+            
+            if (checkboxes.length > 0) {
+                bulkActions.style.display = 'block';
+                selectedCount.textContent = checkboxes.length;
+            } else {
+                bulkActions.style.display = 'none';
+            }
+        }
+        
+        // Clear all selections
+        function clearSelection() {
+            const checkboxes = document.querySelectorAll('.order-checkbox');
+            checkboxes.forEach(cb => cb.checked = false);
+            document.getElementById('select-all-orders').checked = false;
+            updateBulkActions();
+        }
+        
+        // Lock/unlock a single order
+        async function toggleOrderLock(orderId, isLocked) {
+            const action = isLocked ? 'lock' : 'unlock';
+            if (!confirm(`Are you sure you want to ${action} order ${orderId}?`)) return;
+            
+            try {
+                const response = await fetch(`/api/admin/orders/${orderId}/lock`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ locked: isLocked })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    showToast(`✅ Order ${isLocked ? 'locked' : 'unlocked'} successfully!`);
+                    loadOrders(); // Reload to reflect changes
+                } else {
+                    showToast(result.error || `Failed to ${action} order`);
+                }
+            } catch (error) {
+                console.error(`Error ${action}ing order:`, error);
+                showToast(`Error ${action}ing order`);
+            }
+        }
+        
+        // Bulk lock/unlock orders
+        async function bulkLockOrders(isLocked) {
+            const checkboxes = document.querySelectorAll('.order-checkbox:checked');
+            const orderIds = Array.from(checkboxes).map(cb => cb.value);
+            
+            if (orderIds.length === 0) {
+                showToast('⚠️ No orders selected');
+                return;
+            }
+            
+            const action = isLocked ? 'lock' : 'unlock';
+            if (!confirm(`Are you sure you want to ${action} ${orderIds.length} order(s)?`)) return;
+            
+            try {
+                const response = await fetch('/api/admin/orders/bulk-lock', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        order_ids: orderIds,
+                        locked: isLocked
+                    })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    showToast(`✅ ${result.message}`);
+                    clearSelection();
+                    loadOrders(); // Reload to reflect changes
+                } else {
+                    showToast(result.error || `Failed to ${action} orders`);
+                }
+            } catch (error) {
+                console.error(`Error bulk ${action}ing orders:`, error);
+                showToast(`Error bulk ${action}ing orders`);
+            }
+        }
+
+        // Notify customer via Telegram (for paid orders)
+        async function notifyCustomer(orderId) {
+            if (!confirm(`Send payment confirmation notification to customer via Telegram for order ${orderId}?`)) return;
+            
+            try {
+                const response = await fetch(`/api/admin/orders/${orderId}/notify-customer`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    showToast(`✅ Notification sent to customer via Telegram!`);
+                } else if (result.error && result.telegram_handle && result.bot_username) {
+                    // Customer hasn't messaged the bot yet
+                    showToast(`⚠️ Customer @${result.telegram_handle} hasn't messaged @${result.bot_username} yet`, 5000);
+                    alert(`Customer @${result.telegram_handle} needs to message @${result.bot_username} first to receive notifications.\n\nPlease ask them to start a chat with the bot.`);
+                } else {
+                    showToast(result.error || 'Failed to send notification');
+                }
+            } catch (error) {
+                console.error('Error sending notification:', error);
+                showToast('Error sending notification');
             }
         }
 
