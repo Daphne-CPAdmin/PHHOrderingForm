@@ -2170,6 +2170,9 @@
             updateCart();
             saveCart();
         }
+        
+        // Expose removeItem to global scope for onclick handlers
+        window.removeItem = removeItem;
 
 
         // Auto-lookup returning customers
@@ -2460,6 +2463,7 @@
                     `).join('');
             } catch (error) {}
         });
+        }
 
         // View Order Details
         let currentViewingOrder = null;
@@ -2593,6 +2597,9 @@
                 showToast('Error loading order');
             }
         }
+        
+        // Expose viewOrder to global scope for onclick handlers
+        window.viewOrder = viewOrder;
         
         // Edit item quantity
         function editItemQty(orderId, productCode, orderType, currentQty) {
@@ -2843,6 +2850,9 @@
             // Trigger input event to ensure any listeners are notified
             input.dispatchEvent(new Event('input', { bubbles: true }));
         }
+        
+        // Expose adjustInvQty to global scope for onclick handlers
+        window.adjustInvQty = adjustInvQty;
 
         function quickAddToCart(productCode, productName) {
             // Check if products are loaded
@@ -2941,6 +2951,9 @@
                 showToast('Please select quantity using + buttons!');
             }
         }
+        
+        // Expose quickAddToCart to global scope for onclick handlers
+        window.quickAddToCart = quickAddToCart;
 
         // Inventory Search
         const inventorySearchInput = document.getElementById('inventory-search');
