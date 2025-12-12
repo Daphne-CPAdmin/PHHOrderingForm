@@ -1887,8 +1887,8 @@ def api_cancel_order(order_id):
     
     return jsonify({'error': 'Failed to cancel order'}), 500
 
-def wipe_order_quantities(order_id):
-    """Set all quantities to 0 for a cancelled order to reset inventory"""
+def delete_order_rows(order_id):
+    """Delete all rows for a cancelled order from Google Sheets"""
     if not sheets_client:
         return False
     
