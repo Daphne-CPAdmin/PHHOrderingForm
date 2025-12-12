@@ -190,14 +190,14 @@ def ensure_worksheets_exist():
         
         # PepHauler Orders tab (consolidated orders view) - create if doesn't exist
         if 'PepHauler Orders' not in existing_sheets:
-            worksheet = spreadsheet.add_worksheet(title='PepHauler Orders', rows=1000, cols=15)
+            worksheet = spreadsheet.add_worksheet(title='PepHauler Orders', rows=1000, cols=16)
             headers = [
-                'Order ID', 'Order Date', 'Customer Name', 'Email', 'Telegram Username',
+                'Order ID', 'Order Date', 'Customer Name', 'Telegram Username',
                 'Items Summary', 'Total Items', 'Grand Total PHP', 'Exchange Rate',
                 'Order Status', 'Locked', 'Payment Status', 'Link to Payment',
-                'Mailing Address', 'Remarks'
+                'Full Name', 'Contact Number', 'Mailing Address', 'Remarks'
             ]
-            worksheet.update('A1:O1', [headers])
+            worksheet.update('A1:P1', [headers])
             
     except Exception as e:
         print(f"Error ensuring worksheets: {e}")
@@ -214,14 +214,14 @@ def populate_pephauler_orders_tab():
         try:
             worksheet = spreadsheet.worksheet('PepHauler Orders')
         except:
-            worksheet = spreadsheet.add_worksheet(title='PepHauler Orders', rows=1000, cols=15)
+            worksheet = spreadsheet.add_worksheet(title='PepHauler Orders', rows=1000, cols=16)
             headers = [
-                'Order ID', 'Order Date', 'Customer Name', 'Email', 'Telegram Username',
+                'Order ID', 'Order Date', 'Customer Name', 'Telegram Username',
                 'Items Summary', 'Total Items', 'Grand Total PHP', 'Exchange Rate',
                 'Order Status', 'Locked', 'Payment Status', 'Link to Payment',
-                'Mailing Address', 'Remarks'
+                'Full Name', 'Contact Number', 'Mailing Address', 'Remarks'
             ]
-            worksheet.update('A1:O1', [headers])
+            worksheet.update('A1:P1', [headers])
         
         # Get all orders from PepHaul Entry
         orders = get_orders_from_sheets()
@@ -242,7 +242,6 @@ def populate_pephauler_orders_tab():
                     'order_id': order_id,
                     'order_date': order.get('Order Date', ''),
                     'customer_name': order.get('Name', order.get('Full Name', '')),
-                    'email': order.get('Email', ''),
                     'telegram': order.get('Telegram Username', ''),
                     'grand_total_php': float(order.get('Grand Total PHP', 0) or 0),
                     'exchange_rate': float(order.get('Exchange Rate', FALLBACK_EXCHANGE_RATE) or FALLBACK_EXCHANGE_RATE),
@@ -287,7 +286,6 @@ def populate_pephauler_orders_tab():
                 order_data['order_id'],
                 order_data['order_date'],
                 order_data['customer_name'],
-                order_data['email'],
                 order_data['telegram'],
                 items_summary,
                 total_items,
@@ -297,6 +295,8 @@ def populate_pephauler_orders_tab():
                 order_data['locked'],
                 order_data['payment_status'],
                 order_data['payment_screenshot'],
+                order_data['full_name'],
+                order_data['contact_number'],
                 order_data['mailing_address'],
                 order_data['remarks']
             ]
@@ -308,16 +308,16 @@ def populate_pephauler_orders_tab():
             worksheet.clear()
             # Add headers back
             headers = [
-                'Order ID', 'Order Date', 'Customer Name', 'Email', 'Telegram Username',
+                'Order ID', 'Order Date', 'Customer Name', 'Telegram Username',
                 'Items Summary', 'Total Items', 'Grand Total PHP', 'Exchange Rate',
                 'Order Status', 'Locked', 'Payment Status', 'Link to Payment',
-                'Mailing Address', 'Remarks'
+                'Full Name', 'Contact Number', 'Mailing Address', 'Remarks'
             ]
-            worksheet.update('A1:O1', [headers])
+            worksheet.update('A1:P1', [headers])
             # Add order data
             if rows:
                 range_start = f'A2'
-                range_end = f'O{len(rows) + 1}'
+                range_end = f'P{len(rows) + 1}'
                 worksheet.update(f'{range_start}:{range_end}', rows)
                 print(f"✅ Populated PepHauler Orders tab with {len(rows)} orders")
         
@@ -662,29 +662,29 @@ def save_order_to_sheets(order_data, order_id=None):
         rows_to_add = []
         for i, item in enumerate(order_data['items']):
             row = [
-                order_id,                           # All rows have Order ID
-                order_date,                         # All rows have Order Date
-                order_data['full_name'],            # All rows have Name
-                order_data['telegram'],             # All rows have Telegram
-                item['product_code'],
-                item.get('product_name', ''),
-                item['order_type'],
-                item['qty'],
-                item.get('unit_price_usd', 0),
-                item.get('line_total_usd', 0),
-                order_data.get('exchange_rate', FALLBACK_EXCHANGE_RATE),
-                item.get('line_total_php', 0),
-                ADMIN_FEE_PHP if i == 0 else '',             # Only first row
-                order_data.get('grand_total_php', 0) if i == 0 else '',  # Only first row
-                'Pending' if i == 0 else '',                 # Only first row
-                'No' if i == 0 else '',                      # Only first row (Locked)
-                'Unpaid' if i == 0 else '',                  # Only first row (Payment Status)
-                '',                                          # Remarks - only first row
-                '',                                          # Link to Payment - only first row
-                '',                                          # Payment Date - only first row
-                order_data.get('full_name', ''),            # Full Name - only first row
-                order_data.get('contact_number', ''),       # Contact Number - only first row
-                order_data.get('mailing_address', '')       # Mailing Address - only first row
+                order_id,                           # Column A: Order ID
+                order_date,                         # Column B: Order Date
+                order_data['full_name'],            # Column C: Name
+                order_data['telegram'],             # Column D: Telegram Username
+                item['product_code'],               # Column E: Product Code
+                item.get('product_name', ''),       # Column F: Product Name
+                item['order_type'],                 # Column G: Order Type
+                item['qty'],                        # Column H: QTY
+                item.get('unit_price_usd', 0),      # Column I: Unit Price USD
+                item.get('line_total_usd', 0),      # Column J: Line Total USD
+                order_data.get('exchange_rate', FALLBACK_EXCHANGE_RATE),  # Column K: Exchange Rate
+                item.get('line_total_php', 0),      # Column L: Line Total PHP
+                ADMIN_FEE_PHP if i == 0 else '',    # Column M: Admin Fee PHP (only first row)
+                order_data.get('grand_total_php', 0) if i == 0 else '',  # Column N: Grand Total PHP (only first row)
+                'Pending' if i == 0 else '',        # Column O: Order Status (only first row)
+                'No' if i == 0 else '',             # Column P: Locked (only first row)
+                'Unpaid' if i == 0 else '',         # Column Q: Payment Status (only first row)
+                '' if i == 0 else '',               # Column R: Remarks (only first row)
+                '',                                 # Column S: Link to Payment (only first row)
+                '',                                 # Column T: Payment Date (only first row)
+                order_data.get('full_name', '') if i == 0 else '',         # Column U: Full Name (only first row)
+                order_data.get('contact_number', '') if i == 0 else '',    # Column V: Contact Number (only first row)
+                order_data.get('mailing_address', '') if i == 0 else ''    # Column W: Mailing Address (only first row)
             ]
             rows_to_add.append(row)
         
@@ -1605,11 +1605,10 @@ def api_products():
 
 @app.route('/api/orders/lookup')
 def api_orders_lookup():
-    """Lookup orders by email or telegram"""
-    email = request.args.get('email', '').lower().strip()
+    """Lookup orders by telegram"""
     telegram = request.args.get('telegram', '').lower().strip()
     
-    if not email and not telegram:
+    if not telegram:
         return jsonify([])
     
     orders = get_orders_from_sheets()
@@ -1617,22 +1616,18 @@ def api_orders_lookup():
     # Normalize telegram username (remove @ if present for comparison)
     telegram_normalized = telegram.lstrip('@') if telegram else ''
     
-    # Group by Order ID and filter by email/telegram
+    # Group by Order ID and filter by telegram
     grouped = {}
     for order in orders:
         order_id = order.get('Order ID', '')
         if not order_id:
             continue
         
-        order_email = str(order.get('Email', '')).lower().strip()
         order_telegram = str(order.get('Telegram Username', '')).lower().strip()
         order_telegram_normalized = order_telegram.lstrip('@')
         
-        # Match by email OR telegram
-        matches = False
-        if email and order_email and email == order_email:
-            matches = True
         # Match telegram with or without @ symbol (exact match after normalization)
+        matches = False
         if telegram_normalized and order_telegram_normalized:
             # Try exact match first
             if telegram_normalized == order_telegram_normalized:
@@ -1649,13 +1644,11 @@ def api_orders_lookup():
                 'order_id': order_id,
                 'order_date': order.get('Order Date', ''),
                 'full_name': order.get('Name', order.get('Full Name', '')),
-                'email': order.get('Email', ''),
                 'telegram': order.get('Telegram Username', ''),
                 'grand_total_php': float(order.get('Grand Total PHP', 0) or 0),
                 'status': order.get('Order Status', 'Pending'),
                 'payment_status': order.get('Payment Status', order.get('Confirmed Paid?', 'Unpaid')),
                 'payment_screenshot': order.get('Link to Payment', order.get('Payment Screenshot Link', order.get('Payment Screenshot', ''))),
-                'full_name': order.get('Full Name', order.get('Name', '')),
                 'contact_number': order.get('Contact Number', ''),
                 'mailing_address': order.get('Mailing Address', ''),
                 'items': []
@@ -1801,8 +1794,9 @@ def api_submit_order():
     
     order_data = {
         'full_name': data.get('full_name', ''),
-        'email': data.get('email', ''),
         'telegram': data.get('telegram', ''),
+        'contact_number': data.get('contact_number', ''),
+        'mailing_address': data.get('mailing_address', ''),
         'items': items_with_prices,
         'exchange_rate': exchange_rate,
         'grand_total_php': grand_total_php
@@ -2534,14 +2528,12 @@ def api_admin_orders():
                 'order_id': order_id,
                 'order_date': order.get('Order Date', ''),
                 'full_name': order.get('Name', order.get('Full Name', '')),
-                'email': order.get('Email', ''),
                 'telegram': order.get('Telegram Username', ''),
                 'grand_total_php': float(order.get('Grand Total PHP', 0) or 0),
                 'status': order.get('Order Status', 'Pending'),
                 'locked': str(order.get('Locked', 'No')).lower() == 'yes',
                 'payment_status': order.get('Payment Status', order.get('Confirmed Paid?', 'Unpaid')),
                 'payment_screenshot': order.get('Link to Payment', order.get('Payment Screenshot Link', order.get('Payment Screenshot', ''))),
-                'full_name': order.get('Full Name', order.get('Name', '')),
                 'contact_number': order.get('Contact Number', ''),
                 'mailing_address': order.get('Mailing Address', ''),
                 'items': []

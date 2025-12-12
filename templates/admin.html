@@ -550,7 +550,7 @@
                 </p>
 
                 <div class="search-bar" style="display: flex; gap: 1rem; flex-wrap: wrap;">
-                    <input type="text" class="search-input" id="order-search" placeholder="Search orders by name, email, or order ID...">
+                    <input type="text" class="search-input" id="order-search" placeholder="Search orders by name, telegram, or order ID...">
                     <select class="form-input" id="payment-filter" style="width: auto; padding: 0.75rem 1rem;">
                         <option value="all">All Orders</option>
                         <option value="unpaid">Unpaid Only</option>
@@ -940,7 +940,6 @@
                         <td>
                             <div style="font-weight: 500;">${order.full_name}</div>
                             <div style="font-size: 0.8rem; color: var(--accent-violet); font-family: 'JetBrains Mono', monospace;">${order.telegram ? '@' + order.telegram.replace('@', '') : '—'}</div>
-                            ${order.email ? `<div style="font-size: 0.75rem; color: var(--text-muted);">${order.email}</div>` : ''}
                         </td>
                         <td><div class="order-items-preview">${itemsPreview.length > 30 ? itemsPreview.substring(0, 30) + '...' : itemsPreview}</div></td>
                         <td style="font-family: 'JetBrains Mono', monospace; font-weight: 600;">₱${order.grand_total_php.toLocaleString('en-PH', {minimumFractionDigits: 2})}</td>
@@ -976,7 +975,7 @@
                 const matchesSearch = 
                     order.order_id.toLowerCase().includes(query) ||
                     order.full_name.toLowerCase().includes(query) ||
-                    order.email.toLowerCase().includes(query);
+                    (order.telegram && order.telegram.toLowerCase().includes(query));
                 
                 const isPaid = order.payment_status && order.payment_status.toLowerCase() === 'paid';
                 const matchesPayment = 
@@ -1009,7 +1008,6 @@
                 
                 <div style="background: var(--bg-input); padding: 1rem; border-radius: 10px; margin-bottom: 1.5rem;">
                     <div style="font-weight: 600;">${order.full_name}</div>
-                    <div style="color: var(--text-muted); font-size: 0.9rem;">${order.email}</div>
                     ${order.telegram ? `<div style="color: var(--text-muted); font-size: 0.9rem;">@${order.telegram.replace('@', '')}</div>` : ''}
                 </div>
                 
