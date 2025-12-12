@@ -170,9 +170,9 @@ def ensure_worksheets_exist():
                 'Product Code', 'Product Name', 'Order Type', 'QTY', 'Unit Price USD',
                 'Line Total USD', 'Exchange Rate', 'Line Total PHP', 'Admin Fee PHP',
                 'Grand Total PHP', 'Order Status', 'Locked', 'Payment Status', 
-                'Payment Screenshot Link', 'Remarks'
+                'Remarks', 'Link to Payment', 'Payment Date'
             ]
-            worksheet.update('A1:U1', [headers])
+            worksheet.update('A1:T1', [headers])
         
         # Product Locks tab (for admin)
         if 'Product Locks' not in existing_sheets:
@@ -194,7 +194,7 @@ def ensure_worksheets_exist():
             headers = [
                 'Order ID', 'Order Date', 'Customer Name', 'Email', 'Telegram Username',
                 'Items Summary', 'Total Items', 'Grand Total PHP', 'Exchange Rate',
-                'Order Status', 'Locked', 'Payment Status', 'Payment Screenshot Link',
+                'Order Status', 'Locked', 'Payment Status', 'Link to Payment',
                 'Mailing Address', 'Remarks'
             ]
             worksheet.update('A1:O1', [headers])
@@ -218,7 +218,7 @@ def populate_pephauler_orders_tab():
             headers = [
                 'Order ID', 'Order Date', 'Customer Name', 'Email', 'Telegram Username',
                 'Items Summary', 'Total Items', 'Grand Total PHP', 'Exchange Rate',
-                'Order Status', 'Locked', 'Payment Status', 'Payment Screenshot Link',
+                'Order Status', 'Locked', 'Payment Status', 'Link to Payment',
                 'Mailing Address', 'Remarks'
             ]
             worksheet.update('A1:O1', [headers])
@@ -249,7 +249,7 @@ def populate_pephauler_orders_tab():
                     'order_status': order.get('Order Status', 'Pending'),
                     'locked': order.get('Locked', 'No'),
                     'payment_status': order.get('Payment Status', order.get('Confirmed Paid?', 'Unpaid')),
-                    'payment_screenshot': order.get('Payment Screenshot Link', order.get('Payment Screenshot', '')),
+                    'payment_screenshot': order.get('Link to Payment', order.get('Payment Screenshot Link', order.get('Payment Screenshot', ''))),
                     'mailing_address': order.get('Mailing Address', ''),
                     'remarks': order.get('Remarks', ''),
                     'items': []
@@ -308,7 +308,7 @@ def populate_pephauler_orders_tab():
             headers = [
                 'Order ID', 'Order Date', 'Customer Name', 'Email', 'Telegram Username',
                 'Items Summary', 'Total Items', 'Grand Total PHP', 'Exchange Rate',
-                'Order Status', 'Locked', 'Payment Status', 'Payment Screenshot Link',
+                'Order Status', 'Locked', 'Payment Status', 'Link to Payment',
                 'Mailing Address', 'Remarks'
             ]
             worksheet.update('A1:O1', [headers])
@@ -612,7 +612,7 @@ def get_order_by_id(order_id):
         'status': first_item.get('Order Status', 'Pending'),
         'locked': str(first_item.get('Locked', 'No')).lower() == 'yes',
         'payment_status': first_item.get('Payment Status', first_item.get('Confirmed Paid?', 'Unpaid')),
-        'payment_screenshot': first_item.get('Payment Screenshot Link', first_item.get('Payment Screenshot', '')),
+        'payment_screenshot': first_item.get('Link to Payment', first_item.get('Payment Screenshot Link', first_item.get('Payment Screenshot', ''))),
         'items': []
     }
     
@@ -674,14 +674,15 @@ def save_order_to_sheets(order_data, order_id=None):
                 'Pending' if i == 0 else '',                 # Only first row
                 'No' if i == 0 else '',                      # Only first row (Locked)
                 'Unpaid' if i == 0 else '',                  # Only first row (Payment Status)
-                '',                                          # Payment Screenshot Link - only first row
-                ''                                           # Remarks
+                '',                                          # Remarks - only first row
+                '',                                          # Link to Payment - only first row
+                ''                                           # Payment Date - only first row
             ]
             rows_to_add.append(row)
         
         if rows_to_add:
             end_row = next_row + len(rows_to_add) - 1
-            worksheet.update(f'A{next_row}:S{end_row}', rows_to_add)
+            worksheet.update(f'A{next_row}:T{end_row}', rows_to_add)
         
         # Clear cache since orders changed
         clear_cache('orders')
@@ -713,10 +714,10 @@ def update_order_status(order_id, status=None, locked=None, payment_status=None,
             if locked is not None:
                 worksheet.update_cell(row, 17, 'Yes' if locked else 'No')
             if payment_status:
-                worksheet.update_cell(row, 18, payment_status)
+                worksheet.update_cell(row, 18, payment_status)  # Payment Status (column S)
             if payment_screenshot:
-                worksheet.update_cell(row, 19, payment_screenshot)
-                worksheet.update_cell(row, 20, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+                worksheet.update_cell(row, 19, payment_screenshot)  # Link to Payment (column T)
+                worksheet.update_cell(row, 20, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))  # Payment Date (column U)
         
         # Clear cache since orders changed
         clear_cache('orders')
@@ -821,13 +822,14 @@ def add_items_to_order(order_id, new_items, exchange_rate):
                     '',                                 # Order Status - only on first row
                     '',                                 # Locked - only on first row
                     '',                                 # Payment Status - only on first row
-                    '',                                 # Payment Screenshot Link
-                    f'Added to {order_id}'              # Remarks
+                    f'Added to {order_id}',            # Remarks
+                    '',                                 # Link to Payment
+                    ''                                  # Payment Date
                 ]
                 rows_to_add.append(row)
             
             end_row = next_row + len(rows_to_add) - 1
-            worksheet.update(f'A{next_row}:S{end_row}', rows_to_add)
+            worksheet.update(f'A{next_row}:T{end_row}', rows_to_add)
         
         # Clear cache since orders changed
         clear_cache('orders')
