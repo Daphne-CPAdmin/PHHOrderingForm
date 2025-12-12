@@ -1959,23 +1959,35 @@
         // Load products on page load
         loadProducts();
 
-        // Product Search - Show dropdown only when typing
+        // Product Search - Show dropdown when typing
+        productSearch.addEventListener('focus', () => {
+            // Show all products when user focuses on search
+            if (allProducts.length > 0) {
+                productDropdown.classList.add('show');
+                productDropdown.querySelectorAll('.product-option').forEach(option => {
+                    option.style.display = 'block';
+                });
+            }
+        });
+        
         productSearch.addEventListener('input', (e) => {
             const query = e.target.value.toLowerCase().trim();
             console.log('Search query:', query);
             
-            if (query) {
-                // Show dropdown when user types
-                productDropdown.classList.add('show');
-                // Filter products by name or code
-                productDropdown.querySelectorAll('.product-option').forEach(option => {
+            // Always show dropdown when there's input or when focused
+            productDropdown.classList.add('show');
+            
+            // Filter products by name or code
+            productDropdown.querySelectorAll('.product-option').forEach(option => {
+                if (!query) {
+                    // Show all if empty
+                    option.style.display = 'block';
+                } else {
+                    // Filter by search query
                     const match = option.dataset.name.toLowerCase().includes(query) || option.dataset.code.toLowerCase().includes(query);
                     option.style.display = match ? 'block' : 'none';
-                });
-            } else {
-                // Hide dropdown when search is cleared
-                productDropdown.classList.remove('show');
-            }
+                }
+            });
         });
         
         // Hide dropdown when clicking outside
