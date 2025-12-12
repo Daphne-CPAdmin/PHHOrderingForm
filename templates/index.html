@@ -653,7 +653,7 @@
             max-height: 420px;
             overflow-y: auto;
             z-index: 100;
-            display: block;
+            display: none;
             margin-top: 4px;
         }
         .product-dropdown.show { display: block; }
@@ -1934,7 +1934,8 @@
                     document.getElementById('selected-code').textContent = selectedProduct.code;
                     selectedProductDiv.style.display = 'block';
                     productSearch.value = selectedProduct.name;
-                    // Keep dropdown visible after selection
+                    // Hide dropdown after selection
+                    productDropdown.classList.remove('show');
                     
                     updateInventoryDisplay();
                     updatePricePreview();
@@ -1945,38 +1946,31 @@
         // Load products on page load
         loadProducts();
 
-        // Product Search
-        productSearch.addEventListener('focus', () => {
-            console.log('Product search focused');
-            // Show all products when focusing
-            const query = productSearch.value.toLowerCase().trim();
-            productDropdown.querySelectorAll('.product-option').forEach(option => {
-                if (!query) {
-                    // No filter - show all
-                    option.style.display = 'block';
-                } else {
-                    // Apply existing filter
-                    const match = option.dataset.name.toLowerCase().includes(query) || option.dataset.code.toLowerCase().includes(query);
-                    option.style.display = match ? 'block' : 'none';
-                }
-            });
-        });
+        // Product Search - Show dropdown only when typing
         productSearch.addEventListener('input', (e) => {
             const query = e.target.value.toLowerCase().trim();
             console.log('Search query:', query);
-            // Filter products
-            productDropdown.querySelectorAll('.product-option').forEach(option => {
-                if (!query) {
-                    // Empty search - show all
-                    option.style.display = 'block';
-                } else {
-                    // Filter by name or code
+            
+            if (query) {
+                // Show dropdown when user types
+                productDropdown.classList.add('show');
+                // Filter products by name or code
+                productDropdown.querySelectorAll('.product-option').forEach(option => {
                     const match = option.dataset.name.toLowerCase().includes(query) || option.dataset.code.toLowerCase().includes(query);
                     option.style.display = match ? 'block' : 'none';
-                }
-            });
+                });
+            } else {
+                // Hide dropdown when search is cleared
+                productDropdown.classList.remove('show');
+            }
         });
-        // Dropdown stays visible - no click-away hide behavior
+        
+        // Hide dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.product-search-container')) {
+                productDropdown.classList.remove('show');
+            }
+        });
 
         function updateInventoryDisplay() {
             if (!selectedProduct) return;
@@ -2027,8 +2021,20 @@
 
         // Add to Cart
         document.getElementById('add-to-cart').addEventListener('click', () => {
-            if (!selectedProduct) return;
+            console.log('Add to Order button clicked');
+            console.log('Selected product:', selectedProduct);
+            
+            if (!selectedProduct) {
+                showToast('Please select a product first');
+                return;
+            }
+            
             const qty = parseInt(quantityInput.value) || 1;
+            if (qty < 1) {
+                showToast('Please enter a valid quantity');
+                return;
+            }
+            
             const unitPrice = orderType === 'Kit' ? selectedProduct.kit_price : selectedProduct.vial_price;
             
             // Check if same product_code + order_type already exists in cart - consolidate!
@@ -2041,7 +2047,7 @@
                 cartItems[existingIndex].qty += qty;
                 cartItems[existingIndex].line_total_usd = cartItems[existingIndex].qty * unitPrice;
                 cartItems[existingIndex].line_total_php = cartItems[existingIndex].line_total_usd * EXCHANGE_RATE;
-                showToast('Quantity updated!');
+                showToast('✅ Quantity updated!');
             } else {
                 // New item
                 cartItems.push({
@@ -2053,9 +2059,10 @@
                     line_total_usd: unitPrice * qty,
                     line_total_php: unitPrice * qty * EXCHANGE_RATE
                 });
-                showToast('Item added!');
+                showToast('✅ Item added to cart!');
             }
             
+            console.log('Cart updated:', cartItems);
             updateCart();
             saveCart();
             resetSelection();
@@ -2933,7 +2940,6 @@
         // Initialize
         loadCart();  // Load saved cart from localStorage
         updateCart();
-    }
     </script>
 </body>
 </html>
