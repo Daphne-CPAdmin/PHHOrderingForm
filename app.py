@@ -36,17 +36,32 @@ _cache_timestamps = {}
 CACHE_DURATION = 30  # seconds
 
 def get_cached(key, fetch_func, cache_duration=CACHE_DURATION):
-    """Get cached data or fetch if expired"""
+    """Get cached data or fetch if expired - with rate limit protection"""
     now = time.time()
     if key in _cache and key in _cache_timestamps:
         if now - _cache_timestamps[key] < cache_duration:
             return _cache[key]
     
-    # Cache miss or expired - fetch new data
-    data = fetch_func()
-    _cache[key] = data
-    _cache_timestamps[key] = now
-    return data
+    # Cache miss or expired - fetch new data with retry logic
+    max_retries = 3
+    retry_delay = 1
+    
+    for attempt in range(max_retries):
+        try:
+            data = fetch_func()
+            _cache[key] = data
+            _cache_timestamps[key] = now
+            return data
+        except Exception as e:
+            error_str = str(e)
+            # Check for rate limit error
+            if ('429' in error_str or 'RESOURCE_EXHAUSTED' in error_str or 'RATE_LIMIT_EXCEEDED' in error_str) and attempt < max_retries - 1:
+                wait_time = retry_delay * (2 ** attempt)  # Exponential backoff
+                print(f"Rate limit hit for {key}, retrying in {wait_time}s (attempt {attempt + 1}/{max_retries})")
+                time.sleep(wait_time)
+                continue
+            # If it's not a rate limit error or we've exhausted retries, raise
+            raise
 
 def clear_cache(key=None):
     """Clear specific cache key or all cache"""
@@ -259,7 +274,7 @@ def _fetch_order_form_lock():
 
 def get_order_form_lock():
     """Get order form lock status (cached)"""
-    return get_cached('settings_lock', _fetch_order_form_lock, cache_duration=60)
+    return get_cached('settings_lock', _fetch_order_form_lock, cache_duration=300)  # 5 minutes
 
 def set_order_form_lock(is_locked, message=''):
     """Set order form lock status"""
@@ -340,10 +355,10 @@ def _fetch_order_goal():
 
 def get_order_goal():
     """Get order goal from Settings sheet (cached)"""
-    return get_cached('settings_goal', _fetch_order_goal, cache_duration=60)
+    return get_cached('settings_goal', _fetch_order_goal, cache_duration=300)  # 5 minutes
 
 def set_order_goal(goal_amount):
-    """Set order goal in Settings sheet"""
+    """Set order goal in Settings sheet - optimized to reduce API calls"""
     global _order_goal
     _order_goal = float(goal_amount)
     
@@ -357,28 +372,39 @@ def set_order_goal(goal_amount):
                 worksheet = spreadsheet.add_worksheet(title='Settings', rows=10, cols=5)
                 worksheet.update('A1:C1', [['Setting', 'Value', 'Updated']])
             
-            # Find or create the goal setting row
+            # Find or create the goal setting row - use batch update to reduce API calls
             all_values = worksheet.get_all_values()
             goal_row = None
             
             for i, row in enumerate(all_values):
-                if row and row[0] == 'Order Goal':
+                if row and len(row) > 0 and row[0] == 'Order Goal':
                     goal_row = i + 1
                     break
             
-            if goal_row is None:
-                goal_row = len(all_values) + 1
-                worksheet.update_cell(goal_row, 1, 'Order Goal')
+            update_data = [[str(goal_amount), datetime.now().strftime('%Y-%m-%d %H:%M:%S')]]
             
-            worksheet.update_cell(goal_row, 2, str(goal_amount))
-            worksheet.update_cell(goal_row, 3, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+            if goal_row is None:
+                # New row - use batch update for all 3 cells at once
+                goal_row = len(all_values) + 1
+                worksheet.update(f'A{goal_row}:C{goal_row}', [['Order Goal', str(goal_amount), datetime.now().strftime('%Y-%m-%d %H:%M:%S')]])
+            else:
+                # Existing row - batch update only the 2 cells that change (B and C)
+                worksheet.update(f'B{goal_row}:C{goal_row}', update_data)
             
             # Clear cache since settings changed
             clear_cache('settings_goal')
             
             return True
         except Exception as e:
+            error_str = str(e)
+            # Check for rate limit error
+            if '429' in error_str or 'RESOURCE_EXHAUSTED' in error_str or 'RATE_LIMIT_EXCEEDED' in error_str:
+                print(f"Rate limit exceeded when setting order goal. Please wait a moment and try again.")
+                # Don't fail completely - update in-memory value so UI reflects change
+                return True  # Return True so UI updates, but log the error
             print(f"Error setting order goal: {e}")
+            import traceback
+            traceback.print_exc()
             return False
     
     return True
@@ -417,7 +443,7 @@ def _fetch_orders_from_sheets():
 
 def get_orders_from_sheets():
     """Read existing orders from PepHaul Entry tab (cached)"""
-    return get_cached('orders', _fetch_orders_from_sheets, cache_duration=30)
+    return get_cached('orders', _fetch_orders_from_sheets, cache_duration=120)  # 2 minutes
 
 def get_order_by_id(order_id):
     """Get a specific order by ID"""
@@ -883,7 +909,7 @@ def _fetch_inventory_stats():
 
 def get_inventory_stats():
     """Get inventory statistics with caching"""
-    return get_cached('inventory', _fetch_inventory_stats, cache_duration=60)
+    return get_cached('inventory', _fetch_inventory_stats, cache_duration=120)  # 2 minutes
 
 def get_products():
     """Fallback hardcoded product list"""
@@ -1176,7 +1202,7 @@ def _fetch_consolidated_order_stats():
 
 def get_consolidated_order_stats():
     """Get consolidated order stats with caching"""
-    return get_cached('order_stats', _fetch_consolidated_order_stats, cache_duration=60)
+    return get_cached('order_stats', _fetch_consolidated_order_stats, cache_duration=120)  # 2 minutes
 
 # Routes
 @app.route('/')

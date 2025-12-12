@@ -2062,8 +2062,29 @@
             }
             
             updateCart();
+            saveCart();
             resetSelection();
         });
+
+        function saveCart() {
+            try {
+                localStorage.setItem('pephaul_cart', JSON.stringify(cartItems));
+            } catch (e) {
+                console.warn('Could not save cart to localStorage:', e);
+            }
+        }
+
+        function loadCart() {
+            try {
+                const saved = localStorage.getItem('pephaul_cart');
+                if (saved) {
+                    cartItems = JSON.parse(saved);
+                    updateCart();
+                }
+            } catch (e) {
+                console.warn('Could not load cart from localStorage:', e);
+            }
+        }
 
         function resetSelection() {
             selectedProduct = null;
@@ -2120,6 +2141,7 @@
         function removeItem(index) {
             cartItems.splice(index, 1);
             updateCart();
+            saveCart();
         }
 
 
