@@ -1483,9 +1483,14 @@ def api_orders_lookup():
         matches = False
         if email and order_email and email == order_email:
             matches = True
-        # Match telegram with or without @ symbol
-        if telegram_normalized and order_telegram_normalized and telegram_normalized in order_telegram_normalized:
-            matches = True
+        # Match telegram with or without @ symbol (exact match after normalization)
+        if telegram_normalized and order_telegram_normalized:
+            # Try exact match first
+            if telegram_normalized == order_telegram_normalized:
+                matches = True
+            # Fallback to substring match for flexibility (user input contained in order telegram)
+            elif telegram_normalized in order_telegram_normalized:
+                matches = True
         
         if not matches:
             continue
@@ -1495,10 +1500,12 @@ def api_orders_lookup():
                 'order_id': order_id,
                 'order_date': order.get('Order Date', ''),
                 'full_name': order.get('Name', order.get('Full Name', '')),
+                'email': order.get('Email', ''),
                 'telegram': order.get('Telegram Username', ''),
                 'grand_total_php': float(order.get('Grand Total PHP', 0) or 0),
                 'status': order.get('Order Status', 'Pending'),
                 'payment_status': order.get('Payment Status', order.get('Confirmed Paid?', 'Unpaid')),
+                'payment_screenshot': order.get('Payment Screenshot Link', order.get('Payment Screenshot', '')),
                 'items': []
             }
         
@@ -1506,7 +1513,7 @@ def api_orders_lookup():
             grouped[order_id]['items'].append({
                 'product_code': order.get('Product Code', ''),
                 'product_name': order.get('Product Name', ''),
-                'order_type': order.get('Order Type', ''),
+                'order_type': order.get('Order Type', 'Vial'),  # Default to 'Vial' if missing
                 'qty': int(order.get('QTY', 0) or 0),
                 'line_total_php': float(order.get('Line Total PHP', 0) or 0)
             })

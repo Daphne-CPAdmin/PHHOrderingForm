@@ -2201,7 +2201,8 @@
             
             list.innerHTML = orders.map(order => {
                 const isPaid = order.payment_status && order.payment_status.toLowerCase() === 'paid';
-                const itemsPreview = order.items.map(i => `${i.product_name || i.product_code} (${i.order_type} x${i.qty})`).join(', ');
+                const items = order.items || [];  // Safety check for items array
+                const itemsPreview = items.map(i => `${i.product_name || i.product_code} (${i.order_type || 'Vial'} x${i.qty || 0})`).join(', ');
                 
                 return `
                     <div class="card" style="cursor: pointer; padding: 1.5rem; border: 2px solid ${isPaid ? 'var(--accent-emerald)' : 'var(--accent-amber)'}; background: ${isPaid ? 'rgba(16, 185, 129, 0.05)' : 'rgba(245, 158, 11, 0.05)'};" onclick="viewOrder('${order.order_id}')">
