@@ -49,8 +49,10 @@ def get_cached(key, fetch_func, cache_duration=CACHE_DURATION):
     for attempt in range(max_retries):
         try:
             data = fetch_func()
-            _cache[key] = data
-            _cache_timestamps[key] = now
+            # Only cache non-None values
+            if data is not None:
+                _cache[key] = data
+                _cache_timestamps[key] = now
             return data
         except Exception as e:
             error_str = str(e)
@@ -177,6 +179,14 @@ def ensure_worksheets_exist():
             worksheet = spreadsheet.add_worksheet(title='Product Locks', rows=200, cols=5)
             headers = ['Product Code', 'Max Kits', 'Is Locked', 'Locked Date', 'Locked By']
             worksheet.update('A1:E1', [headers])
+        
+        # Price List tab (for products) - create if doesn't exist
+        if 'Price List' not in existing_sheets:
+            worksheet = spreadsheet.add_worksheet(title='Price List', rows=1000, cols=6)
+            headers = ['Product Code', 'Product Name', 'USD Kit Price', 'USD Price/Vial', 'Vials/Kit']
+            worksheet.update('A1:E1', [headers])
+            # Add a note row
+            worksheet.update('A2', [['TR5', 'Tirzepatide - 5mg', '45', '4.5', '10']])
             
     except Exception as e:
         print(f"Error ensuring worksheets: {e}")
@@ -911,8 +921,81 @@ def get_inventory_stats():
     """Get inventory statistics with caching"""
     return get_cached('inventory', _fetch_inventory_stats, cache_duration=120)  # 2 minutes
 
+def _fetch_products_from_sheets():
+    """Internal function to fetch products from Price List tab"""
+    if not sheets_client:
+        return None
+    
+    try:
+        spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
+        
+        # Try to find Price List worksheet
+        try:
+            worksheet = spreadsheet.worksheet('Price List')
+        except:
+            # Try alternative names
+            try:
+                worksheet = spreadsheet.worksheet('Pricelist')
+            except:
+                worksheet = spreadsheet.worksheet('Products')
+        
+        # Get all records
+        records = worksheet.get_all_records()
+        
+        products = []
+        for record in records:
+            # Handle different column name variations
+            code = record.get('Product Code') or record.get('Code') or record.get('code', '').strip()
+            name = record.get('Product Name') or record.get('Product') or record.get('Name') or record.get('name', '').strip()
+            kit_price_str = str(record.get('USD Kit Price') or record.get('Kit Price') or record.get('kit_price') or record.get('Kit', '0')).strip()
+            vial_price_str = str(record.get('USD Price/Vial') or record.get('Vial Price') or record.get('vial_price') or record.get('Vial', '0')).strip()
+            vials_per_kit_str = str(record.get('Vials/Kit') or record.get('Vials Per Kit') or record.get('vials_per_kit') or '10')).strip()
+            
+            # Skip empty rows
+            if not code or not name:
+                continue
+            
+            # Parse prices (remove $ and commas)
+            try:
+                kit_price = float(kit_price_str.replace('$', '').replace(',', '').strip() or 0)
+                vial_price = float(vial_price_str.replace('$', '').replace(',', '').strip() or 0)
+                vials_per_kit = int(float(vials_per_kit_str.strip() or 10))
+            except (ValueError, AttributeError):
+                continue
+            
+            # Skip if prices are 0
+            if kit_price == 0 and vial_price == 0:
+                continue
+            
+            products.append({
+                'code': code,
+                'name': name,
+                'kit_price': kit_price,
+                'vial_price': vial_price,
+                'vials_per_kit': vials_per_kit
+            })
+        
+        return products if products else None
+        
+    except Exception as e:
+        print(f"Error reading products from sheet: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
 def get_products():
-    """Fallback hardcoded product list"""
+    """Get products from Google Sheet Price List tab, fallback to hardcoded list"""
+    # Try to get from sheet first (with caching)
+    try:
+        cached_products = get_cached('products_sheet', _fetch_products_from_sheets, cache_duration=300)  # 5 minutes
+        if cached_products and len(cached_products) > 0:
+            print(f"Loaded {len(cached_products)} products from Google Sheet")
+            return cached_products
+    except Exception as e:
+        print(f"Error loading products from sheet, using fallback: {e}")
+    
+    # Fallback to hardcoded list
+    print("Using hardcoded product list (fallback)")
     return [
         # Tirzepatide
         {"code": "TR5", "name": "Tirzepatide - 5mg", "kit_price": 45, "vial_price": 4.5, "vials_per_kit": 10},
