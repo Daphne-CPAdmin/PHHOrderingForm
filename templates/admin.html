@@ -1238,13 +1238,23 @@
                 
                 const result = await response.json();
                 if (result.success) {
-                    showToast(result.message || 'Reminder sent! 📲');
+                    showToast('✅ Reminder sent via Telegram!');
                 } else {
-                    alert(result.error || 'Failed to send reminder\n\n' + (result.message || ''));
+                    // Show detailed error message
+                    const errorMsg = result.error || 'Failed to send reminder';
+                    const detailMsg = result.message || '';
+                    
+                    if (detailMsg) {
+                        alert(`❌ ${errorMsg}\n\n${detailMsg}`);
+                    } else {
+                        showToast(`⚠️ ${errorMsg}`);
+                    }
+                    
+                    console.error('Reminder error:', result);
                 }
             } catch (error) {
                 console.error('Error sending reminder:', error);
-                showToast('Error sending reminder');
+                showToast('❌ Error sending reminder - check console');
             }
         }
 
