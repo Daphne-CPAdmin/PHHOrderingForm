@@ -992,8 +992,6 @@ def _fetch_products_from_sheets():
         print(f"❌ Error reading products from sheet: {e}")
         import traceback
         traceback.print_exc()
-        import traceback
-        traceback.print_exc()
         return None
 
 def get_products():
