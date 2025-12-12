@@ -188,146 +188,10 @@ def ensure_worksheets_exist():
             # Add a note row
             worksheet.update('A2', [['TR5', 'Tirzepatide - 5mg', '45', '4.5', '10']])
         
-        # PepHauler Orders tab (consolidated orders view) - create if doesn't exist
-        if 'PepHauler Orders' not in existing_sheets:
-            worksheet = spreadsheet.add_worksheet(title='PepHauler Orders', rows=1000, cols=16)
-            headers = [
-                'Order ID', 'Order Date', 'Customer Name', 'Telegram Username',
-                'Items Summary', 'Total Items', 'Grand Total PHP', 'Exchange Rate',
-                'Order Status', 'Locked', 'Payment Status', 'Link to Payment',
-                'Full Name', 'Contact Number', 'Mailing Address', 'Remarks'
-            ]
-            worksheet.update('A1:P1', [headers])
             
     except Exception as e:
         print(f"Error ensuring worksheets: {e}")
 
-def populate_pephauler_orders_tab():
-    """Populate or update the PepHauler Orders tab with consolidated order data"""
-    if not sheets_client:
-        return False
-    
-    try:
-        spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
-        
-        # Check if tab exists, create if not
-        try:
-            worksheet = spreadsheet.worksheet('PepHauler Orders')
-        except:
-            worksheet = spreadsheet.add_worksheet(title='PepHauler Orders', rows=1000, cols=16)
-            headers = [
-                'Order ID', 'Order Date', 'Customer Name', 'Telegram Username',
-                'Items Summary', 'Total Items', 'Grand Total PHP', 'Exchange Rate',
-                'Order Status', 'Locked', 'Payment Status', 'Link to Payment',
-                'Full Name', 'Contact Number', 'Mailing Address', 'Remarks'
-            ]
-            worksheet.update('A1:P1', [headers])
-        
-        # Get all orders from PepHaul Entry
-        orders = get_orders_from_sheets()
-        
-        if not orders:
-            print("No orders found to populate PepHauler Orders tab")
-            return True
-        
-        # Group orders by Order ID
-        grouped_orders = {}
-        for order in orders:
-            order_id = order.get('Order ID', '')
-            if not order_id:
-                continue
-            
-            if order_id not in grouped_orders:
-                grouped_orders[order_id] = {
-                    'order_id': order_id,
-                    'order_date': order.get('Order Date', ''),
-                    'customer_name': order.get('Name', order.get('Full Name', '')),
-                    'telegram': order.get('Telegram Username', ''),
-                    'grand_total_php': float(order.get('Grand Total PHP', 0) or 0),
-                    'exchange_rate': float(order.get('Exchange Rate', FALLBACK_EXCHANGE_RATE) or FALLBACK_EXCHANGE_RATE),
-                    'order_status': order.get('Order Status', 'Pending'),
-                    'locked': order.get('Locked', 'No'),
-                    'payment_status': order.get('Payment Status', order.get('Confirmed Paid?', 'Unpaid')),
-                    'payment_screenshot': order.get('Link to Payment', order.get('Payment Screenshot Link', order.get('Payment Screenshot', ''))),
-                    'full_name': order.get('Full Name', order.get('Name', '')),
-                    'contact_number': order.get('Contact Number', ''),
-                    'mailing_address': order.get('Mailing Address', ''),
-                    'remarks': order.get('Remarks', ''),
-                    'items': []
-                }
-            
-            # Add item to order
-            if order.get('Product Code'):
-                product_code = order.get('Product Code', '')
-                product_name = order.get('Product Name', '')
-                order_type = order.get('Order Type', 'Vial')
-                qty = int(order.get('QTY', 0) or 0)
-                
-                if qty > 0:
-                    grouped_orders[order_id]['items'].append({
-                        'product_code': product_code,
-                        'product_name': product_name,
-                        'order_type': order_type,
-                        'qty': qty
-                    })
-        
-        # Prepare rows for the consolidated view
-        rows = []
-        for order_id, order_data in sorted(grouped_orders.items(), key=lambda x: x[1]['order_date'], reverse=True):
-            # Create items summary
-            items_summary_parts = []
-            total_items = 0
-            for item in order_data['items']:
-                items_summary_parts.append(f"{item['product_code']} ({item['order_type']} x{item['qty']})")
-                total_items += item['qty']
-            items_summary = ', '.join(items_summary_parts) if items_summary_parts else 'No items'
-            
-            row = [
-                order_data['order_id'],
-                order_data['order_date'],
-                order_data['customer_name'],
-                order_data['telegram'],
-                items_summary,
-                total_items,
-                order_data['grand_total_php'],
-                order_data['exchange_rate'],
-                order_data['order_status'],
-                order_data['locked'],
-                order_data['payment_status'],
-                order_data['payment_screenshot'],
-                order_data['full_name'],
-                order_data['contact_number'],
-                order_data['mailing_address'],
-                order_data['remarks']
-            ]
-            rows.append(row)
-        
-        # Clear existing data (keep headers)
-        if len(rows) > 0:
-            # Clear all rows except header
-            worksheet.clear()
-            # Add headers back
-            headers = [
-                'Order ID', 'Order Date', 'Customer Name', 'Telegram Username',
-                'Items Summary', 'Total Items', 'Grand Total PHP', 'Exchange Rate',
-                'Order Status', 'Locked', 'Payment Status', 'Link to Payment',
-                'Full Name', 'Contact Number', 'Mailing Address', 'Remarks'
-            ]
-            worksheet.update('A1:P1', [headers])
-            # Add order data
-            if rows:
-                range_start = f'A2'
-                range_end = f'P{len(rows) + 1}'
-                worksheet.update(f'{range_start}:{range_end}', rows)
-                print(f"✅ Populated PepHauler Orders tab with {len(rows)} orders")
-        
-        return True
-        
-    except Exception as e:
-        print(f"Error populating PepHauler Orders tab: {e}")
-        import traceback
-        traceback.print_exc()
-        return False
 
 def get_product_locks():
     """Get product lock settings from Google Sheets"""
@@ -1079,14 +943,7 @@ def _fetch_products_from_sheets():
         spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
         
         # Try to find Price List worksheet
-        try:
-            worksheet = spreadsheet.worksheet('Price List')
-        except:
-            # Try alternative names
-            try:
-                worksheet = spreadsheet.worksheet('Pricelist')
-            except:
-                worksheet = spreadsheet.worksheet('Products')
+        worksheet = spreadsheet.worksheet('Price List')
         
         # Get all records
         records = worksheet.get_all_records()
@@ -2730,21 +2587,10 @@ Thank you! 💜"""
     else:
         return jsonify({'error': 'Failed to send Telegram message'}), 500
 
-@app.route('/api/admin/refresh-pephauler-orders', methods=['POST'])
-def api_refresh_pephauler_orders():
-    """Admin: Refresh the PepHauler Orders tab"""
-    if not session.get('is_admin'):
-        return jsonify({'error': 'Unauthorized'}), 401
-    
-    if populate_pephauler_orders_tab():
-        return jsonify({'success': True, 'message': 'PepHauler Orders tab refreshed successfully'})
-    return jsonify({'error': 'Failed to refresh PepHauler Orders tab'}), 500
 
 # Initialize on startup
 init_google_services()
 ensure_worksheets_exist()
-# Populate PepHauler Orders tab after ensuring it exists
-populate_pephauler_orders_tab()
 
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 5000))
