@@ -1098,7 +1098,7 @@ def _fetch_products_from_sheets():
             name = record.get('Product Name') or record.get('Product') or record.get('Name') or record.get('name', '').strip()
             kit_price_str = str(record.get('USD Kit Price') or record.get('Kit Price') or record.get('kit_price') or record.get('Kit', '0')).strip()
             vial_price_str = str(record.get('USD Price/Vial') or record.get('Vial Price') or record.get('vial_price') or record.get('Vial', '0')).strip()
-            vials_per_kit_str = str(record.get('Vials/Kit') or record.get('Vials Per Kit') or record.get('vials_per_kit') or '10')).strip()
+            vials_per_kit_str = str(record.get('Vials/Kit') or record.get('Vials Per Kit') or record.get('vials_per_kit') or '10').strip()
             
             # Skip empty rows
             if not code or not name:
