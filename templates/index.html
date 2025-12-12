@@ -653,7 +653,7 @@
             max-height: 420px;
             overflow-y: auto;
             z-index: 100;
-            display: none;
+            display: block;
             margin-top: 4px;
         }
         .product-dropdown.show { display: block; }
@@ -1934,7 +1934,7 @@
                     document.getElementById('selected-code').textContent = selectedProduct.code;
                     selectedProductDiv.style.display = 'block';
                     productSearch.value = selectedProduct.name;
-                    productDropdown.classList.remove('show');
+                    // Keep dropdown visible after selection
                     
                     updateInventoryDisplay();
                     updatePricePreview();
@@ -1948,7 +1948,6 @@
         // Product Search
         productSearch.addEventListener('focus', () => {
             console.log('Product search focused');
-            productDropdown.classList.add('show');
             // Show all products when focusing
             const query = productSearch.value.toLowerCase().trim();
             productDropdown.querySelectorAll('.product-option').forEach(option => {
@@ -1965,8 +1964,6 @@
         productSearch.addEventListener('input', (e) => {
             const query = e.target.value.toLowerCase().trim();
             console.log('Search query:', query);
-            // Show dropdown when typing
-            productDropdown.classList.add('show');
             // Filter products
             productDropdown.querySelectorAll('.product-option').forEach(option => {
                 if (!query) {
@@ -1979,9 +1976,7 @@
                 }
             });
         });
-        document.addEventListener('click', (e) => {
-            if (!e.target.closest('.product-search-container')) productDropdown.classList.remove('show');
-        });
+        // Dropdown stays visible - no click-away hide behavior
 
         function updateInventoryDisplay() {
             if (!selectedProduct) return;
