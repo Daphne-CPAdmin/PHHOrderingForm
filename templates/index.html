@@ -1671,7 +1671,47 @@
 
     </div>
 
-    <!-- Order Summary Modal -->
+    <!-- Order Confirmation Modal (Before Submission) -->
+    <div class="modal" id="order-confirmation-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Review Your Order</h3>
+                <button class="modal-close" onclick="closeModal('order-confirmation-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="color: var(--text-muted); margin-bottom: 1.5rem;">Please review your order before submitting. You can remove items if needed.</p>
+                
+                <div id="confirmation-items-list" style="margin-bottom: 1.5rem;">
+                    <!-- Items will be populated here -->
+                </div>
+                
+                <div class="cart-summary">
+                    <div class="summary-row">
+                        <span class="summary-label">Subtotal (USD)</span>
+                        <span class="summary-value" id="confirmation-subtotal-usd">$0.00</span>
+                    </div>
+                    <div class="summary-row">
+                        <span class="summary-label">Subtotal (PHP)</span>
+                        <span class="summary-value" id="confirmation-subtotal-php">₱0.00</span>
+                    </div>
+                    <div class="summary-row">
+                        <span class="summary-label">Admin Fee</span>
+                        <span class="summary-value">₱{{ "%.2f"|format(admin_fee) }}</span>
+                    </div>
+                    <div class="summary-row grand-total">
+                        <span class="summary-label">Grand Total</span>
+                        <span class="summary-value" id="confirmation-grand-total">₱0.00</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('order-confirmation-modal')">Cancel</button>
+                <button class="btn btn-violet" id="confirm-submit-btn" onclick="confirmOrderSubmission()">Confirm & Submit Order</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Order Summary Modal (After Submission) -->
     <div class="modal" id="order-modal">
         <div class="modal-content">
             <div class="modal-header">
@@ -2332,8 +2372,8 @@
         // Add event listeners for customer lookup
         document.getElementById('telegram').addEventListener('input', checkReturningCustomer);
 
-        // Submit Order
-        document.getElementById('submit-order').addEventListener('click', async () => {
+        // Submit Order - Show confirmation modal first
+        document.getElementById('submit-order').addEventListener('click', () => {
             const fullName = document.getElementById('full-name').value.trim();
             const telegram = document.getElementById('telegram').value.trim();
             
@@ -2342,8 +2382,83 @@
                 return;
             }
             
-            const btn = document.getElementById('submit-order');
+            if (cartItems.length === 0) {
+                showToast('Your cart is empty');
+                return;
+            }
+            
+            // Show confirmation modal
+            showOrderConfirmationModal();
+        });
+        
+        // Show order confirmation modal
+        function showOrderConfirmationModal() {
+            const modal = document.getElementById('order-confirmation-modal');
+            const itemsList = document.getElementById('confirmation-items-list');
+            
+            // Render cart items with remove buttons
+            itemsList.innerHTML = cartItems.map((item, i) => `
+                <div class="cart-item" id="confirmation-item-${i}">
+                    <button class="cart-item-remove" onclick="removeFromConfirmation(${i})">×</button>
+                    <div class="cart-item-header">
+                        <span class="cart-item-name">${item.product_name}</span>
+                        <span class="cart-item-code">${item.product_code}</span>
+                    </div>
+                    <div class="cart-item-details">
+                        <span>${item.order_type} × ${item.qty}</span>
+                        <span class="cart-item-price">₱${item.line_total_php.toFixed(2)}</span>
+                    </div>
+                </div>
+            `).join('');
+            
+            // Update totals
+            updateConfirmationTotals();
+            
+            // Show modal
+            modal.classList.add('show');
+        }
+        
+        // Remove item from confirmation modal
+        function removeFromConfirmation(index) {
+            cartItems.splice(index, 1);
+            
+            if (cartItems.length === 0) {
+                closeModal('order-confirmation-modal');
+                updateCart();
+                showToast('Cart is now empty');
+                return;
+            }
+            
+            // Update confirmation modal
+            showOrderConfirmationModal();
+            
+            // Update main cart display
+            updateCart();
+            saveCart();
+        }
+        
+        // Expose to global scope
+        window.removeFromConfirmation = removeFromConfirmation;
+        
+        // Update confirmation modal totals
+        function updateConfirmationTotals() {
+            const totalUsd = cartItems.reduce((sum, item) => sum + item.line_total_usd, 0);
+            const totalPhp = totalUsd * EXCHANGE_RATE;
+            const grandTotal = totalPhp + ADMIN_FEE;
+            
+            document.getElementById('confirmation-subtotal-usd').textContent = `$${totalUsd.toFixed(2)}`;
+            document.getElementById('confirmation-subtotal-php').textContent = `₱${totalPhp.toFixed(2)}`;
+            document.getElementById('confirmation-grand-total').textContent = `₱${grandTotal.toFixed(2)}`;
+        }
+        
+        // Confirm and submit order
+        async function confirmOrderSubmission() {
+            const fullName = document.getElementById('full-name').value.trim();
+            const telegram = document.getElementById('telegram').value.trim();
+            const btn = document.getElementById('confirm-submit-btn');
+            
             btn.disabled = true;
+            btn.textContent = 'Submitting...';
             
             try {
                 let response, result;
@@ -2391,9 +2506,17 @@
                     
                     if (result.success) {
                         currentOrderId = result.order_id;
+                        
+                        // Close confirmation modal
+                        closeModal('order-confirmation-modal');
+                        
+                        // Show success modal
                         showOrderModal(result.order);
+                        
+                        // Clear cart and form
                         cartItems = [];
                         updateCart();
+                        saveCart();
                         document.getElementById('full-name').value = '';
                         document.getElementById('telegram').value = '';
                     } else {
@@ -2401,12 +2524,16 @@
                     }
                 }
             } catch (error) {
+                console.error('Order submission error:', error);
                 showToast('Error submitting order');
             } finally {
                 btn.disabled = false;
-                btn.textContent = addingToOrderId ? '➕ Add to Existing Order' : 'Submit Order';
+                btn.textContent = 'Confirm & Submit Order';
             }
-        });
+        }
+        
+        // Expose to global scope
+        window.confirmOrderSubmission = confirmOrderSubmission;
 
         function showOrderModal(order) {
             document.getElementById('modal-order-id').textContent = order.order_id;
