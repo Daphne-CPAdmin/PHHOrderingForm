@@ -867,8 +867,62 @@ def get_inventory_stats():
     """Get inventory statistics with caching"""
     return get_cached('inventory', _fetch_inventory_stats, cache_duration=60)
 
-def get_products():
-    """Get complete product list with vials per kit"""
+def _fetch_products_from_sheets():
+    """Internal function to fetch products from Google Sheets Price List"""
+    if not sheets_client:
+        # Fallback to hardcoded products if sheets not available
+        return _get_hardcoded_products()
+    
+    try:
+        spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
+        # Try to get "Price List" worksheet (gid=188098807)
+        try:
+            worksheet = spreadsheet.worksheet('Price List')
+        except:
+            # Fallback if sheet name is different
+            worksheets = spreadsheet.worksheets()
+            print(f"Available worksheets: {[ws.title for ws in worksheets]}")
+            # Return hardcoded products if Price List not found
+            return _get_hardcoded_products()
+        
+        records = worksheet.get_all_records()
+        products = []
+        
+        for record in records:
+            # Expected columns: Code, Product, Kit Price, Vial Price, Vials per Kit
+            code = str(record.get('Code', '')).strip()
+            name = str(record.get('Product', '')).strip()
+            
+            if not code or not name:
+                continue
+            
+            try:
+                kit_price = float(record.get('Kit Price', 0) or 0)
+                vial_price = float(record.get('Vial Price', 0) or 0)
+                vials_per_kit = int(record.get('Vials per Kit', 10) or 10)
+                
+                products.append({
+                    'code': code,
+                    'name': name,
+                    'kit_price': kit_price,
+                    'vial_price': vial_price,
+                    'vials_per_kit': vials_per_kit
+                })
+            except (ValueError, TypeError) as e:
+                print(f"Error parsing product {code}: {e}")
+                continue
+        
+        print(f"✅ Loaded {len(products)} products from Google Sheets")
+        return products if products else _get_hardcoded_products()
+        
+    except Exception as e:
+        print(f"Error loading products from sheets: {e}")
+        import traceback
+        traceback.print_exc()
+        return _get_hardcoded_products()
+
+def _get_hardcoded_products():
+    """Fallback hardcoded product list"""
     return [
         # Tirzepatide
         {"code": "TR5", "name": "Tirzepatide - 5mg", "kit_price": 45, "vial_price": 4.5, "vials_per_kit": 10},
@@ -1093,6 +1147,10 @@ def get_products():
         {"code": "B1201", "name": "B12 (small)", "kit_price": 40, "vial_price": 4.0, "vials_per_kit": 10},
         {"code": "B1210", "name": "B12 (large)", "kit_price": 75, "vial_price": 7.5, "vials_per_kit": 10},
     ]
+
+def get_products():
+    """Get complete product list with vials per kit (cached)"""
+    return get_cached('products', _fetch_products_from_sheets, cache_duration=300)  # Cache for 5 minutes
 
 def get_exchange_rate():
     """Fetch live USD to PHP exchange rate"""
