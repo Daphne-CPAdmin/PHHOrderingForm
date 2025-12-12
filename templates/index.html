@@ -2803,7 +2803,10 @@
             const inputId = orderType === 'Kit' ? `inv-kit-qty-${productCode}` : `inv-vial-qty-${productCode}`;
             const input = document.getElementById(inputId);
             
-            if (!input) return;
+            if (!input) {
+                console.error('Input not found:', inputId);
+                return;
+            }
             
             const currentQty = parseInt(input.value) || 0;
             const maxQty = parseInt(input.getAttribute('max')) || 99;
@@ -2814,15 +2817,29 @@
             if (newQty > maxQty) newQty = maxQty;
             
             input.value = newQty;
+            
+            // Trigger input event to ensure any listeners are notified
+            input.dispatchEvent(new Event('input', { bubbles: true }));
         }
 
         function quickAddToCart(productCode, productName) {
-            // Find product data from dropdown options
-            const productOption = document.querySelector(`.product-option[data-code="${productCode}"]`);
-            if (!productOption) return;
+            // Check if products are loaded
+            if (!allProducts || allProducts.length === 0) {
+                console.error('Products not loaded yet');
+                showToast('Products are still loading. Please wait a moment and try again.');
+                return;
+            }
             
-            const kitPrice = parseFloat(productOption.dataset.kit);
-            const vialPrice = parseFloat(productOption.dataset.vial);
+            // Find product data from allProducts array
+            const product = allProducts.find(p => p.code === productCode);
+            if (!product) {
+                console.error('Product not found:', productCode);
+                showToast('Product not found. Please refresh the page.');
+                return;
+            }
+            
+            const kitPrice = product.kit_price;
+            const vialPrice = product.vial_price;
 
             // Get quantities from inputs
             const kitQtyInput = document.getElementById(`inv-kit-qty-${productCode}`);
@@ -2918,6 +2935,7 @@
         }
 
         // Initialize
+        loadCart();  // Load saved cart from localStorage
         updateCart();
     </script>
 </body>
