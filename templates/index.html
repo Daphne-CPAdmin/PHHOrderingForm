@@ -1862,13 +1862,16 @@
         let allProducts = [];
         async function loadProducts() {
             try {
+                console.log('Loading products...');
                 const response = await fetch('/api/products');
                 allProducts = await response.json();
+                console.log('Loaded products:', allProducts.length);
                 renderProductDropdown(allProducts);
                 attachProductClickHandlers();
+                console.log('Products rendered and ready');
             } catch (error) {
                 console.error('Error loading products:', error);
-                productDropdown.innerHTML = '<div style="padding: 1rem; text-align: center; color: var(--text-muted);">Error loading products</div>';
+                productDropdown.innerHTML = '<div style="padding: 1rem; text-align: center; color: var(--text-muted);">Error loading products. Please refresh the page.</div>';
             }
         }
 
@@ -1937,27 +1940,36 @@
 
         // Product Search
         productSearch.addEventListener('focus', () => {
+            console.log('Product search focused');
             productDropdown.classList.add('show');
-            // Show all products when focusing (in case search was used before)
-            if (!productSearch.value.trim()) {
-                productDropdown.querySelectorAll('.product-option').forEach(option => {
+            // Show all products when focusing
+            const query = productSearch.value.toLowerCase().trim();
+            productDropdown.querySelectorAll('.product-option').forEach(option => {
+                if (!query) {
+                    // No filter - show all
                     option.style.display = 'block';
-                });
-            }
+                } else {
+                    // Apply existing filter
+                    const match = option.dataset.name.toLowerCase().includes(query) || option.dataset.code.toLowerCase().includes(query);
+                    option.style.display = match ? 'block' : 'none';
+                }
+            });
         });
         productSearch.addEventListener('input', (e) => {
             const query = e.target.value.toLowerCase().trim();
-            // If empty search, show all products
-            if (!query) {
-                productDropdown.querySelectorAll('.product-option').forEach(option => {
-                    option.style.display = 'block';
-                });
-                return;
-            }
-            // Filter products by name or code
+            console.log('Search query:', query);
+            // Show dropdown when typing
+            productDropdown.classList.add('show');
+            // Filter products
             productDropdown.querySelectorAll('.product-option').forEach(option => {
-                const match = option.dataset.name.toLowerCase().includes(query) || option.dataset.code.toLowerCase().includes(query);
-                option.style.display = match ? 'block' : 'none';
+                if (!query) {
+                    // Empty search - show all
+                    option.style.display = 'block';
+                } else {
+                    // Filter by name or code
+                    const match = option.dataset.name.toLowerCase().includes(query) || option.dataset.code.toLowerCase().includes(query);
+                    option.style.display = match ? 'block' : 'none';
+                }
             });
         });
         document.addEventListener('click', (e) => {
