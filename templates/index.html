@@ -2982,20 +2982,25 @@
         window.adjustInvQty = adjustInvQty;
 
         function quickAddToCart(productCode, productName) {
+            console.log('quickAddToCart called:', { productCode, productName });
+            
             // Check if products are loaded
             if (!allProducts || allProducts.length === 0) {
-                console.error('Products not loaded yet');
-                showToast('Products are still loading. Please wait a moment and try again.');
+                console.error('❌ Products not loaded yet');
+                showToast('⏳ Products are still loading. Please wait a moment and try again.');
                 return;
             }
             
             // Find product data from allProducts array
             const product = allProducts.find(p => p.code === productCode);
             if (!product) {
-                console.error('Product not found:', productCode);
-                showToast('Product not found. Please refresh the page.');
+                console.error('❌ Product not found:', productCode);
+                console.log('Available products:', allProducts.map(p => p.code));
+                showToast('⚠️ Product not found. Please refresh the page.');
                 return;
             }
+            
+            console.log('✅ Found product:', product);
             
             const kitPrice = product.kit_price;
             const vialPrice = product.vial_price;
@@ -3066,14 +3071,23 @@
             if (added) {
                 updateCart();
                 saveCart();
-                showToast(`Added ${productName} to cart!`);
+                showToast(`✅ Added ${productName} to cart!`);
                 
                 // Reset quantities to 0
                 if (kitQtyInput) kitQtyInput.value = 0;
                 if (vialQtyInput) vialQtyInput.value = 0;
                 
-                // Scroll to cart
-                document.getElementById('new-order').scrollIntoView({ behavior: 'smooth', block: 'start' });
+                // Scroll to cart (with error handling)
+                try {
+                    const newOrderSection = document.getElementById('new-order');
+                    if (newOrderSection) {
+                        newOrderSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    } else {
+                        console.warn('new-order section not found for scrolling');
+                    }
+                } catch (error) {
+                    console.error('Error scrolling to cart:', error);
+                }
             } else {
                 showToast('Please select quantity using + buttons!');
             }
