@@ -1337,6 +1337,9 @@ def api_orders_lookup():
     
     orders = get_orders_from_sheets()
     
+    # Normalize telegram username (remove @ if present for comparison)
+    telegram_normalized = telegram.lstrip('@') if telegram else ''
+    
     # Group by Order ID and filter by email/telegram
     grouped = {}
     for order in orders:
@@ -1346,12 +1349,14 @@ def api_orders_lookup():
         
         order_email = str(order.get('Email', '')).lower().strip()
         order_telegram = str(order.get('Telegram Username', '')).lower().strip()
+        order_telegram_normalized = order_telegram.lstrip('@')
         
         # Match by email OR telegram
         matches = False
         if email and order_email and email == order_email:
             matches = True
-        if telegram and order_telegram and telegram in order_telegram:
+        # Match telegram with or without @ symbol
+        if telegram_normalized and order_telegram_normalized and telegram_normalized in order_telegram_normalized:
             matches = True
         
         if not matches:

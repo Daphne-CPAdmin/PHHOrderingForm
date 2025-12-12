@@ -1936,9 +1936,25 @@
         loadProducts();
 
         // Product Search
-        productSearch.addEventListener('focus', () => productDropdown.classList.add('show'));
+        productSearch.addEventListener('focus', () => {
+            productDropdown.classList.add('show');
+            // Show all products when focusing (in case search was used before)
+            if (!productSearch.value.trim()) {
+                productDropdown.querySelectorAll('.product-option').forEach(option => {
+                    option.style.display = 'block';
+                });
+            }
+        });
         productSearch.addEventListener('input', (e) => {
-            const query = e.target.value.toLowerCase();
+            const query = e.target.value.toLowerCase().trim();
+            // If empty search, show all products
+            if (!query) {
+                productDropdown.querySelectorAll('.product-option').forEach(option => {
+                    option.style.display = 'block';
+                });
+                return;
+            }
+            // Filter products by name or code
             productDropdown.querySelectorAll('.product-option').forEach(option => {
                 const match = option.dataset.name.toLowerCase().includes(query) || option.dataset.code.toLowerCase().includes(query);
                 option.style.display = match ? 'block' : 'none';
@@ -2093,11 +2109,12 @@
         let existingCustomerOrders = [];
         
         function checkReturningCustomer() {
-            const telegram = document.getElementById('telegram').value.trim().toLowerCase();
+            const telegram = document.getElementById('telegram').value.trim();
             
             // Need telegram to look up
             if (!telegram) {
                 hideMyOrdersSection();
+                hideReturningCustomerBanner();
                 return;
             }
             
@@ -2107,19 +2124,24 @@
             // Debounce the lookup
             customerLookupTimeout = setTimeout(async () => {
                 try {
+                    console.log('Looking up orders for telegram:', telegram);
                     const response = await fetch(`/api/orders/lookup?telegram=${encodeURIComponent(telegram)}`);
                     const orders = await response.json();
+                    console.log('Found orders:', orders);
                     
                     if (orders && orders.length > 0) {
                         existingCustomerOrders = orders;
                         showReturningCustomerBanner(orders);
                         showMyOrdersSection(orders);
                     } else {
+                        console.log('No orders found for', telegram);
                         hideReturningCustomerBanner();
                         hideMyOrdersSection();
                     }
                 } catch (error) {
-                    console.log('Customer lookup error:', error);
+                    console.error('Customer lookup error:', error);
+                    hideReturningCustomerBanner();
+                    hideMyOrdersSection();
                 }
             }, 500);
         }
