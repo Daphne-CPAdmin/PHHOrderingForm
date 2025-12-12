@@ -1854,6 +1854,19 @@
         const selectedProductDiv = document.getElementById('selected-product');
         const quantityInput = document.getElementById('quantity');
 
+        // Toast Notification Function (must be defined early)
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toast-message');
+            if (toast && toastMessage) {
+                toastMessage.textContent = message;
+                toast.classList.add('show');
+                setTimeout(() => toast.classList.remove('show'), 3000);
+            } else {
+                console.log('Toast:', message);
+            }
+        }
+
         // Navigation (simplified - single tab only)
         document.querySelectorAll('.nav-tab[data-view]').forEach(tab => {
             tab.addEventListener('click', () => {
@@ -2795,12 +2808,6 @@
         }
 
         // Toast
-        function showToast(message) {
-            document.getElementById('toast-message').textContent = message;
-            document.getElementById('toast').classList.add('show');
-            setTimeout(() => document.getElementById('toast').classList.remove('show'), 3000);
-        }
-
         // Inventory Card Quantity Management
         function adjustInvQty(productCode, orderType, delta) {
             const inputId = orderType === 'Kit' ? `inv-kit-qty-${productCode}` : `inv-vial-qty-${productCode}`;
