@@ -391,10 +391,28 @@ def _fetch_orders_from_sheets():
     try:
         spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
         worksheet = spreadsheet.worksheet('PepHaul Entry')
+        
+        # Check if worksheet has data before trying to get records
+        all_values = worksheet.get_all_values()
+        if not all_values or len(all_values) <= 1:
+            # Empty worksheet or only headers, return empty list
+            return []
+        
         records = worksheet.get_all_records()
+        # Ensure we return a list
+        if not isinstance(records, list):
+            return []
+        
         return records
+    except IndexError as e:
+        print(f"Error reading orders (index out of range - worksheet may be empty or malformed): {e}")
+        import traceback
+        traceback.print_exc()
+        return []
     except Exception as e:
         print(f"Error reading orders: {e}")
+        import traceback
+        traceback.print_exc()
         return []
 
 def get_orders_from_sheets():
