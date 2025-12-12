@@ -105,6 +105,14 @@ FALLBACK_EXCHANGE_RATE=59.20
 ADMIN_PASSWORD=pephaul2024
 SECRET_KEY=your_random_secret_key
 
+# Telegram Notifications
+TELEGRAM_BOT_TOKEN=your_bot_token_from_botfather
+TELEGRAM_ADMIN_CHAT_ID=your_chat_id  # Single admin (backward compatible)
+TELEGRAM_ADMIN_CHAT_IDS=@username1,@username2,chat_id3  # Multiple admins (comma-separated)
+# Supports both usernames (e.g., @deejay92) and chat IDs
+# Usernames are auto-resolved to chat IDs when users message the bot
+TELEGRAM_BOT_USERNAME=pephaul_bot
+
 # Flask
 FLASK_DEBUG=false
 ```

@@ -27,7 +27,8 @@ FALLBACK_EXCHANGE_RATE = float(os.getenv('FALLBACK_EXCHANGE_RATE', 59.20))
 GOOGLE_SHEETS_ID = os.getenv('GOOGLE_SHEETS_ID', '18Q3A7pmgj7WNi3GL8cgoLiD1gPmxGu_rMqzM3ohBo5s')
 ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD', 'pephaul2024')  # Change in production!
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '')  # Create bot via @BotFather
-TELEGRAM_ADMIN_CHAT_ID = os.getenv('TELEGRAM_ADMIN_CHAT_ID', '')  # Admin's Telegram chat ID
+TELEGRAM_ADMIN_CHAT_ID = os.getenv('TELEGRAM_ADMIN_CHAT_ID', '')  # Admin's Telegram chat ID (single, for backward compatibility)
+TELEGRAM_ADMIN_CHAT_IDS = os.getenv('TELEGRAM_ADMIN_CHAT_IDS', '')  # Multiple admin chat IDs (comma-separated)
 TELEGRAM_BOT_USERNAME = os.getenv('TELEGRAM_BOT_USERNAME', 'pephaul_bot')  # Bot username (without @)
 
 # Simple cache to reduce Google Sheets API calls
@@ -74,29 +75,116 @@ def clear_cache(key=None):
         _cache.clear()
         _cache_timestamps.clear()
 
+def resolve_telegram_recipient(recipient):
+    """
+    Resolve Telegram recipient to chat ID.
+    Accepts: chat ID (numeric string) or username (with/without @)
+    Returns: chat_id (string) or None if not found
+    """
+    if not recipient:
+        return None
+    
+    recipient = recipient.strip()
+    
+    # If it's already a numeric chat ID, return as-is
+    if recipient.lstrip('-').isdigit():
+        return recipient
+    
+    # It's a username - normalize it (remove @ if present, lowercase)
+    username = recipient.lstrip('@').lower()
+    
+    # First, check the telegram_customers mapping (users who have messaged the bot)
+    chat_id = telegram_customers.get(username) or telegram_customers.get(f"@{username}")
+    if chat_id:
+        return str(chat_id)
+    
+    # Try to get chat ID from Telegram API (only works if user has messaged the bot)
+    if TELEGRAM_BOT_TOKEN:
+        try:
+            url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getChat"
+            data = {'chat_id': f"@{username}"}
+            response = requests.post(url, data=data, timeout=5)
+            if response.status_code == 200:
+                result = response.json()
+                if result.get('ok') and result.get('result'):
+                    chat_id = str(result['result'].get('id'))
+                    # Cache it for future use
+                    telegram_customers[username] = chat_id
+                    telegram_customers[f"@{username}"] = chat_id
+                    print(f"Auto-resolved Telegram username @{username} to chat_id: {chat_id}")
+                    return chat_id
+        except Exception as e:
+            print(f"Could not auto-resolve @{username} via API: {e}")
+    
+    return None
+
 def send_telegram_notification(message, parse_mode='HTML'):
-    """Send notification to admin via Telegram bot"""
-    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_ADMIN_CHAT_ID:
-        print("Telegram not configured - skipping notification")
+    """Send notification to admin(s) via Telegram bot - supports multiple recipients (chat IDs or usernames)"""
+    if not TELEGRAM_BOT_TOKEN:
+        print("Telegram bot token not configured - skipping notification")
         return False
     
-    try:
-        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-        data = {
-            'chat_id': TELEGRAM_ADMIN_CHAT_ID,
-            'text': message,
-            'parse_mode': parse_mode
-        }
-        response = requests.post(url, data=data, timeout=10)
-        if response.status_code == 200:
-            print(f"Telegram notification sent successfully")
-            return True
-        else:
-            print(f"Telegram notification failed: {response.text}")
-            return False
-    except Exception as e:
-        print(f"Error sending Telegram notification: {e}")
+    # Get list of recipients (can be chat IDs or usernames)
+    recipients = []
+    
+    # First, check for multiple recipients (comma-separated)
+    if TELEGRAM_ADMIN_CHAT_IDS:
+        recipients = [r.strip() for r in TELEGRAM_ADMIN_CHAT_IDS.split(',') if r.strip()]
+    
+    # Also include single recipient for backward compatibility (if not already in list)
+    if TELEGRAM_ADMIN_CHAT_ID and TELEGRAM_ADMIN_CHAT_ID not in recipients:
+        recipients.append(TELEGRAM_ADMIN_CHAT_ID)
+    
+    if not recipients:
+        print("No Telegram admin recipients configured - skipping notification")
         return False
+    
+    # Resolve all recipients to chat IDs
+    chat_ids = []
+    unresolved = []
+    
+    for recipient in recipients:
+        chat_id = resolve_telegram_recipient(recipient)
+        if chat_id:
+            if chat_id not in chat_ids:  # Avoid duplicates
+                chat_ids.append(chat_id)
+        else:
+            unresolved.append(recipient)
+    
+    # Warn about unresolved recipients
+    if unresolved:
+        print(f"⚠️ Could not resolve Telegram recipients: {', '.join(unresolved)}")
+        print(f"   These users need to message @{TELEGRAM_BOT_USERNAME} first to register their chat ID")
+    
+    if not chat_ids:
+        print("No valid Telegram chat IDs found - skipping notification")
+        return False
+    
+    # Send notification to all resolved chat IDs
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    success_count = 0
+    failed_count = 0
+    
+    for chat_id in chat_ids:
+        try:
+            data = {
+                'chat_id': chat_id,
+                'text': message,
+                'parse_mode': parse_mode
+            }
+            response = requests.post(url, data=data, timeout=10)
+            if response.status_code == 200:
+                success_count += 1
+                print(f"Telegram notification sent successfully to chat_id: {chat_id}")
+            else:
+                failed_count += 1
+                print(f"Telegram notification failed for chat_id {chat_id}: {response.text}")
+        except Exception as e:
+            failed_count += 1
+            print(f"Error sending Telegram notification to chat_id {chat_id}: {e}")
+    
+    # Return True if at least one notification succeeded
+    return success_count > 0
 VIALS_PER_KIT = 10
 MAX_KITS_DEFAULT = 100  # Default max kits per product
 
@@ -2347,7 +2435,7 @@ def set_telegram_webhook():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 def notify_customer_order(order_data, order_id):
-    """Send order confirmation to customer via Telegram if registered"""
+    """Send order confirmation to customer via Telegram - auto-resolves username to chat ID"""
     telegram_handle = order_data.get('telegram', '').strip().lower()
     if not telegram_handle:
         return False
@@ -2356,10 +2444,12 @@ def notify_customer_order(order_data, order_id):
     if telegram_handle.startswith('@'):
         telegram_handle = telegram_handle[1:]
     
-    chat_id = telegram_customers.get(telegram_handle) or telegram_customers.get(f"@{telegram_handle}")
+    # Try to resolve username to chat ID (using the same helper function)
+    chat_id = resolve_telegram_recipient(telegram_handle)
     
     if not chat_id:
-        print(f"Customer @{telegram_handle} not registered for Telegram notifications")
+        print(f"⚠️ Customer @{telegram_handle} not found - they need to message @{TELEGRAM_BOT_USERNAME} first")
+        print(f"   Once they message the bot, they'll automatically receive notifications for future orders")
         return False
     
     items_text = '\n'.join([f"• {item['product_name']} ({item['order_type']} x{item['qty']})" for item in order_data.get('items', [])])
