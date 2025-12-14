@@ -2822,12 +2822,27 @@
         function showFinalizeOrderModal(orderId) {
             pendingFinalizeOrderId = orderId;
             
-            // Fetch updated order details
-            fetch(`/api/orders/${orderId}`)
-                .then(response => response.json())
+            // Fetch updated order details (with cache busting to get fresh data)
+            fetch(`/api/orders/${orderId}?t=${Date.now()}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Failed to fetch order');
+                    }
+                    return response.json();
+                })
                 .then(order => {
                     const summaryEl = document.getElementById('finalize-order-summary');
+                    // Filter out 0 quantity items
                     const items = order.items.filter(item => item.qty > 0);
+                    
+                    if (items.length === 0) {
+                        summaryEl.innerHTML = '<p style="color: var(--accent-rose); text-align: center; padding: 2rem;">No items with quantity > 0 in this order. Please add items before finalizing.</p>';
+                        return;
+                    }
+                    
+                    // Calculate subtotal from items (only qty > 0)
+                    const subtotalPhp = items.reduce((sum, item) => sum + (parseFloat(item.line_total_php) || 0), 0);
+                    const grandTotalPhp = order.grand_total_php || (subtotalPhp + ADMIN_FEE);
                     
                     summaryEl.innerHTML = `
                         <div style="margin-bottom: 1rem;">
@@ -2846,7 +2861,7 @@
                         <div style="border-top: 2px solid var(--border); padding-top: 1rem; margin-top: 1rem;">
                             <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
                                 <span>Subtotal (PHP):</span>
-                                <span>₱${order.subtotal_php.toFixed(2)}</span>
+                                <span>₱${subtotalPhp.toFixed(2)}</span>
                             </div>
                             <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
                                 <span>Admin Fee:</span>
@@ -2854,7 +2869,7 @@
                             </div>
                             <div style="display: flex; justify-content: space-between; font-size: 1.2rem; font-weight: 700; color: var(--accent-teal); margin-top: 0.5rem;">
                                 <span>Grand Total:</span>
-                                <span>₱${order.grand_total_php.toFixed(2)}</span>
+                                <span>₱${grandTotalPhp.toFixed(2)}</span>
                             </div>
                         </div>
                     `;

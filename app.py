@@ -576,15 +576,26 @@ def get_order_by_id(order_id):
     
     for item in order_items:
         if item.get('Product Code'):
-            order['items'].append({
-                'product_code': item.get('Product Code', ''),
-                'product_name': item.get('Product Name', ''),
-                'order_type': item.get('Order Type', 'Vial'),
-                'qty': int(item.get('QTY', 0) or 0),
-                'unit_price_usd': float(item.get('Unit Price USD', 0) or 0),
-                'line_total_usd': float(item.get('Line Total USD', 0) or 0),
-                'line_total_php': float(item.get('Line Total PHP', 0) or 0)
-            })
+            qty = int(item.get('QTY', 0) or 0)
+            # Only include items with quantity > 0
+            if qty > 0:
+                order['items'].append({
+                    'product_code': item.get('Product Code', ''),
+                    'product_name': item.get('Product Name', ''),
+                    'order_type': item.get('Order Type', 'Vial'),
+                    'qty': qty,
+                    'unit_price_usd': float(item.get('Unit Price USD', 0) or 0),
+                    'line_total_usd': float(item.get('Line Total USD', 0) or 0),
+                    'line_total_php': float(item.get('Line Total PHP', 0) or 0)
+                })
+    
+    # Recalculate subtotal from items (only qty > 0)
+    order['subtotal_usd'] = sum(item.get('line_total_usd', 0) for item in order['items'])
+    order['subtotal_php'] = sum(item.get('line_total_php', 0) for item in order['items'])
+    
+    # Ensure grand total is correct
+    if order['grand_total_php'] == 0 or order['grand_total_php'] != (order['subtotal_php'] + ADMIN_FEE_PHP):
+        order['grand_total_php'] = order['subtotal_php'] + ADMIN_FEE_PHP
     
     return order
 
