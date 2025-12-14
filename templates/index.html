@@ -2296,6 +2296,21 @@
         let customerLookupTimeout = null;
         let existingCustomerOrders = [];
         
+        // Function to update submit button text based on existing order
+        function updateSubmitButtonText() {
+            const submitBtn = document.getElementById('submit-order');
+            if (!submitBtn || submitBtn.disabled) return;
+            
+            // Check if there's a pending order
+            const pendingOrder = existingCustomerOrders.find(o => o.status !== 'Cancelled' && !o.locked);
+            
+            if (pendingOrder && cartItems.length > 0) {
+                submitBtn.textContent = 'Update Order';
+            } else {
+                submitBtn.textContent = 'Submit Order';
+            }
+        }
+        
         function checkReturningCustomer() {
             const telegram = document.getElementById('telegram').value.trim();
             const fullName = document.getElementById('full-name').value.trim();
