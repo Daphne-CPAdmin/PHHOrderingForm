@@ -860,29 +860,59 @@ def update_order_status(order_id, status=None, locked=None, payment_status=None,
         spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
         worksheet = spreadsheet.worksheet('PepHaul Entry')
         
+        # Get headers to find column indices dynamically
+        all_values = worksheet.get_all_values()
+        if not all_values:
+            print("No data found in PepHaul Entry sheet")
+            return False
+        
+        headers = [h.strip() if h else '' for h in all_values[0]]
+        
+        # Normalize first header if blank (as we did in _fetch_orders_from_sheets)
+        if headers and (not headers[0] or headers[0].strip() == ''):
+            headers[0] = 'Order ID'
+        
+        # Find column indices dynamically
+        col_order_status = headers.index('Order Status') if 'Order Status' in headers else None
+        col_locked = headers.index('Locked') if 'Locked' in headers else None
+        col_payment_status = headers.index('Payment Status') if 'Payment Status' in headers else None
+        col_payment_link = headers.index('Link to Payment') if 'Link to Payment' in headers else None
+        col_payment_date = headers.index('Payment Date') if 'Payment Date' in headers else None
+        
         # Find all rows with this order ID
         cells = worksheet.findall(order_id)
         
+        if not cells:
+            print(f"Order ID {order_id} not found in sheet")
+            return False
+        
         for cell in cells:
             row = cell.row
-            if status:
-                worksheet.update_cell(row, 16, status)  # Order Status
-            if locked is not None:
-                worksheet.update_cell(row, 17, 'Yes' if locked else 'No')
-            if payment_status:
-                worksheet.update_cell(row, 18, payment_status)  # Payment Status (column S)
-            if payment_screenshot:
-                worksheet.update_cell(row, 19, payment_screenshot)  # Link to Payment (column T)
-                worksheet.update_cell(row, 20, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))  # Payment Date (column U)
+            # Only update first row of order (order-level fields)
+            if cell == cells[0]:  # First occurrence is the order header row
+                if status and col_order_status is not None:
+                    worksheet.update_cell(row, col_order_status + 1, status)  # +1 because update_cell is 1-indexed
+                if locked is not None and col_locked is not None:
+                    worksheet.update_cell(row, col_locked + 1, 'Yes' if locked else 'No')
+                if payment_status and col_payment_status is not None:
+                    worksheet.update_cell(row, col_payment_status + 1, payment_status)
+                if payment_screenshot:
+                    if col_payment_link is not None:
+                        worksheet.update_cell(row, col_payment_link + 1, payment_screenshot)
+                    if col_payment_date is not None:
+                        worksheet.update_cell(row, col_payment_date + 1, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
         
         # Clear cache since orders changed
         clear_cache('orders')
         clear_cache('inventory')
         clear_cache('order_stats')
         
+        print(f"✅ Updated order {order_id}: status={status}, locked={locked}, payment_status={payment_status}")
         return True
     except Exception as e:
         print(f"Error updating order: {e}")
+        import traceback
+        traceback.print_exc()
         return False
 
 def add_items_to_order(order_id, new_items, exchange_rate, telegram_username=None):
