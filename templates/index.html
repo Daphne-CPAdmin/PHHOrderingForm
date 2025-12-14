@@ -2644,7 +2644,13 @@
                 submitBtn.textContent = 'Submit Order';
                 // Enable submit button if cart has items
                 submitBtn.disabled = cartItems.length === 0;
-                if (existingButtons) existingButtons.style.display = 'none';
+                if (updateOrderBtn) {
+                    updateOrderBtn.style.display = 'none';
+                }
+                const payOrderBtn = document.getElementById('pay-order-btn');
+                if (payOrderBtn) {
+                    payOrderBtn.style.display = 'none';
+                }
             }
         }
         
