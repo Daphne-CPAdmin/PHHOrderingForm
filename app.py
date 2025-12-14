@@ -755,52 +755,114 @@ def add_items_to_order(order_id, new_items, exchange_rate, telegram_username=Non
             print("No order_id or telegram_username provided")
             return False
         
-        # Find the first row of this order (for inserting new rows below it)
+        # Find the first row of this order and get order-level info BEFORE deleting
         first_order_row = None
+        order_info = {
+            'full_name': '', 
+            'telegram': '', 
+            'order_date': '',
+            'admin_fee': ADMIN_FEE_PHP,
+            'order_status': 'Pending',
+            'locked': 'No',
+            'payment_status': 'Unpaid',
+            'payment_screenshot': '',
+            'payment_date': '',
+            'contact_number': '',
+            'mailing_address': ''
+        }
+        
+        col_full_name = headers.index('Name') if 'Name' in headers else (headers.index('Full Name') if 'Full Name' in headers else 2)
+        col_order_date = headers.index('Order Date') if 'Order Date' in headers else 1
+        col_admin_fee = headers.index('Admin Fee PHP') if 'Admin Fee PHP' in headers else 12
+        col_grand_total = headers.index('Grand Total PHP') if 'Grand Total PHP' in headers else 13
+        col_order_status = headers.index('Order Status') if 'Order Status' in headers else 14
+        col_locked = headers.index('Locked') if 'Locked' in headers else 15
+        col_payment_status = headers.index('Payment Status') if 'Payment Status' in headers else 16
+        col_payment_link = headers.index('Link to Payment') if 'Link to Payment' in headers else 18
+        col_payment_date = headers.index('Payment Date') if 'Payment Date' in headers else 19
+        col_contact = headers.index('Contact Number') if 'Contact Number' in headers else 21
+        col_mailing = headers.index('Mailing Address') if 'Mailing Address' in headers else 22
+        
         for row_num, row in enumerate(all_values[1:], start=2):
             if len(row) > col_indices['order_id'] and row[col_indices['order_id']] == order_id:
-                first_order_row = row_num
+                if first_order_row is None:
+                    first_order_row = row_num
+                    # Get order-level info from first row
+                    first_row_data = all_values[row_num - 1]  # 0-indexed
+                    order_info['full_name'] = first_row_data[col_full_name] if len(first_row_data) > col_full_name else ''
+                    order_info['telegram'] = first_row_data[col_telegram] if len(first_row_data) > col_telegram else ''
+                    order_info['order_date'] = first_row_data[col_order_date] if len(first_row_data) > col_order_date else ''
+                    order_info['admin_fee'] = float(first_row_data[col_admin_fee]) if len(first_row_data) > col_admin_fee and first_row_data[col_admin_fee] else ADMIN_FEE_PHP
+                    order_info['order_status'] = first_row_data[col_order_status] if len(first_row_data) > col_order_status and first_row_data[col_order_status] else 'Pending'
+                    order_info['locked'] = first_row_data[col_locked] if len(first_row_data) > col_locked and first_row_data[col_locked] else 'No'
+                    order_info['payment_status'] = first_row_data[col_payment_status] if len(first_row_data) > col_payment_status and first_row_data[col_payment_status] else 'Unpaid'
+                    order_info['payment_screenshot'] = first_row_data[col_payment_link] if len(first_row_data) > col_payment_link and first_row_data[col_payment_link] else ''
+                    order_info['payment_date'] = first_row_data[col_payment_date] if len(first_row_data) > col_payment_date and first_row_data[col_payment_date] else ''
+                    order_info['contact_number'] = first_row_data[col_contact] if len(first_row_data) > col_contact and first_row_data[col_contact] else ''
+                    order_info['mailing_address'] = first_row_data[col_mailing] if len(first_row_data) > col_mailing and first_row_data[col_mailing] else ''
                 break
         
         if not first_order_row:
             print(f"Order {order_id} not found in sheet")
             return False
         
-        # Find all existing item rows for this order (except the first row with totals)
-        existing_item_rows = []  # List of row numbers to delete
+        # Find ALL rows for this order (including the first row) - we'll replace everything
+        all_order_rows = []  # List of row numbers to delete
         for row_num, row in enumerate(all_values[1:], start=2):  # Skip header, 1-indexed for sheets
             if len(row) > col_indices['order_id'] and row[col_indices['order_id']] == order_id:
-                # Don't delete the first row (contains order totals)
-                if row_num != first_order_row:
-                    product_code = row[col_indices['product_code']] if len(row) > col_indices['product_code'] else ''
-                    # Only delete rows that have product codes (item rows, not summary row)
-                    if product_code:
-                        existing_item_rows.append(row_num)
+                all_order_rows.append(row_num)
         
-        # Delete all existing item rows (in reverse order to maintain row numbers)
-        if existing_item_rows:
-            existing_item_rows.sort(reverse=True)
-            for row_num in existing_item_rows:
+        # Delete ALL rows for this order (in reverse order to maintain row numbers)
+        if all_order_rows:
+            all_order_rows.sort(reverse=True)
+            for row_num in all_order_rows:
                 worksheet.delete_rows(row_num)
+            # After deletion, the insert position is now the original first_order_row
+            insert_row = first_order_row
+        else:
+            insert_row = first_order_row
         
         # Filter out 0 quantity items from new_items
         items_to_add = [item for item in new_items if item.get('qty', 0) > 0]
         
-        # Add all new items - insert right below the first row
+        # Calculate totals for the new first row
+        total_usd = sum(item.get('line_total_usd', 0) for item in items_to_add)
+        total_php = sum(item.get('line_total_php', 0) for item in items_to_add)
+        grand_total_php = total_php + order_info['admin_fee']
+        
+        # Create new first row with order info and totals (NO product data)
+        first_row = [
+            order_id,                           # Order ID
+            order_info['order_date'],           # Order Date
+            order_info['full_name'],           # Name
+            order_info['telegram'],            # Telegram Username
+            '',                                 # Product Code - EMPTY (no product in first row)
+            '',                                 # Product Name - EMPTY
+            '',                                 # Order Type - EMPTY
+            '',                                 # QTY - EMPTY
+            '',                                 # Unit Price USD - EMPTY
+            '',                                 # Line Total USD - EMPTY
+            exchange_rate,                      # Exchange Rate
+            '',                                 # Line Total PHP - EMPTY
+            order_info['admin_fee'],            # Admin Fee PHP (only on first row)
+            grand_total_php,                   # Grand Total PHP (only on first row)
+            order_info['order_status'],         # Order Status (only on first row)
+            order_info['locked'],               # Locked (only on first row)
+            order_info['payment_status'],       # Payment Status (only on first row)
+            '',                                 # Remarks
+            order_info['payment_screenshot'],   # Link to Payment
+            order_info['payment_date'],         # Payment Date
+            '',                                 # Full Name (duplicate)
+            order_info['contact_number'],       # Contact Number
+            order_info['mailing_address']       # Mailing Address
+        ]
+        
+        # Insert the new first row
+        worksheet.insert_rows([first_row], insert_row)
+        insert_row += 1  # Next items go below the first row
+        
+        # Add all new items as separate rows below the first row
         if items_to_add:
-            # Insert rows right after the first order row (row 2 if first_order_row is 2)
-            insert_row = first_order_row + 1
-            
-            # Get customer info from the first row of this order
-            order_info = {'full_name': '', 'telegram': '', 'order_date': ''}
-            col_full_name = headers.index('Name') if 'Name' in headers else (headers.index('Full Name') if 'Full Name' in headers else 2)
-            col_order_date = headers.index('Order Date') if 'Order Date' in headers else 1
-            
-            first_row_data = all_values[first_order_row - 1]  # 0-indexed
-            order_info['full_name'] = first_row_data[col_full_name] if len(first_row_data) > col_full_name else ''
-            order_info['telegram'] = first_row_data[col_telegram] if len(first_row_data) > col_telegram else ''
-            order_info['order_date'] = first_row_data[col_order_date] if len(first_row_data) > col_order_date else ''
-            
             rows_to_add = []
             for item in items_to_add:
                 row = [
@@ -821,10 +883,10 @@ def add_items_to_order(order_id, new_items, exchange_rate, telegram_username=Non
                     '',                                 # Order Status - only on first row
                     '',                                 # Locked - only on first row
                     '',                                 # Payment Status - only on first row
-                    f'Added to {order_id}',            # Remarks
+                    f'Updated {order_id}',              # Remarks
                     '',                                 # Link to Payment
                     '',                                 # Payment Date
-                    '',                                 # Full Name
+                    '',                                 # Full Name (duplicate)
                     '',                                 # Contact Number
                     ''                                  # Mailing Address
                 ]
