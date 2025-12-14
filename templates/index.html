@@ -2812,8 +2812,9 @@
                 return;
             }
             
-            // Check if there's a pending order
+            // Check if there's a pending order (including locked ones for status checks)
             const pendingOrder = existingCustomerOrders.find(o => o.status !== 'Cancelled' && !o.locked);
+            const anyPendingOrder = existingCustomerOrders.find(o => o.status !== 'Cancelled');
             
             // Check if there are any changes (new items, updated quantities, or removed items)
             const hasNewItems = cartItems.some(item => item.isExisting !== true);
@@ -2861,12 +2862,28 @@
                 payOrderBtn.disabled = false;
                 payOrderBtn.title = isPaid ? 'Order already paid' : 'Pay for your submitted order';
                 
-                // Show Cancel Order button - only show for submitted/logged orders (not cancelled, not locked)
+                // Show Cancel Order button - disable when order is cancelled, locked, paid, or awaiting payment confirmation
                 const isCancelled = pendingOrder.status === 'Cancelled';
                 const isLocked = pendingOrder.locked === true;
-                cancelOrderBtn.style.display = (isCancelled || isLocked) ? 'none' : 'block';
-                cancelOrderBtn.disabled = false;
-                cancelOrderBtn.title = 'Cancel this order (cannot be undone)';
+                const isPaidStatus = pendingOrder.payment_status && (pendingOrder.payment_status === 'Paid' || pendingOrder.payment_status.toLowerCase() === 'paid');
+                const isAwaitingConfirmation = pendingOrder.payment_status === 'Waiting for Confirmation';
+                const shouldHideCancel = isCancelled || isLocked || isPaidStatus || isAwaitingConfirmation;
+                
+                cancelOrderBtn.style.display = shouldHideCancel ? 'none' : 'block';
+                cancelOrderBtn.disabled = shouldHideCancel;
+                if (shouldHideCancel) {
+                    if (isPaidStatus) {
+                        cancelOrderBtn.title = 'Cannot cancel order - payment has been confirmed';
+                    } else if (isAwaitingConfirmation) {
+                        cancelOrderBtn.title = 'Cannot cancel order - payment confirmation pending';
+                    } else if (isLocked) {
+                        cancelOrderBtn.title = 'Cannot cancel order - order is locked by admin';
+                    } else {
+                        cancelOrderBtn.title = 'Cannot cancel order';
+                    }
+                } else {
+                    cancelOrderBtn.title = 'Cancel this order (cannot be undone)';
+                }
                 
             } else {
                 // No pending order - show Submit Order button for new orders
@@ -3787,7 +3804,10 @@
                 const order = await response.json();
                 currentViewingOrder = order;
                 
-                const canEdit = !order.locked && order.status !== 'Cancelled';
+                // Order can be edited/cancelled only if it's not locked, not cancelled, not paid, and not awaiting payment confirmation
+                const isPaid = order.payment_status === 'Paid' || (order.payment_status && order.payment_status.toLowerCase() === 'paid');
+                const isAwaitingConfirmation = order.payment_status === 'Waiting for Confirmation';
+                const canEdit = !order.locked && order.status !== 'Cancelled' && !isPaid && !isAwaitingConfirmation;
                 
                 const body = document.getElementById('order-details-body');
                 if (!body) {
