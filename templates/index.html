@@ -1878,6 +1878,28 @@
         </div>
     </div>
 
+    <!-- Finalize Order Modal -->
+    <div class="modal" id="finalize-order-modal">
+        <div class="modal-content" style="max-width: 450px;">
+            <div class="modal-header">
+                <h3 class="modal-title" style="color: var(--accent-teal);">🎉 Order Updated!</h3>
+                <button class="modal-close" onclick="closeModal('finalize-order-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="font-size: 1rem; color: var(--text-primary); margin-bottom: 1rem;">
+                    Your order has been updated. Please review the final details before notifying GB Admin.
+                </p>
+                <div id="finalize-order-summary" style="margin-bottom: 1.5rem;">
+                    <!-- Order summary details will be populated here by JavaScript -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('finalize-order-modal');">Continue Shopping</button>
+                <button class="btn btn-teal" id="finalize-order-btn" onclick="finalizeOrder()">✅ Finalize Order</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Mailing Address Modal -->
     <div class="modal" id="mailing-address-modal">
         <div class="modal-content" style="max-width: 500px;">
