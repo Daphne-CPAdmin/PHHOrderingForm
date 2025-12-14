@@ -2560,11 +2560,13 @@
         // Function to update submit button text and state based on existing order
         function updateSubmitButtonText() {
             const submitBtn = document.getElementById('submit-order');
-            const existingButtons = document.getElementById('existing-order-buttons');
-            const viewTotalBtn = document.getElementById('view-total-order-btn');
             const updateOrderBtn = document.getElementById('update-order-btn');
+            const payOrderBtn = document.getElementById('pay-order-btn');
             
-            if (!submitBtn) return;
+            if (!submitBtn || !updateOrderBtn || !payOrderBtn) {
+                console.warn('Button elements not found:', { submitBtn, updateOrderBtn, payOrderBtn });
+                return;
+            }
             
             // Check if there's a pending order
             const pendingOrder = existingCustomerOrders.find(o => o.status !== 'Cancelled' && !o.locked);
@@ -2594,63 +2596,41 @@
             
             const hasChanges = hasNewItems || hasUpdatedItems || hasRemovedItems || hasQuantityChanges;
             
-            // Allow update even if cart is empty (all items removed) or if there are changes
-            if (pendingOrder && (cartItems.length > 0 || hasRemovedItems)) {
-                // Show existing order buttons, hide submit button
+            if (pendingOrder) {
+                // Existing order exists - show Update Order and Pay Order buttons
+                
+                // Hide Submit Order button (for new orders)
                 submitBtn.style.display = 'none';
                 
-                // Show Update Order button
-                if (updateOrderBtn) {
-                    updateOrderBtn.style.display = 'block';
-                    // Enable/disable update button based on whether there are changes
-                    updateOrderBtn.disabled = !hasChanges || cartItems.length === 0;
-                    if (!hasChanges) {
-                        updateOrderBtn.title = 'No changes detected';
-                    } else {
-                        updateOrderBtn.title = 'Update your existing order';
-                    }
+                // Show Update Order button - only enable if there are changes
+                updateOrderBtn.style.display = 'block';
+                updateOrderBtn.disabled = !hasChanges || cartItems.length === 0;
+                if (!hasChanges) {
+                    updateOrderBtn.title = 'No changes detected. Make changes to enable this button.';
+                } else {
+                    updateOrderBtn.title = 'Update your existing order with the changes';
                 }
                 
-                // Show Pay Order button if order is unpaid
-                const payOrderBtn = document.getElementById('pay-order-btn');
-                if (payOrderBtn) {
-                    const isPaid = pendingOrder.payment_status && pendingOrder.payment_status.toLowerCase() === 'paid';
-                    payOrderBtn.style.display = isPaid ? 'none' : 'block';
-                    payOrderBtn.disabled = false;
-                }
+                // Show Pay Order button - always show for existing orders (for paying submitted orders)
+                const isPaid = pendingOrder.payment_status && pendingOrder.payment_status.toLowerCase() === 'paid';
+                payOrderBtn.style.display = isPaid ? 'none' : 'block';
+                payOrderBtn.disabled = false;
+                payOrderBtn.title = isPaid ? 'Order already paid' : 'Pay for your submitted order';
                 
-                // Set up update order button (same as submit)
-                if (updateOrderBtn) {
-                    // Enable/disable update button based on whether there are changes
-                    updateOrderBtn.disabled = !hasChanges;
-                    updateOrderBtn.onclick = () => {
-                        if (!hasChanges) {
-                            showToast('❌ No changes detected. Please add, update, or remove items before updating.', 3000);
-                            return;
-                        }
-                        // Trigger the submit order click handler
-                        const submitBtnClick = document.getElementById('submit-order');
-                        if (submitBtnClick && submitBtnClick.onclick) {
-                            submitBtnClick.onclick();
-                        } else {
-                            // Fallback: trigger click event
-                            submitBtnClick?.click();
-                        }
-                    };
-                }
             } else {
-                // Show submit button, hide existing order buttons
+                // No pending order - show Submit Order button for new orders
+                
+                // Show Submit Order button
                 submitBtn.style.display = 'block';
                 submitBtn.textContent = 'Submit Order';
-                // Enable submit button if cart has items
                 submitBtn.disabled = cartItems.length === 0;
-                if (updateOrderBtn) {
-                    updateOrderBtn.style.display = 'none';
-                }
-                const payOrderBtn = document.getElementById('pay-order-btn');
-                if (payOrderBtn) {
-                    payOrderBtn.style.display = 'none';
-                }
+                submitBtn.title = cartItems.length === 0 ? 'Add items to cart first' : 'Submit your new order';
+                
+                // Hide Update Order button (no existing order to update)
+                updateOrderBtn.style.display = 'none';
+                
+                // Hide Pay Order button (no submitted order to pay)
+                payOrderBtn.style.display = 'none';
             }
         }
         
