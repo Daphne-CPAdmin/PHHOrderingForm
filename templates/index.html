@@ -1541,6 +1541,20 @@
                     </div>
 
                     <div id="cart-summary" class="cart-summary" style="display: none;">
+                        <div id="existing-summary" style="display: none; margin-bottom: 1rem; padding: 1rem; background: rgba(245, 158, 11, 0.1); border-radius: 8px; border-left: 3px solid var(--accent-amber);">
+                            <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem; font-weight: 600;">📋 Existing Order Items</div>
+                            <div class="summary-row" style="font-size: 0.9rem;">
+                                <span class="summary-label">Subtotal (PHP):</span>
+                                <span class="summary-value" id="existing-subtotal-php">₱0.00</span>
+                            </div>
+                        </div>
+                        <div id="new-summary" style="display: none; margin-bottom: 1rem; padding: 1rem; background: rgba(20, 184, 166, 0.1); border-radius: 8px; border-left: 3px solid var(--accent-teal);">
+                            <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem; font-weight: 600;">➕ New/Updated Items</div>
+                            <div class="summary-row" style="font-size: 0.9rem;">
+                                <span class="summary-label">Subtotal (PHP):</span>
+                                <span class="summary-value" id="new-subtotal-php">₱0.00</span>
+                            </div>
+                        </div>
                         <div class="summary-row">
                             <span class="summary-label">Subtotal (USD)</span>
                             <span class="summary-value" id="summary-usd">$0.00</span>
