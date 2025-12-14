@@ -525,10 +525,30 @@ def _fetch_orders_from_sheets():
             # Empty worksheet or only headers, return empty list
             return []
         
+        # Log headers for debugging
+        headers = all_values[0] if all_values else []
+        telegram_col_index = None
+        for i, header in enumerate(headers):
+            if 'telegram' in header.lower():
+                telegram_col_index = i
+                print(f"📋 Found Telegram column at index {i}: '{header}'")
+        
         records = worksheet.get_all_records()
         # Ensure we return a list
         if not isinstance(records, list):
             return []
+        
+        # Debug: Log first record's keys to see what columns are available
+        if records and len(records) > 0:
+            first_record_keys = list(records[0].keys())
+            print(f"📋 Available columns in records: {first_record_keys}")
+            telegram_keys = [k for k in first_record_keys if 'telegram' in k.lower()]
+            if telegram_keys:
+                print(f"📋 Telegram-related columns found: {telegram_keys}")
+                # Log sample telegram values
+                sample_telegrams = [str(r.get(telegram_keys[0], ''))[:50] for r in records[:5] if r.get(telegram_keys[0])]
+                if sample_telegrams:
+                    print(f"📋 Sample telegram values: {sample_telegrams}")
         
         return records
     except IndexError as e:
@@ -556,11 +576,30 @@ def get_order_by_id(order_id):
     
     # Reconstruct order
     first_item = order_items[0]
+    
+    # Find telegram column dynamically (handle variations)
+    telegram_value = None
+    for key in first_item.keys():
+        if 'telegram' in key.lower():
+            telegram_value = first_item.get(key, '')
+            if telegram_value:
+                break
+    
+    # Fallback to common variations
+    if not telegram_value:
+        telegram_value = (
+            first_item.get('Telegram Username', '') or 
+            first_item.get('telegram username', '') or 
+            first_item.get('Telegram Username ', '') or
+            first_item.get('TelegramUsername', '') or
+            ''
+        )
+    
     order = {
         'order_id': order_id,
         'order_date': first_item.get('Order Date', ''),
         'full_name': first_item.get('Name', first_item.get('Full Name', '')),
-        'telegram': first_item.get('Telegram Username', ''),
+        'telegram': telegram_value,
         'exchange_rate': float(first_item.get('Exchange Rate', FALLBACK_EXCHANGE_RATE) or FALLBACK_EXCHANGE_RATE),
         'admin_fee_php': float(first_item.get('Admin Fee PHP', ADMIN_FEE_PHP) or 0),
         'grand_total_php': float(first_item.get('Grand Total PHP', 0) or 0),
@@ -1700,15 +1739,45 @@ def api_orders_lookup():
     # Normalize telegram username (remove @ if present for comparison)
     telegram_normalized = telegram.lstrip('@') if telegram else ''
     
+    # Debug: Log the lookup attempt
+    print(f"🔍 Looking up orders for telegram: '{telegram}' (normalized: '{telegram_normalized}')")
+    print(f"📊 Total orders in cache: {len(orders)}")
+    
     # Group by Order ID and filter by telegram
     grouped = {}
+    matched_count = 0
+    
     for order in orders:
         order_id = order.get('Order ID', '')
         if not order_id:
             continue
         
-        order_telegram = str(order.get('Telegram Username', '')).lower().strip()
+        # Try multiple possible column name variations (case-insensitive, handle whitespace)
+        # Also check all keys that contain 'telegram' (case-insensitive)
+        order_telegram_raw = None
+        for key in order.keys():
+            if 'telegram' in key.lower():
+                value = order.get(key, '')
+                if value and str(value).strip():
+                    order_telegram_raw = value
+                    break
+        
+        # Fallback to common variations if not found
+        if not order_telegram_raw:
+            order_telegram_raw = (
+                order.get('Telegram Username', '') or 
+                order.get('telegram username', '') or 
+                order.get('Telegram Username ', '') or  # Extra space
+                order.get('TelegramUsername', '') or
+                ''
+            )
+        
+        order_telegram = str(order_telegram_raw).lower().strip()
         order_telegram_normalized = order_telegram.lstrip('@')
+        
+        # Debug: Log first few orders for troubleshooting
+        if matched_count < 3:
+            print(f"  Order {order_id}: telegram='{order_telegram_raw}' (normalized: '{order_telegram_normalized}')")
         
         # Match telegram with or without @ symbol (exact match after normalization)
         matches = False
@@ -1716,9 +1785,11 @@ def api_orders_lookup():
             # Try exact match first
             if telegram_normalized == order_telegram_normalized:
                 matches = True
+                matched_count += 1
             # Fallback to substring match for flexibility (user input contained in order telegram)
             elif telegram_normalized in order_telegram_normalized:
                 matches = True
+                matched_count += 1
         
         if not matches:
             continue
@@ -1750,7 +1821,73 @@ def api_orders_lookup():
                     'line_total_php': float(order.get('Line Total PHP', 0) or 0)
                 })
     
-    return jsonify(list(grouped.values()))
+    result = list(grouped.values())
+    print(f"✅ Found {len(result)} matching orders for '{telegram}' ({matched_count} matches)")
+    
+    # If no matches found, clear cache and retry once
+    if len(result) == 0 and matched_count == 0:
+        print(f"⚠️ No matches found, clearing cache and retrying...")
+        clear_cache('orders')
+        orders = get_cached('orders', _fetch_orders_from_sheets, cache_duration=30)
+        print(f"📊 Retry: Total orders after cache clear: {len(orders)}")
+        
+        # Retry the lookup
+        grouped = {}
+        for order in orders:
+            order_id = order.get('Order ID', '')
+            if not order_id:
+                continue
+            
+            order_telegram_raw = (
+                order.get('Telegram Username', '') or 
+                order.get('telegram username', '') or 
+                order.get('Telegram Username ', '') or
+                order.get('TelegramUsername', '') or
+                ''
+            )
+            order_telegram = str(order_telegram_raw).lower().strip()
+            order_telegram_normalized = order_telegram.lstrip('@')
+            
+            matches = False
+            if telegram_normalized and order_telegram_normalized:
+                if telegram_normalized == order_telegram_normalized:
+                    matches = True
+                elif telegram_normalized in order_telegram_normalized:
+                    matches = True
+            
+            if not matches:
+                continue
+                
+            if order_id not in grouped:
+                grouped[order_id] = {
+                    'order_id': order_id,
+                    'order_date': order.get('Order Date', ''),
+                    'full_name': order.get('Name', order.get('Full Name', '')),
+                    'telegram': order.get('Telegram Username', ''),
+                    'grand_total_php': float(order.get('Grand Total PHP', 0) or 0),
+                    'status': order.get('Order Status', 'Pending'),
+                    'payment_status': order.get('Payment Status', order.get('Confirmed Paid?', 'Unpaid')),
+                    'payment_screenshot': order.get('Link to Payment', order.get('Payment Screenshot Link', order.get('Payment Screenshot', ''))),
+                    'contact_number': order.get('Contact Number', ''),
+                    'mailing_address': order.get('Mailing Address', ''),
+                    'items': []
+                }
+            
+            if order.get('Product Code'):
+                qty = int(order.get('QTY', 0) or 0)
+                if qty > 0:
+                    grouped[order_id]['items'].append({
+                        'product_code': order.get('Product Code', ''),
+                        'product_name': order.get('Product Name', ''),
+                        'order_type': order.get('Order Type', 'Vial'),
+                        'qty': qty,
+                        'line_total_php': float(order.get('Line Total PHP', 0) or 0)
+                    })
+        
+        result = list(grouped.values())
+        print(f"✅ Retry result: Found {len(result)} matching orders")
+    
+    return jsonify(result)
 
 @app.route('/api/orders')
 def api_orders():
@@ -2069,55 +2206,97 @@ def api_add_items(order_id=None):
         
         # Find order by order_id or telegram_username
         order = None
+        order_lookup_attempts = 0
+        max_retries = 2
+        
         try:
-            if order_id:
-                order = get_order_by_id(order_id)
-            elif telegram_username:
-                if not telegram_username or not telegram_username.strip():
+            while order_lookup_attempts < max_retries:
+                order_lookup_attempts += 1
+                
+                if order_id:
+                    order = get_order_by_id(order_id)
+                    if not order and order_lookup_attempts == 1:
+                        # First attempt failed - clear cache and retry
+                        print(f"⚠️ Order {order_id} not found on first attempt, clearing cache and retrying...")
+                        clear_cache('orders')
+                        continue
+                elif telegram_username:
+                    if not telegram_username or not telegram_username.strip():
+                        return jsonify({
+                            'success': False,
+                            'error': 'Telegram username is required when order_id is not provided'
+                        }), 400
+                    
+                    # Find order by telegram username
+                    try:
+                        orders = get_orders_from_sheets()
+                    except Exception as e:
+                        print(f"❌ Error getting orders from sheets: {e}")
+                        return jsonify({
+                            'success': False,
+                            'error': 'Failed to load orders. Please try again.'
+                        }), 500
+                    
+                    telegram_normalized = telegram_username.lower().strip().lstrip('@')
+                    found_order_id = None
+                    
+                    for o in orders:
+                        order_telegram = str(o.get('Telegram Username', '')).lower().strip().lstrip('@')
+                        if order_telegram == telegram_normalized:
+                            # Get the most recent non-cancelled, non-locked order
+                            order_status = o.get('Order Status', 'Pending')
+                            order_locked = str(o.get('Locked', 'No')).lower() == 'yes'
+                            if order_status != 'Cancelled' and not order_locked:
+                                found_order_id = o.get('Order ID')
+                                if found_order_id:
+                                    order_id = found_order_id
+                                    order = get_order_by_id(order_id)
+                                    if order:
+                                        break
+                    
+                    if not order and order_lookup_attempts == 1:
+                        # First attempt failed - clear cache and retry
+                        print(f"⚠️ Order for telegram {telegram_username} not found on first attempt, clearing cache and retrying...")
+                        clear_cache('orders')
+                        continue
+                else:
                     return jsonify({
                         'success': False,
-                        'error': 'Telegram username is required when order_id is not provided'
+                        'error': 'Order ID or Telegram username is required'
                     }), 400
                 
-                # Find order by telegram username
-                try:
-                    orders = get_orders_from_sheets()
-                except Exception as e:
-                    print(f"❌ Error getting orders from sheets: {e}")
-                    return jsonify({
-                        'success': False,
-                        'error': 'Failed to load orders. Please try again.'
-                    }), 500
-                
-                telegram_normalized = telegram_username.lower().strip().lstrip('@')
-                
-                for o in orders:
-                    order_telegram = str(o.get('Telegram Username', '')).lower().strip().lstrip('@')
-                    if order_telegram == telegram_normalized:
-                        # Get the most recent non-cancelled, non-locked order
-                        order_status = o.get('Order Status', 'Pending')
-                        order_locked = o.get('Locked', False)
-                        if order_status != 'Cancelled' and not order_locked:
-                            order_id = o.get('Order ID')
-                            if order_id:
-                                order = get_order_by_id(order_id)
-                                break
-            else:
-                return jsonify({
-                    'success': False,
-                    'error': 'Order ID or Telegram username is required'
-                }), 400
+                # If order found or max retries reached, break
+                if order or order_lookup_attempts >= max_retries:
+                    break
+                    
         except Exception as e:
             print(f"❌ Error finding order: {e}")
+            import traceback
+            traceback.print_exc()
             return jsonify({
                 'success': False,
-                'error': 'Error finding order. Please try again.'
+                'error': f'Error finding order: {str(e)}. Please try again.'
             }), 500
         
         if not order:
+            # Provide more detailed error message
+            error_details = []
+            if order_id:
+                error_details.append(f"Order ID: {order_id}")
+            if telegram_username:
+                error_details.append(f"Telegram: {telegram_username}")
+            
+            error_msg = 'Order not found. '
+            if order_id:
+                error_msg += f'The order with ID "{order_id}" could not be found. '
+            if telegram_username:
+                error_msg += f'No active order found for Telegram username "{telegram_username}". '
+            error_msg += 'The order may have been cancelled, locked, or does not exist. Please refresh the page and try again.'
+            
+            print(f"❌ Order lookup failed after {order_lookup_attempts} attempts. {', '.join(error_details)}")
             return jsonify({
                 'success': False,
-                'error': 'Order not found. Please check the Order ID or Telegram username.'
+                'error': error_msg
             }), 404
         
         if order.get('locked'):
@@ -3120,19 +3299,39 @@ def api_admin_orders():
     
     orders = get_orders_from_sheets()
     
+    print(f"📊 Admin panel: Loaded {len(orders)} raw order records from sheets")
+    
     # Group by Order ID with full details
     grouped = {}
     for order in orders:
         order_id = order.get('Order ID', '')
         if not order_id:
             continue
+        
+        # Find telegram column dynamically (handle variations)
+        telegram_value = None
+        for key in order.keys():
+            if 'telegram' in key.lower():
+                telegram_value = order.get(key, '')
+                if telegram_value:
+                    break
+        
+        # Fallback to common variations
+        if not telegram_value:
+            telegram_value = (
+                order.get('Telegram Username', '') or 
+                order.get('telegram username', '') or 
+                order.get('Telegram Username ', '') or
+                order.get('TelegramUsername', '') or
+                ''
+            )
             
         if order_id not in grouped:
             grouped[order_id] = {
                 'order_id': order_id,
                 'order_date': order.get('Order Date', ''),
                 'full_name': order.get('Name', order.get('Full Name', '')),
-                'telegram': order.get('Telegram Username', ''),
+                'telegram': telegram_value,
                 'grand_total_php': float(order.get('Grand Total PHP', 0) or 0),
                 'status': order.get('Order Status', 'Pending'),
                 'locked': str(order.get('Locked', 'No')).lower() == 'yes',
@@ -3152,6 +3351,15 @@ def api_admin_orders():
                 'unit_price_usd': float(order.get('Unit Price USD', 0) or 0),
                 'line_total_php': float(order.get('Line Total PHP', 0) or 0)
             })
+    
+    print(f"📊 Admin panel: Grouped into {len(grouped)} unique orders")
+    
+    # Debug: Log sample orders
+    if grouped:
+        sample_order_ids = list(grouped.keys())[:3]
+        for oid in sample_order_ids:
+            order = grouped[oid]
+            print(f"  Sample order {oid}: telegram='{order['telegram']}', items={len(order['items'])}")
     
     # Sort by date (newest first)
     sorted_orders = sorted(grouped.values(), key=lambda x: x['order_date'], reverse=True)

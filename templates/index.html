@@ -1567,6 +1567,7 @@
                         <button type="button" class="btn btn-violet btn-full" id="submit-order" disabled>Submit Order</button>
                         <button type="button" class="btn btn-violet btn-full" id="update-order-btn" style="display: none;">Update Order</button>
                         <button type="button" class="btn btn-emerald btn-full" id="pay-order-btn" style="display: none;">💳 Pay Order</button>
+                        <button type="button" class="btn btn-rose btn-full" id="cancel-order-btn" style="display: none;">🗑️ Cancel Order</button>
                     </div>
                     {% endif %}
 
@@ -2562,9 +2563,10 @@
             const submitBtn = document.getElementById('submit-order');
             const updateOrderBtn = document.getElementById('update-order-btn');
             const payOrderBtn = document.getElementById('pay-order-btn');
+            const cancelOrderBtn = document.getElementById('cancel-order-btn');
             
-            if (!submitBtn || !updateOrderBtn || !payOrderBtn) {
-                console.warn('Button elements not found:', { submitBtn, updateOrderBtn, payOrderBtn });
+            if (!submitBtn || !updateOrderBtn || !payOrderBtn || !cancelOrderBtn) {
+                console.warn('Button elements not found:', { submitBtn, updateOrderBtn, payOrderBtn, cancelOrderBtn });
                 return;
             }
             
@@ -2597,7 +2599,7 @@
             const hasChanges = hasNewItems || hasUpdatedItems || hasRemovedItems || hasQuantityChanges;
             
             if (pendingOrder) {
-                // Existing order exists - show Update Order and Pay Order buttons
+                // Existing order exists - show Update Order, Pay Order, and Cancel Order buttons
                 
                 // Hide Submit Order button (for new orders)
                 submitBtn.style.display = 'none';
@@ -2617,6 +2619,13 @@
                 payOrderBtn.disabled = false;
                 payOrderBtn.title = isPaid ? 'Order already paid' : 'Pay for your submitted order';
                 
+                // Show Cancel Order button - only show for submitted/logged orders (not cancelled, not locked)
+                const isCancelled = pendingOrder.status === 'Cancelled';
+                const isLocked = pendingOrder.locked === true;
+                cancelOrderBtn.style.display = (isCancelled || isLocked) ? 'none' : 'block';
+                cancelOrderBtn.disabled = false;
+                cancelOrderBtn.title = 'Cancel this order (cannot be undone)';
+                
             } else {
                 // No pending order - show Submit Order button for new orders
                 
@@ -2631,6 +2640,9 @@
                 
                 // Hide Pay Order button (no submitted order to pay)
                 payOrderBtn.style.display = 'none';
+                
+                // Hide Cancel Order button (no submitted order to cancel)
+                cancelOrderBtn.style.display = 'none';
             }
         }
         
@@ -3007,6 +3019,24 @@
             });
         }
         
+        // Cancel Order button - Cancel the submitted order
+        const cancelOrderBtn = document.getElementById('cancel-order-btn');
+        if (cancelOrderBtn) {
+            // Remove any existing listeners by cloning
+            const newCancelBtn = cancelOrderBtn.cloneNode(true);
+            cancelOrderBtn.parentNode.replaceChild(newCancelBtn, cancelOrderBtn);
+            
+            newCancelBtn.addEventListener('click', () => {
+                const pendingOrder = existingCustomerOrders.find(o => o.status !== 'Cancelled' && !o.locked);
+                if (pendingOrder) {
+                    const telegram = document.getElementById('telegram').value.trim() || pendingOrder.telegram || '';
+                    cancelOrder(pendingOrder.order_id, telegram);
+                } else {
+                    showToast('No active order found to cancel', 3000);
+                }
+            });
+        }
+        
         function showPaymentModal(order) {
             const modal = document.getElementById('payment-modal');
             const summaryEl = document.getElementById('payment-order-summary');
@@ -3134,8 +3164,41 @@
                         return false;
                     });
                     
-                    if (!hasChanges && cartItems.length === 0) {
-                        showToast('❌ Please add items, update quantities, or remove items before submitting', 3000);
+                    // Handle case where all items are removed - cancel the order instead
+                    if (cartItems.length === 0) {
+                        const confirmCancel = confirm('You have removed all items from your order. Would you like to cancel this order?');
+                        if (confirmCancel) {
+                            try {
+                                const cancelResponse = await fetch(`/api/orders/${pendingOrder.order_id}/cancel`, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' }
+                                });
+                                
+                                if (cancelResponse.ok) {
+                                    const cancelResult = await cancelResponse.json();
+                                    if (cancelResult.success) {
+                                        showToast('✅ Order cancelled successfully', 5000);
+                                        closeModal('order-confirmation-modal');
+                                        // Refresh order lookup
+                                        if (typeof checkReturningCustomer === 'function') {
+                                            setTimeout(() => {
+                                                checkReturningCustomer();
+                                            }, 500);
+                                        }
+                                        // Clear cart
+                                        cartItems = [];
+                                        updateCart();
+                                        saveCart();
+                                        btn.disabled = false;
+                                        btn.textContent = 'Confirm & Submit Order';
+                                        return;
+                                    }
+                                }
+                            } catch (cancelError) {
+                                console.error('Error cancelling order:', cancelError);
+                            }
+                        }
+                        showToast('❌ Please add items to your order or cancel it', 3000);
                         btn.disabled = false;
                         btn.textContent = 'Confirm & Submit Order';
                         return;
@@ -3184,6 +3247,16 @@
                         return;
                     }
                     
+                    // Validate we have items to send
+                    if (itemsToSend.length === 0) {
+                        showToast('❌ No items to update. Please add items to your order.', 3000);
+                        btn.disabled = false;
+                        btn.textContent = 'Confirm & Submit Order';
+                        return;
+                    }
+                    
+                    console.log(`Updating order ${pendingOrder.order_id} with ${itemsToSend.length} items`);
+                    
                     response = await fetch(`/api/orders/${pendingOrder.order_id}/add-items`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -3193,11 +3266,18 @@
                         })
                     });
                     
-                    // Check response status before parsing JSON to handle 502 errors
+                    // Check response status before parsing JSON to handle various errors
                     if (!response.ok) {
                         const errorText = await response.text();
                         let errorMessage = `Server error (${response.status})`;
-                        if (response.status === 502) {
+                        
+                        if (response.status === 404) {
+                            // Order not found - suggest refreshing
+                            errorMessage = 'Order not found. The order may have been cancelled or deleted. Please refresh the page and try again.';
+                            console.error('Order not found:', pendingOrder.order_id, 'Telegram:', telegram);
+                        } else if (response.status === 403) {
+                            errorMessage = 'Order is locked and cannot be modified. Please contact admin.';
+                        } else if (response.status === 502) {
                             errorMessage = 'Server temporarily unavailable. Please try again in a moment.';
                         } else if (errorText) {
                             try {
@@ -3207,9 +3287,19 @@
                                 errorMessage = `Server error: ${errorText.substring(0, 100)}`;
                             }
                         }
-                        showToast(`❌ ${errorMessage}`, 7000);
+                        
+                        showToast(`❌ ${errorMessage}`, 8000);
                         btn.disabled = false;
                         btn.textContent = 'Confirm & Submit Order';
+                        
+                        // If 404, suggest refreshing the page
+                        if (response.status === 404) {
+                            setTimeout(() => {
+                                if (confirm('Would you like to refresh the page to reload your orders?')) {
+                                    window.location.reload();
+                                }
+                            }, 2000);
+                        }
                         return;
                     }
                     
