@@ -2940,20 +2940,48 @@
             showOrderConfirmationModal();
         });
         
-        // Update Order - Show confirmation modal first
+        // Update Order button - Show confirmation modal first
         const updateOrderBtn = document.getElementById('update-order-btn');
         if (updateOrderBtn) {
-            updateOrderBtn.addEventListener('click', () => {
+            // Remove any existing listeners by cloning
+            const newBtn = updateOrderBtn.cloneNode(true);
+            updateOrderBtn.parentNode.replaceChild(newBtn, updateOrderBtn);
+            
+            newBtn.addEventListener('click', () => {
                 const fullName = document.getElementById('full-name').value.trim();
                 const telegram = document.getElementById('telegram').value.trim();
                 
                 if (!fullName || !telegram) {
-                    showToast('Please fill in name and telegram username');
+                    showToast('Please fill in name and telegram username', 3000);
                     return;
                 }
                 
                 if (cartItems.length === 0) {
-                    showToast('Your cart is empty');
+                    showToast('Your cart is empty', 3000);
+                    return;
+                }
+                
+                // Check if there are changes
+                const hasNewItems = cartItems.some(item => item.isExisting !== true);
+                const hasUpdatedItems = cartItems.some(item => item.isUpdated === true);
+                const hasRemovedItems = originalOrderItems.length > 0 && 
+                    (cartItems.length < originalOrderItems.length || 
+                     originalOrderItems.some(origItem => {
+                         return !cartItems.some(cartItem => 
+                             cartItem.product_code === origItem.product_code && 
+                             cartItem.order_type === origItem.order_type
+                         );
+                     }));
+                const hasQuantityChanges = cartItems.some(item => {
+                    if (item.isExisting === true && item.originalQty !== undefined) {
+                        return item.qty !== item.originalQty;
+                    }
+                    return false;
+                });
+                const hasChanges = hasNewItems || hasUpdatedItems || hasRemovedItems || hasQuantityChanges;
+                
+                if (!hasChanges) {
+                    showToast('❌ No changes detected. Please add, update, or remove items before updating.', 3000);
                     return;
                 }
                 
@@ -2962,10 +2990,14 @@
             });
         }
         
-        // Pay Order - Show payment modal
+        // Pay Order button - Show payment modal
         const payOrderBtn = document.getElementById('pay-order-btn');
         if (payOrderBtn) {
-            payOrderBtn.addEventListener('click', () => {
+            // Remove any existing listeners by cloning
+            const newPayBtn = payOrderBtn.cloneNode(true);
+            payOrderBtn.parentNode.replaceChild(newPayBtn, payOrderBtn);
+            
+            newPayBtn.addEventListener('click', () => {
                 const pendingOrder = existingCustomerOrders.find(o => o.status !== 'Cancelled' && !o.locked);
                 if (pendingOrder) {
                     showPaymentModal(pendingOrder);
