@@ -2561,6 +2561,7 @@
         // Auto-lookup returning customers
         let customerLookupTimeout = null;
         let existingCustomerOrders = [];
+        let originalOrderItems = []; // Track original order items for change detection
         
         // Function to update submit button text and state based on existing order
         function updateSubmitButtonText() {
@@ -2577,9 +2578,30 @@
             // Check if there are any changes (new items, updated quantities, or removed items)
             const hasNewItems = cartItems.some(item => item.isExisting !== true);
             const hasUpdatedItems = cartItems.some(item => item.isUpdated === true);
-            const hasChanges = hasNewItems || hasUpdatedItems || cartItems.length === 0;
             
-            if (pendingOrder && cartItems.length > 0) {
+            // Check if items were removed by comparing with original order
+            const hasRemovedItems = originalOrderItems.length > 0 && 
+                (cartItems.length < originalOrderItems.length || 
+                 originalOrderItems.some(origItem => {
+                     // Check if original item is missing from cart
+                     return !cartItems.some(cartItem => 
+                         cartItem.product_code === origItem.product_code && 
+                         cartItem.order_type === origItem.order_type
+                     );
+                 }));
+            
+            // Check if quantities changed from original
+            const hasQuantityChanges = cartItems.some(item => {
+                if (item.isExisting === true && item.originalQty !== undefined) {
+                    return item.qty !== item.originalQty;
+                }
+                return false;
+            });
+            
+            const hasChanges = hasNewItems || hasUpdatedItems || hasRemovedItems || hasQuantityChanges;
+            
+            // Allow update even if cart is empty (all items removed) or if there are changes
+            if (pendingOrder && (cartItems.length > 0 || hasRemovedItems)) {
                 // Show existing order buttons, hide submit button
                 submitBtn.style.display = 'none';
                 if (existingButtons) existingButtons.style.display = 'flex';
@@ -2672,6 +2694,14 @@
                                 return qty > 0;
                             });
                             
+                            // Store original order items for change detection
+                            originalOrderItems = validItems.map(item => ({
+                                product_code: item.product_code,
+                                product_name: item.product_name,
+                                order_type: item.order_type || 'Vial',
+                                qty: parseFloat(item.qty) || 1
+                            }));
+                            
                             // Populate cart with existing order items (marked as existing)
                             cartItems = validItems.map(item => {
                                 // Ensure we have all required fields with proper defaults
@@ -2731,6 +2761,7 @@
                             // No pending order, clear cart and reset order ID
                             currentOrderId = null;
                             cartItems = [];
+                            originalOrderItems = []; // Clear original order items
                             // Removed items tracking no longer needed
                             updateCart();
                             saveCart();
@@ -2745,6 +2776,7 @@
                         console.log('No orders found for', telegram);
                         currentOrderId = null;
                         cartItems = [];
+                        originalOrderItems = []; // Clear original order items
                         // Removed items tracking no longer needed
                         updateCart();
                         saveCart();
