@@ -2656,6 +2656,7 @@
                 if (!telegram || !fullName) {
                     currentOrderId = null;
                     cartItems = [];
+                    originalOrderItems = []; // Clear original order items
                     // Removed items tracking no longer needed
                     updateCart();
                     saveCart();
