@@ -2390,8 +2390,13 @@
             `).join('');
             
             // Calculate totals with proper NaN handling - ensure all items have valid prices
+            // IMPORTANT: Include ALL items in cart (existing + new) for correct total calculation
             let totalUsd = 0;
             let totalPhp = 0;
+            let existingTotalUsd = 0;
+            let existingTotalPhp = 0;
+            let newTotalUsd = 0;
+            let newTotalPhp = 0;
             
             cartItems.forEach(item => {
                 // Ensure item has valid price values
