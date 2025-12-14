@@ -2292,6 +2292,7 @@
             if (!telegram || !fullName) {
                 cartItems = [];
                 currentOrderId = null;
+                originalOrderItems = []; // Clear original order items
                 updateCart();
                 saveCart();
                 return;
