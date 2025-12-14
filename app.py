@@ -517,7 +517,23 @@ def _fetch_orders_from_sheets():
     
     try:
         spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
-        worksheet = spreadsheet.worksheet('PepHaul Entry')
+        
+        # Debug: List all available worksheets
+        all_worksheets = [ws.title for ws in spreadsheet.worksheets()]
+        print(f"📋 Available worksheets in sheet: {all_worksheets}")
+        
+        # Check if 'PepHaul Entry' exists
+        if 'PepHaul Entry' not in all_worksheets:
+            print(f"⚠️ WARNING: 'PepHaul Entry' worksheet not found!")
+            print(f"📋 Available worksheets: {', '.join(all_worksheets)}")
+            if all_worksheets:
+                print(f"⚠️ Trying first available worksheet: {all_worksheets[0]}")
+                worksheet = spreadsheet.worksheet(all_worksheets[0])
+            else:
+                print(f"❌ ERROR: No worksheets found in spreadsheet!")
+                return []
+        else:
+            worksheet = spreadsheet.worksheet('PepHaul Entry')
         
         # Check if worksheet has data before trying to get records
         all_values = worksheet.get_all_values()
@@ -3521,6 +3537,8 @@ def api_admin_orders():
         
         # Add items (only if Product Code exists)
         product_code = order.get('Product Code', '')
+        product_code_raw = str(product_code) if product_code is not None else 'None'
+        
         if product_code and str(product_code).strip():
             qty = int(order.get('QTY', 0) or 0)
             # Include all items, even with qty 0 (admin should see everything)
@@ -3532,6 +3550,8 @@ def api_admin_orders():
                 'unit_price_usd': float(order.get('Unit Price USD', 0) or 0),
                 'line_total_php': float(order.get('Line Total PHP', 0) or 0)
             })
+        elif orders_processed <= 10:  # Debug: Log why items aren't being added
+            print(f"    ⚠️ Order {order_id} row skipped (no Product Code): product_code={repr(product_code_raw)}")
     
     print(f"📊 Admin panel: Processed {orders_processed} records with Order IDs, {orders_without_id} without Order IDs")
     print(f"📊 Admin panel: Grouped into {len(grouped)} unique orders")
@@ -3545,13 +3565,23 @@ def api_admin_orders():
         print(f"⚠️ WARNING: No orders grouped! This means no orders have Order IDs or all were filtered out.")
         # Debug: Show what we have
         if orders:
-            print(f"📋 Sample raw records (first 3):")
-            for i, order in enumerate(orders[:3]):
-                print(f"  Record {i+1}: {dict(list(order.items())[:8])}")
+            print(f"📋 Sample raw records (first 10):")
+            for i, order in enumerate(orders[:10]):
+                print(f"  Record {i+1}: {dict(list(order.items())[:10])}")
+        else:
+            print(f"⚠️ CRITICAL: No orders returned from get_orders_from_sheets() at all!")
+    
+    # Filter out orders with no items (these are likely header rows or empty rows)
+    # But keep orders even if they have 0 quantity items (admin should see everything)
+    orders_with_items = {oid: order_data for oid, order_data in grouped.items() if len(order_data['items']) > 0}
+    orders_without_items = len(grouped) - len(orders_with_items)
+    
+    if orders_without_items > 0:
+        print(f"⚠️ Filtered out {orders_without_items} orders with no items (likely empty/header rows)")
     
     # Sort by date (newest first)
-    sorted_orders = sorted(grouped.values(), key=lambda x: x.get('order_date', '') or '', reverse=True)
-    print(f"📊 Admin panel: Returning {len(sorted_orders)} orders to frontend")
+    sorted_orders = sorted(orders_with_items.values(), key=lambda x: x.get('order_date', '') or '', reverse=True)
+    print(f"📊 Admin panel: Returning {len(sorted_orders)} orders to frontend (after filtering empty orders)")
     return jsonify(sorted_orders)
 
 @app.route('/api/admin/orders/<order_id>/confirm-payment', methods=['POST'])

@@ -1027,6 +1027,9 @@
             const query = document.getElementById('order-search').value.toLowerCase();
             const paymentFilter = document.getElementById('payment-filter').value;
             
+            console.log('📊 Admin: Filtering orders - query:', query, 'paymentFilter:', paymentFilter);
+            console.log('📊 Admin: Total orders before filter:', allOrders.length);
+            
             let filtered = allOrders.filter(order => {
                 const matchesSearch = 
                     order.order_id.toLowerCase().includes(query) ||
@@ -1039,9 +1042,17 @@
                     (paymentFilter === 'paid' && isPaid) ||
                     (paymentFilter === 'unpaid' && !isPaid);
                 
+                if (!matchesSearch) {
+                    console.log(`  Order ${order.order_id}: Filtered out (search mismatch)`);
+                }
+                if (!matchesPayment) {
+                    console.log(`  Order ${order.order_id}: Filtered out (payment filter mismatch - isPaid: ${isPaid}, filter: ${paymentFilter})`);
+                }
+                
                 return matchesSearch && matchesPayment;
             });
             
+            console.log('📊 Admin: Orders after filter:', filtered.length);
             renderOrders(filtered);
         }
 
