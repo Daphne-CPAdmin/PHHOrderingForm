@@ -2598,15 +2598,25 @@
             if (pendingOrder && (cartItems.length > 0 || hasRemovedItems)) {
                 // Show existing order buttons, hide submit button
                 submitBtn.style.display = 'none';
-                if (existingButtons) existingButtons.style.display = 'flex';
                 
-                // Set up view total order button
-                if (viewTotalBtn) {
-                    viewTotalBtn.onclick = () => {
-                        if (typeof viewOrder === 'function') {
-                            viewOrder(pendingOrder.order_id);
-                        }
-                    };
+                // Show Update Order button
+                if (updateOrderBtn) {
+                    updateOrderBtn.style.display = 'block';
+                    // Enable/disable update button based on whether there are changes
+                    updateOrderBtn.disabled = !hasChanges || cartItems.length === 0;
+                    if (!hasChanges) {
+                        updateOrderBtn.title = 'No changes detected';
+                    } else {
+                        updateOrderBtn.title = 'Update your existing order';
+                    }
+                }
+                
+                // Show Pay Order button if order is unpaid
+                const payOrderBtn = document.getElementById('pay-order-btn');
+                if (payOrderBtn) {
+                    const isPaid = pendingOrder.payment_status && pendingOrder.payment_status.toLowerCase() === 'paid';
+                    payOrderBtn.style.display = isPaid ? 'none' : 'block';
+                    payOrderBtn.disabled = false;
                 }
                 
                 // Set up update order button (same as submit)
