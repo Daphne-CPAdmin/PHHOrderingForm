@@ -765,6 +765,10 @@ def add_items_to_order(order_id, new_items, exchange_rate, telegram_username=Non
                     existing_items[(product_code, order_type)] = row_num
         
         items_to_add = []
+        rows_to_delete = []  # Track rows with 0 quantity to delete
+        
+        # Filter out 0 quantity items from new_items
+        new_items = [item for item in new_items if item.get('qty', 0) > 0]
         
         for item in new_items:
             key = (item['product_code'], item['order_type'])
@@ -775,17 +779,43 @@ def add_items_to_order(order_id, new_items, exchange_rate, telegram_username=Non
                 current_row = all_values[row_num - 1]  # 0-indexed for array
                 current_qty = int(current_row[col_indices['qty']] or 0)
                 new_qty = current_qty + item['qty']
-                unit_price = float(item.get('unit_price_usd', 0))
-                new_line_total_usd = unit_price * new_qty
-                new_line_total_php = new_line_total_usd * exchange_rate
                 
-                # Update qty and totals
-                worksheet.update_cell(row_num, col_indices['qty'] + 1, new_qty)
-                worksheet.update_cell(row_num, col_indices['line_total_usd'] + 1, new_line_total_usd)
-                worksheet.update_cell(row_num, col_indices['line_total_php'] + 1, new_line_total_php)
+                # If resulting quantity is 0 or less, mark for deletion
+                if new_qty <= 0:
+                    rows_to_delete.append(row_num)
+                else:
+                    unit_price = float(item.get('unit_price_usd', 0))
+                    new_line_total_usd = unit_price * new_qty
+                    new_line_total_php = new_line_total_usd * exchange_rate
+                    
+                    # Update qty and totals
+                    worksheet.update_cell(row_num, col_indices['qty'] + 1, new_qty)
+                    worksheet.update_cell(row_num, col_indices['line_total_usd'] + 1, new_line_total_usd)
+                    worksheet.update_cell(row_num, col_indices['line_total_php'] + 1, new_line_total_php)
             else:
-                # New item - add to list
+                # New item - add to list (already filtered for qty > 0)
                 items_to_add.append(item)
+        
+        # Delete rows with 0 quantity (delete in reverse order to maintain row numbers)
+        if rows_to_delete:
+            rows_to_delete.sort(reverse=True)
+            for row_num in rows_to_delete:
+                worksheet.delete_rows(row_num)
+        
+        # Also check and delete any existing rows with 0 quantity for this order
+        all_values_updated = worksheet.get_all_values()
+        zero_qty_rows = []
+        for row_num, row in enumerate(all_values_updated[1:], start=2):
+            if len(row) > col_indices['order_id'] and row[col_indices['order_id']] == order_id:
+                qty = int(row[col_indices['qty']] or 0) if len(row) > col_indices['qty'] else 0
+                # Don't delete the first row (header row for order totals)
+                if qty <= 0 and row_num != first_order_row:
+                    zero_qty_rows.append(row_num)
+        
+        if zero_qty_rows:
+            zero_qty_rows.sort(reverse=True)
+            for row_num in zero_qty_rows:
+                worksheet.delete_rows(row_num)
         
         # Add any truly new items - insert right below the first row
         if items_to_add:
@@ -855,9 +885,12 @@ def recalculate_order_total(order_id):
     if not order:
         return
     
-    # Calculate total from all items
-    total_usd = sum(item.get('line_total_usd', 0) for item in order.get('items', []))
-    total_php = total_usd * order.get('exchange_rate', 1.0)
+    # Calculate total from all items (only items with quantity > 0)
+    total_usd = sum(item.get('line_total_usd', 0) for item in order.get('items', []) if item.get('qty', 0) > 0)
+    total_php = sum(item.get('line_total_php', 0) for item in order.get('items', []) if item.get('qty', 0) > 0)
+    # If PHP total is 0 but USD is available, calculate from USD
+    if total_php == 0 and total_usd > 0:
+        total_php = total_usd * order.get('exchange_rate', FALLBACK_EXCHANGE_RATE)
     grand_total = total_php + ADMIN_FEE_PHP
     
     # Update first row with new grand total
@@ -2111,6 +2144,15 @@ def api_add_items(order_id=None):
                     'error': f'Error processing item {idx + 1}: {str(e)}'
                 }), 500
         
+        # Filter out 0 quantity items before adding
+        items_with_prices = [item for item in items_with_prices if item.get('qty', 0) > 0]
+        
+        if not items_with_prices:
+            return jsonify({
+                'success': False,
+                'error': 'No items with quantity > 0 to add. Please add items with quantity.'
+            }), 400
+        
         # Add items to order
         try:
             success = add_items_to_order(order_id, items_with_prices, exchange_rate, telegram_username=telegram_username)
@@ -2145,32 +2187,8 @@ def api_add_items(order_id=None):
                 'error': 'Items added but order not found. Please refresh.'
             }), 404
         
-        # Send Telegram notification (non-blocking)
-        try:
-            new_items_text = '\n'.join([f"• {item['product_name']} ({item['order_type']} x{item['qty']}) - ₱{item['line_total_php']:.2f}" for item in items_with_prices])
-            
-            # Calculate totals for display
-            subtotal_php = sum(item.get('line_total_php', 0) for item in updated_order.get('items', []))
-            grand_total_php = updated_order.get('grand_total_php', 0)
-            
-            telegram_msg = f"""📝 <b>Order Updated!</b>
-
-<b>Order ID:</b> {order_id}
-<b>Customer:</b> {updated_order.get('full_name', 'N/A')}
-<b>Telegram:</b> @{updated_order.get('telegram', 'N/A').replace('@', '')}
-
-<b>New Items Added:</b>
-{new_items_text}
-
-<b>Subtotal (PHP):</b> ₱{subtotal_php:,.2f}
-<b>GB Admin Fee:</b> ₱{ADMIN_FEE_PHP:,.2f}
-<b>Grand Total:</b> ₱{grand_total_php:,.2f}
-
-<b>Status:</b> Updated Order - Pending Payment"""
-            send_telegram_notification(telegram_msg)
-        except Exception as e:
-            print(f"⚠️ Error sending Telegram notification: {e}")
-            # Don't fail if Telegram fails
+        # Don't send Telegram notification here - only send on finalize
+        # Telegram notifications will be sent when customer clicks "Finalize Order"
         
         return jsonify({
             'success': True,
@@ -2209,36 +2227,65 @@ def api_update_item(order_id):
         return jsonify({'error': 'Missing product_code or order_type'}), 400
     
     if update_item_quantity(order_id, product_code, order_type, new_qty):
-        # Get updated order and send Telegram notification to GB Admin
-        updated_order = get_order_by_id(order_id)
-        if updated_order:
-            # Calculate totals for display
-            subtotal_php = sum(item.get('line_total_php', 0) for item in updated_order.get('items', []))
-            grand_total_php = updated_order.get('grand_total_php', 0)
+        # Don't send Telegram notification here - only send on finalize
+        # Telegram notifications will be sent when customer clicks "Finalize Order"
+        return jsonify({'success': True})
+    
+    return jsonify({'error': 'Failed to update item'}), 500
+
+@app.route('/api/orders/<order_id>/finalize', methods=['POST'])
+def api_finalize_order(order_id):
+    """Finalize an order - sends Telegram notification to admin"""
+    try:
+        order = get_order_by_id(order_id)
+        if not order:
+            return jsonify({'error': 'Order not found'}), 404
+        
+        # Recalculate totals to ensure accuracy
+        recalculate_order_total(order_id)
+        
+        # Get fresh order data
+        order = get_order_by_id(order_id)
+        if not order:
+            return jsonify({'error': 'Order not found after recalculation'}), 404
+        
+        # Send Telegram notification to GB Admin
+        try:
+            items_text = '\n'.join([f"• {item['product_name']} ({item['order_type']} x{item['qty']}) - ₱{item['line_total_php']:.2f}" 
+                                   for item in order.get('items', []) if item.get('qty', 0) > 0])
             
-            # Find the updated item for display
-            updated_item = next((item for item in updated_order.get('items', []) 
-                                if item.get('product_code') == product_code and item.get('order_type') == order_type), None)
+            subtotal_php = sum(item.get('line_total_php', 0) for item in order.get('items', []) if item.get('qty', 0) > 0)
+            grand_total_php = order.get('grand_total_php', 0)
             
-            telegram_msg = f"""📝 <b>Order Updated!</b>
+            telegram_msg = f"""🛒 <b>Order Finalized!</b>
 
 <b>Order ID:</b> {order_id}
-<b>Customer:</b> {updated_order.get('full_name', 'N/A')}
-<b>Telegram:</b> @{updated_order.get('telegram', 'N/A').replace('@', '')}
+<b>Customer:</b> {order.get('full_name', 'N/A')}
+<b>Telegram:</b> @{order.get('telegram', 'N/A').replace('@', '')}
 
-<b>Item Updated:</b>
-• {updated_item.get('product_name', product_code) if updated_item else product_code} ({order_type} x{new_qty})
+<b>Items:</b>
+{items_text}
 
 <b>Subtotal (PHP):</b> ₱{subtotal_php:,.2f}
 <b>GB Admin Fee:</b> ₱{ADMIN_FEE_PHP:,.2f}
 <b>Grand Total:</b> ₱{grand_total_php:,.2f}
 
-<b>Status:</b> Updated Order - Pending Payment"""
+<b>Status:</b> Finalized - Pending Payment"""
             send_telegram_notification(telegram_msg)
+        except Exception as e:
+            print(f"⚠️ Error sending Telegram notification: {e}")
+            # Don't fail if Telegram fails
         
-        return jsonify({'success': True})
-    
-    return jsonify({'error': 'Failed to update item'}), 500
+        return jsonify({
+            'success': True,
+            'order': order,
+            'message': 'Order finalized successfully'
+        })
+    except Exception as e:
+        print(f"❌ Error finalizing order: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': 'Failed to finalize order'}), 500
 
 def update_item_quantity(order_id, product_code, order_type, new_qty):
     """Update quantity of a specific item in an order"""
@@ -2296,6 +2343,23 @@ def update_item_quantity(order_id, product_code, order_type, new_qty):
         new_line_total_usd = unit_price * new_qty
         new_line_total_php = new_line_total_usd * exchange_rate
         
+        # If new quantity is 0 or less, delete the row (but not the first order row)
+        if new_qty <= 0:
+            if target_row != first_order_row:
+                worksheet.delete_rows(target_row)
+                # Clear cache and recalculate totals
+                clear_cache('orders')
+                clear_cache('inventory')
+                clear_cache('order_stats')
+                recalculate_order_total(order_id)
+                print(f"Deleted {product_code} row (qty=0) for order {order_id}")
+                return True
+            else:
+                # Can't delete first row, just set qty to 0
+                new_qty = 0
+                new_line_total_usd = 0
+                new_line_total_php = 0
+        
         # Update the item row
         updates = []
         updates.append({'range': f'{chr(65 + qty_col)}{target_row}', 'values': [[new_qty]]})
@@ -2309,6 +2373,21 @@ def update_item_quantity(order_id, product_code, order_type, new_qty):
         # Apply item updates
         for update in updates:
             worksheet.update(update['range'], update['values'])
+        
+        # Also check and delete any other rows with 0 quantity for this order (except first row)
+        all_values_updated = worksheet.get_all_values()
+        zero_qty_rows = []
+        for i, row in enumerate(all_values_updated[1:], start=2):
+            if len(row) > order_id_col and row[order_id_col] == order_id:
+                if i != first_order_row:  # Don't delete first row
+                    qty = int(row[qty_col] or 0) if len(row) > qty_col else 0
+                    if qty <= 0:
+                        zero_qty_rows.append(i)
+        
+        if zero_qty_rows:
+            zero_qty_rows.sort(reverse=True)
+            for row_num in zero_qty_rows:
+                worksheet.delete_rows(row_num)
         
         # Recalculate grand total for the entire order
         if first_order_row and grand_total_col >= 0:

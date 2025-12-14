@@ -2189,8 +2189,8 @@
             }
             
             const qty = parseInt(quantityInput.value) || 1;
-            if (qty < 1) {
-                showToast('Please enter a valid quantity');
+            if (qty <= 0) {
+                showToast('Please enter a quantity greater than 0');
                 return;
             }
             
@@ -2718,29 +2718,50 @@
                 const pendingOrder = existingCustomerOrders.find(o => o.status !== 'Cancelled' && !o.locked);
                 
                 if (pendingOrder) {
-                    // Update existing order - add items to it
+                    // Update existing order - add items to it (no notification yet)
                     btn.textContent = 'Updating...';
+                    
+                    // Filter out 0 quantity items
+                    const validItems = cartItems.filter(item => item.qty > 0);
+                    
+                    if (validItems.length === 0) {
+                        showToast('❌ Please add items with quantity > 0', 3000);
+                        btn.disabled = false;
+                        btn.textContent = 'Confirm & Submit Order';
+                        return;
+                    }
                     
                     response = await fetch(`/api/orders/${pendingOrder.order_id}/add-items`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ items: cartItems })
+                        body: JSON.stringify({ 
+                            items: validItems,
+                            telegram_username: telegram
+                        })
                     });
                     
                     result = await response.json();
                     
                     if (result.success) {
                         currentOrderId = pendingOrder.order_id;
-                        showToast(`Order ${pendingOrder.order_id} updated!`);
+                        
+                        // Close confirmation modal
+                        closeModal('order-confirmation-modal');
+                        
+                        // Refresh order lookup immediately to get updated totals
+                        if (typeof checkReturningCustomer === 'function') {
+                            setTimeout(() => {
+                                checkReturningCustomer();
+                            }, 500); // Small delay to ensure backend has processed
+                        }
+                        
+                        // Show finalize order modal
+                        showFinalizeOrderModal(pendingOrder.order_id);
                         
                         // Clear cart
                         cartItems = [];
                         updateCart();
-                        hideReturningCustomerBanner();
-                        existingCustomerOrders = [];
-                        
-                        // Show updated order details
-                        showViewOrderDetails(pendingOrder.order_id);
+                        saveCart();
                     } else {
                         const errorMsg = result.error || 'Failed to update order';
                         showToast(`❌ ${errorMsg}`, 5000);
@@ -2795,6 +2816,106 @@
         
         // Expose to global scope
         window.confirmOrderSubmission = confirmOrderSubmission;
+        
+        let pendingFinalizeOrderId = null;
+        
+        function showFinalizeOrderModal(orderId) {
+            pendingFinalizeOrderId = orderId;
+            
+            // Fetch updated order details
+            fetch(`/api/orders/${orderId}`)
+                .then(response => response.json())
+                .then(order => {
+                    const summaryEl = document.getElementById('finalize-order-summary');
+                    const items = order.items.filter(item => item.qty > 0);
+                    
+                    summaryEl.innerHTML = `
+                        <div style="margin-bottom: 1rem;">
+                            <div style="font-family: 'JetBrains Mono', monospace; color: var(--accent-teal); font-size: 1.1rem; font-weight: 700; margin-bottom: 0.5rem;">${order.order_id}</div>
+                            <div style="color: var(--text-muted); font-size: 0.85rem;">${order.order_date}</div>
+                        </div>
+                        <div style="margin-bottom: 1rem;">
+                            <div style="font-weight: 600; margin-bottom: 0.5rem;">Items:</div>
+                            ${items.map(item => `
+                                <div style="display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px dashed var(--border);">
+                                    <span>${item.product_name} (${item.order_type} × ${item.qty})</span>
+                                    <span style="font-weight: 600;">₱${item.line_total_php.toFixed(2)}</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                        <div style="border-top: 2px solid var(--border); padding-top: 1rem; margin-top: 1rem;">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                                <span>Subtotal (PHP):</span>
+                                <span>₱${order.subtotal_php.toFixed(2)}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                                <span>Admin Fee:</span>
+                                <span>₱${ADMIN_FEE.toFixed(2)}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; font-size: 1.2rem; font-weight: 700; color: var(--accent-teal); margin-top: 0.5rem;">
+                                <span>Grand Total:</span>
+                                <span>₱${order.grand_total_php.toFixed(2)}</span>
+                            </div>
+                        </div>
+                    `;
+                    
+                    const modal = document.getElementById('finalize-order-modal');
+                    modal.classList.add('show');
+                })
+                .catch(error => {
+                    console.error('Error fetching order:', error);
+                    showToast('Error loading order details', 3000);
+                });
+        }
+        
+        async function finalizeOrder() {
+            if (!pendingFinalizeOrderId) {
+                return;
+            }
+            
+            const btn = document.getElementById('finalize-order-btn');
+            btn.disabled = true;
+            btn.textContent = 'Finalizing...';
+            
+            try {
+                const response = await fetch(`/api/orders/${pendingFinalizeOrderId}/finalize`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showToast('✅ Order finalized! GB Admin has been notified.', 5000);
+                    closeModal('finalize-order-modal');
+                    
+                    // Refresh order lookup
+                    if (typeof checkReturningCustomer === 'function') {
+                        checkReturningCustomer();
+                    }
+                    
+                    // Show order details
+                    if (typeof viewOrder === 'function') {
+                        viewOrder(pendingFinalizeOrderId);
+                    }
+                } else {
+                    const errorMsg = result.error || 'Failed to finalize order';
+                    showToast(`❌ ${errorMsg}`, 5000);
+                    btn.disabled = false;
+                    btn.textContent = 'Finalize Order';
+                }
+            } catch (error) {
+                console.error('Error finalizing order:', error);
+                showToast('❌ Error finalizing order. Please try again.', 5000);
+                btn.disabled = false;
+                btn.textContent = 'Finalize Order';
+            } finally {
+                pendingFinalizeOrderId = null;
+            }
+        }
+        
+        // Expose to global scope
+        window.finalizeOrder = finalizeOrder;
 
         function showOrderModal(order) {
             document.getElementById('modal-order-id').textContent = order.order_id;
