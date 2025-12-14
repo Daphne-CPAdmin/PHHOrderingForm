@@ -2348,15 +2348,16 @@
                 newSection.style.display = 'block';
                 newList.innerHTML = newItems.map((item, i) => {
                     const index = cartItems.indexOf(item);
+                    const isUpdated = item.isUpdated === true;
                     return `
-                        <div class="cart-item" style="border-left: 3px solid var(--accent-teal);">
+                        <div class="cart-item" style="border-left: 3px solid var(--accent-teal); ${isUpdated ? 'background: rgba(20, 184, 166, 0.05);' : ''}">
                             <button class="cart-item-remove" onclick="removeItem(${index})">×</button>
                             <div class="cart-item-header">
-                                <span class="cart-item-name">${item.product_name}</span>
+                                <span class="cart-item-name">${item.product_name}${isUpdated ? ' <span style="font-size: 0.75rem; color: var(--accent-teal);">(Updated)</span>' : ''}</span>
                                 <span class="cart-item-code">${item.product_code}</span>
                             </div>
                             <div class="cart-item-details">
-                                <span>${item.order_type} × ${item.qty}</span>
+                                <span>${item.order_type} × ${item.qty}${item.originalQty && item.qty !== item.originalQty ? ` <span style="font-size: 0.75rem; color: var(--text-muted);">(was ${item.originalQty})</span>` : ''}</span>
                                 <span class="cart-item-price">₱${item.line_total_php.toFixed(2)}</span>
                             </div>
                         </div>
@@ -2493,7 +2494,56 @@
         
         // Expose removeItem to global scope for onclick handlers
         window.removeItem = removeItem;
-
+        
+        // Function to update quantity of existing items
+        function updateExistingItemQty(index, change) {
+            if (index < 0 || index >= cartItems.length) return;
+            
+            const item = cartItems[index];
+            if (!item) return;
+            
+            // Store original qty if not set (for existing items)
+            if (item.isExisting === true && !item.originalQty) {
+                item.originalQty = item.qty;
+            }
+            
+            const originalQty = item.originalQty || item.qty;
+            const newQty = Math.max(0, item.qty + change);
+            
+            if (newQty === item.qty) return; // No change
+            
+            // Update quantity
+            item.qty = newQty;
+            
+            // Recalculate line totals
+            const unitPriceUsd = parseFloat(item.unit_price_usd) || 0;
+            item.line_total_usd = unitPriceUsd * newQty;
+            item.line_total_php = item.line_total_usd * EXCHANGE_RATE;
+            
+            // If quantity changed from original, mark as updated (move to new section)
+            if (newQty !== originalQty) {
+                item.isExisting = false; // Move to new/updated section
+                item.isUpdated = true; // Mark as updated
+            } else {
+                // If quantity matches original, mark back as existing
+                item.isExisting = true;
+                item.isUpdated = false;
+            }
+            
+            // If quantity is 0, remove item
+            if (newQty === 0) {
+                cartItems.splice(index, 1);
+            }
+            
+            // Update cart display
+            updateCart();
+            saveCart();
+            
+            showToast(newQty > originalQty ? '✅ Quantity increased' : newQty < originalQty ? '✅ Quantity decreased' : '✅ Quantity updated');
+        }
+        
+        // Expose to global scope
+        window.updateExistingItemQty = updateExistingItemQty;
 
         // Auto-lookup returning customers
         let customerLookupTimeout = null;
@@ -2852,8 +2902,12 @@
                     // Update existing order - add items to it (no notification yet)
                     btn.textContent = 'Updating...';
                     
-                    // Only send NEW items (not existing ones) to avoid duplication
-                    const newItems = cartItems.filter(item => item.isExisting !== true && item.qty > 0);
+                    // Only send NEW/UPDATED items (not unchanged existing ones) to avoid duplication
+                    // Include items that are new OR have been updated (quantity changed)
+                    const newItems = cartItems.filter(item => {
+                        // Include if: not existing, or is updated (quantity changed from original)
+                        return (item.isExisting !== true || item.isUpdated === true) && item.qty > 0;
+                    });
                     
                     if (newItems.length === 0) {
                         showToast('❌ Please add new items or update quantities before submitting', 3000);
