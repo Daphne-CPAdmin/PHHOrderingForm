@@ -35,7 +35,7 @@ TELEGRAM_BOT_USERNAME = os.getenv('TELEGRAM_BOT_USERNAME', 'pephaul_bot')  # Bot
 # Simple cache to reduce Google Sheets API calls
 _cache = {}
 _cache_timestamps = {}
-CACHE_DURATION = 60  # seconds - increased to reduce API calls
+CACHE_DURATION = 60  # seconds - default fallback cache duration
 
 def get_cached(key, fetch_func, cache_duration=CACHE_DURATION):
     """Get cached data or fetch if expired - with rate limit protection"""
@@ -375,7 +375,7 @@ def _fetch_order_form_lock():
 
 def get_order_form_lock():
     """Get order form lock status (cached)"""
-    return get_cached('settings_lock', _fetch_order_form_lock, cache_duration=300)  # 5 minutes
+    return get_cached('settings_lock', _fetch_order_form_lock, cache_duration=600)  # 10 minutes - settings rarely change
 
 def set_order_form_lock(is_locked, message=''):
     """Set order form lock status"""
@@ -456,7 +456,7 @@ def _fetch_order_goal():
 
 def get_order_goal():
     """Get order goal from Settings sheet (cached)"""
-    return get_cached('settings_goal', _fetch_order_goal, cache_duration=300)  # 5 minutes
+    return get_cached('settings_goal', _fetch_order_goal, cache_duration=600)  # 10 minutes - settings rarely change
 
 def set_order_goal(goal_amount):
     """Set order goal in Settings sheet - optimized to reduce API calls"""
@@ -544,7 +544,7 @@ def _fetch_orders_from_sheets():
 
 def get_orders_from_sheets():
     """Read existing orders from PepHaul Entry tab (cached)"""
-    return get_cached('orders', _fetch_orders_from_sheets, cache_duration=120)  # 2 minutes
+    return get_cached('orders', _fetch_orders_from_sheets, cache_duration=180)  # 3 minutes - balance freshness/performance
 
 def get_order_by_id(order_id):
     """Get a specific order by ID"""
@@ -1076,7 +1076,7 @@ def _fetch_inventory_stats():
 
 def get_inventory_stats():
     """Get inventory statistics with caching"""
-    return get_cached('inventory', _fetch_inventory_stats, cache_duration=120)  # 2 minutes
+    return get_cached('inventory', _fetch_inventory_stats, cache_duration=300)  # 5 minutes - derived data, can cache longer
 
 def _fetch_products_from_sheets():
     """Internal function to fetch products from Price List tab"""
@@ -1143,7 +1143,7 @@ def get_products():
     # Try to get from sheet first (with caching)
     try:
         print("🔄 Attempting to load products from Google Sheets...")
-        cached_products = get_cached('products_sheet', _fetch_products_from_sheets, cache_duration=300)  # 5 minutes
+        cached_products = get_cached('products_sheet', _fetch_products_from_sheets, cache_duration=600)  # 10 minutes - products rarely change
         if cached_products and len(cached_products) > 0:
             print(f"✅ Loaded {len(cached_products)} products from Google Sheet")
             return cached_products
@@ -1445,7 +1445,7 @@ def _fetch_consolidated_order_stats():
 
 def get_consolidated_order_stats():
     """Get consolidated order stats with caching"""
-    return get_cached('order_stats', _fetch_consolidated_order_stats, cache_duration=120)  # 2 minutes
+    return get_cached('order_stats', _fetch_consolidated_order_stats, cache_duration=300)  # 5 minutes - derived data, can cache longer
 
 # Routes
 @app.route('/')
