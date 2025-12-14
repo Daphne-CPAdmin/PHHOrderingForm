@@ -2640,7 +2640,7 @@
                             currentOrderId = pendingOrder.order_id;
                             
                             // Clear removed items tracking when loading fresh order
-                            removedItems = [];
+                            // Removed items tracking no longer needed
                             
                             // Filter out items with 0 quantity before populating cart
                             const validItems = pendingOrder.items.filter(item => {
