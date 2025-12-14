@@ -2302,18 +2302,42 @@
             const summary = document.getElementById('cart-summary');
             const submit = document.getElementById('submit-order');
             
+            // Initialize totals variables at the start of function (before any early returns)
+            let totalUsd = 0;
+            let totalPhp = 0;
+            let existingTotalUsd = 0;
+            let existingTotalPhp = 0;
+            let newTotalUsd = 0;
+            let newTotalPhp = 0;
+            
             if (cartItems.length === 0) {
-                empty.style.display = 'block';
-                items.style.display = 'none';
-                summary.style.display = 'none';
-                submit.disabled = true;
+                if (empty) empty.style.display = 'block';
+                if (items) items.style.display = 'none';
+                if (summary) summary.style.display = 'none';
+                if (submit) submit.disabled = true;
+                
+                // Reset summary displays when cart is empty
+                const existingSummary = document.getElementById('existing-summary');
+                const newSummary = document.getElementById('new-summary');
+                if (existingSummary) existingSummary.style.display = 'none';
+                if (newSummary) newSummary.style.display = 'none';
+                
+                // Update totals to zero
+                const summaryUsd = document.getElementById('summary-usd');
+                const summaryPhp = document.getElementById('summary-php');
+                const grandTotal = document.getElementById('grand-total');
+                if (summaryUsd) summaryUsd.textContent = '$0.00';
+                if (summaryPhp) summaryPhp.textContent = '₱0.00';
+                if (grandTotal) grandTotal.textContent = `₱${ADMIN_FEE.toFixed(2)}`;
+                
+                updateSubmitButtonText();
                 return;
             }
             
-            empty.style.display = 'none';
-            items.style.display = 'block';
-            summary.style.display = 'block';
-            submit.disabled = false;
+            if (empty) empty.style.display = 'none';
+            if (items) items.style.display = 'block';
+            if (summary) summary.style.display = 'block';
+            if (submit) submit.disabled = false;
             
             // Separate existing and new items
             const existingItems = cartItems.filter(item => item.isExisting === true);
@@ -2325,7 +2349,7 @@
             const existingList = document.getElementById('existing-items-list');
             const newList = document.getElementById('new-items-list');
             
-            if (existingItems.length > 0) {
+            if (existingItems.length > 0 && existingSection && existingList) {
                 existingSection.style.display = 'block';
                 existingList.innerHTML = existingItems.map((item, i) => {
                     const index = cartItems.indexOf(item);
@@ -2342,16 +2366,16 @@
                                     <span id="existing-qty-display-${index}" style="min-width: 30px; text-align: center; font-weight: 600; color: var(--text-primary);">${item.qty}</span>
                                     <button onclick="updateExistingItemQty(${index}, 1)" style="width: 28px; height: 28px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--accent-teal); font-size: 1.2rem; font-weight: 600; line-height: 1;">+</button>
                                 </div>
-                                <span class="cart-item-price">₱<span id="existing-price-${index}">${item.line_total_php.toFixed(2)}</span></span>
+                                <span class="cart-item-price">₱<span id="existing-price-${index}">${(item.line_total_php || 0).toFixed(2)}</span></span>
                             </div>
                         </div>
                     `;
                 }).join('');
             } else {
-                existingSection.style.display = 'none';
+                if (existingSection) existingSection.style.display = 'none';
             }
             
-            if (newItems.length > 0) {
+            if (newItems.length > 0 && newSection && newList) {
                 newSection.style.display = 'block';
                 newList.innerHTML = newItems.map((item, i) => {
                     const index = cartItems.indexOf(item);
@@ -2365,38 +2389,34 @@
                             </div>
                             <div class="cart-item-details">
                                 <span>${item.order_type} × ${item.qty}${item.originalQty && item.qty !== item.originalQty ? ` <span style="font-size: 0.75rem; color: var(--text-muted);">(was ${item.originalQty})</span>` : ''}</span>
-                                <span class="cart-item-price">₱${item.line_total_php.toFixed(2)}</span>
+                                <span class="cart-item-price">₱${(item.line_total_php || 0).toFixed(2)}</span>
                             </div>
                         </div>
                     `;
                 }).join('');
             } else {
-                newSection.style.display = 'none';
+                if (newSection) newSection.style.display = 'none';
             }
             
             // Legacy display (all items combined) - keep for backward compatibility
-            items.innerHTML = cartItems.map((item, i) => `
-                <div class="cart-item">
-                    <button class="cart-item-remove" onclick="removeItem(${i})">×</button>
-                    <div class="cart-item-header">
-                        <span class="cart-item-name">${item.product_name}</span>
-                        <span class="cart-item-code">${item.product_code}</span>
+            if (items) {
+                items.innerHTML = cartItems.map((item, i) => `
+                    <div class="cart-item">
+                        <button class="cart-item-remove" onclick="removeItem(${i})">×</button>
+                        <div class="cart-item-header">
+                            <span class="cart-item-name">${item.product_name}</span>
+                            <span class="cart-item-code">${item.product_code}</span>
+                        </div>
+                        <div class="cart-item-details">
+                            <span>${item.order_type} × ${item.qty}</span>
+                            <span class="cart-item-price">₱${(item.line_total_php || 0).toFixed(2)}</span>
+                        </div>
                     </div>
-                    <div class="cart-item-details">
-                        <span>${item.order_type} × ${item.qty}</span>
-                        <span class="cart-item-price">₱${item.line_total_php.toFixed(2)}</span>
-                    </div>
-                </div>
-            `).join('');
+                `).join('');
+            }
             
             // Calculate totals with proper NaN handling - ensure all items have valid prices
             // IMPORTANT: Include ALL items in cart (existing + new) for correct total calculation
-            let totalUsd = 0;
-            let totalPhp = 0;
-            let existingTotalUsd = 0;
-            let existingTotalPhp = 0;
-            let newTotalUsd = 0;
-            let newTotalPhp = 0;
             
             cartItems.forEach(item => {
                 // Ensure item has valid price values
@@ -2479,22 +2499,28 @@
             document.getElementById('summary-php').textContent = `₱${totalPhp.toFixed(2)}`;
             document.getElementById('grand-total').textContent = `₱${grandTotal.toFixed(2)}`;
             
-            // Update existing/new item summaries
+            // Update existing/new item summaries (safely check if elements exist)
             const existingSummary = document.getElementById('existing-summary');
             const newSummary = document.getElementById('new-summary');
+            const existingSubtotalEl = document.getElementById('existing-subtotal-php');
+            const newSubtotalEl = document.getElementById('new-subtotal-php');
             
-            if (existingTotalPhp > 0) {
-                existingSummary.style.display = 'block';
-                document.getElementById('existing-subtotal-php').textContent = `₱${existingTotalPhp.toFixed(2)}`;
-            } else {
-                existingSummary.style.display = 'none';
+            if (existingSummary && existingSubtotalEl) {
+                if (existingTotalPhp > 0) {
+                    existingSummary.style.display = 'block';
+                    existingSubtotalEl.textContent = `₱${existingTotalPhp.toFixed(2)}`;
+                } else {
+                    existingSummary.style.display = 'none';
+                }
             }
             
-            if (newTotalPhp > 0) {
-                newSummary.style.display = 'block';
-                document.getElementById('new-subtotal-php').textContent = `₱${newTotalPhp.toFixed(2)}`;
-            } else {
-                newSummary.style.display = 'none';
+            if (newSummary && newSubtotalEl) {
+                if (newTotalPhp > 0) {
+                    newSummary.style.display = 'block';
+                    newSubtotalEl.textContent = `₱${newTotalPhp.toFixed(2)}`;
+                } else {
+                    newSummary.style.display = 'none';
+                }
             }
         }
 
