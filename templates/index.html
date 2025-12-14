@@ -3805,9 +3805,9 @@
                 currentViewingOrder = order;
                 
                 // Order can be edited/cancelled only if it's not locked, not cancelled, not paid, and not awaiting payment confirmation
-                const isPaid = order.payment_status === 'Paid' || (order.payment_status && order.payment_status.toLowerCase() === 'paid');
+                const orderIsPaid = order.payment_status === 'Paid' || (order.payment_status && order.payment_status.toLowerCase() === 'paid');
                 const isAwaitingConfirmation = order.payment_status === 'Waiting for Confirmation';
-                const canEdit = !order.locked && order.status !== 'Cancelled' && !isPaid && !isAwaitingConfirmation;
+                const canEdit = !order.locked && order.status !== 'Cancelled' && !orderIsPaid && !isAwaitingConfirmation;
                 
                 const body = document.getElementById('order-details-body');
                 if (!body) {
@@ -3925,13 +3925,12 @@
                 `;
                 
                 const footer = document.getElementById('order-details-footer');
-                const isPaid = order.payment_status === 'Paid';
                 const hasMailing = order.mailing_address && order.mailing_address.trim() !== '';
                 
                 let footerHtml = '';
                 
                 // Show "Add Mailing Address" button for paid orders without mailing address
-                if (isPaid && !hasMailing) {
+                if (orderIsPaid && !hasMailing) {
                     footerHtml += `<button class="btn btn-violet" onclick="openMailingAddressModal('${order.order_id}', '${order.full_name}')">📬 Add Mailing Address</button>`;
                 }
                 
