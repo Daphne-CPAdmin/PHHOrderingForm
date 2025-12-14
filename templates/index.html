@@ -470,10 +470,12 @@
             grid-template-columns: 1fr 1fr; 
             gap: 2rem; 
             align-items: start;
+            margin-bottom: 500px; /* Extra spacing to allow product dropdown to show at least 7 items */
         }
         @media (max-width: 1024px) { 
             .main-grid { 
-                grid-template-columns: 1fr; 
+                grid-template-columns: 1fr;
+                margin-bottom: 500px; /* Same spacing on mobile */
             } 
         }
 
