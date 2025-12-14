@@ -14,6 +14,7 @@ from collections import defaultdict
 from functools import wraps
 import secrets
 import time
+from validate_syntax import validate_file
 
 # Load environment variables
 load_dotenv()
@@ -689,8 +690,15 @@ def update_order_status(order_id, status=None, locked=None, payment_status=None,
         print(f"Error updating order: {e}")
         return False
 
-def add_items_to_order(order_id, new_items, exchange_rate):
-    """Add items to an existing order - consolidates duplicate product codes"""
+def add_items_to_order(order_id, new_items, exchange_rate, telegram_username=None):
+    """Add items to an existing order - consolidates duplicate product codes
+    
+    Args:
+        order_id: Order ID to update (if None, will find by telegram_username)
+        new_items: List of items to add
+        exchange_rate: Exchange rate for calculations
+        telegram_username: Optional telegram username to find order if order_id not provided
+    """
     if not sheets_client:
         return False
     
@@ -712,6 +720,40 @@ def add_items_to_order(order_id, new_items, exchange_rate):
             'line_total_usd': headers.index('Line Total USD') if 'Line Total USD' in headers else 10,
             'line_total_php': headers.index('Line Total PHP') if 'Line Total PHP' in headers else 12,
         }
+        
+        col_telegram = headers.index('Telegram Username') if 'Telegram Username' in headers else 3
+        
+        # If order_id not provided, find by telegram username
+        if not order_id and telegram_username:
+            telegram_normalized = telegram_username.lower().strip().lstrip('@')
+            # Find first order row matching telegram username
+            for row_num, row in enumerate(all_values[1:], start=2):
+                if len(row) > col_telegram:
+                    row_telegram = str(row[col_telegram]).lower().strip().lstrip('@')
+                    if row_telegram == telegram_normalized:
+                        # Found matching order, get order_id from this row
+                        if len(row) > col_indices['order_id']:
+                            order_id = row[col_indices['order_id']]
+                            break
+            
+            if not order_id:
+                print(f"Order not found for telegram username: {telegram_username}")
+                return False
+        
+        if not order_id:
+            print("No order_id or telegram_username provided")
+            return False
+        
+        # Find the first row of this order (for inserting new rows below it)
+        first_order_row = None
+        for row_num, row in enumerate(all_values[1:], start=2):
+            if len(row) > col_indices['order_id'] and row[col_indices['order_id']] == order_id:
+                first_order_row = row_num
+                break
+        
+        if not first_order_row:
+            print(f"Order {order_id} not found in sheet")
+            return False
         
         # Find existing items for this order
         existing_items = {}  # key: (product_code, order_type) -> row_number
@@ -745,22 +787,20 @@ def add_items_to_order(order_id, new_items, exchange_rate):
                 # New item - add to list
                 items_to_add.append(item)
         
-        # Add any truly new items (with full customer info for easy lookup)
+        # Add any truly new items - insert right below the first row
         if items_to_add:
-            next_row = len(all_values) + 1
+            # Insert rows right after the first order row (row 2 if first_order_row is 2)
+            insert_row = first_order_row + 1
             
             # Get customer info from the first row of this order
             order_info = {'full_name': '', 'telegram': '', 'order_date': ''}
             col_full_name = headers.index('Name') if 'Name' in headers else (headers.index('Full Name') if 'Full Name' in headers else 2)
-            col_telegram = headers.index('Telegram Username') if 'Telegram Username' in headers else 3
             col_order_date = headers.index('Order Date') if 'Order Date' in headers else 1
             
-            for row in all_values[1:]:
-                if len(row) > col_indices['order_id'] and row[col_indices['order_id']] == order_id:
-                    order_info['full_name'] = row[col_full_name] if len(row) > col_full_name else ''
-                    order_info['telegram'] = row[col_telegram] if len(row) > col_telegram else ''
-                    order_info['order_date'] = row[col_order_date] if len(row) > col_order_date else ''
-                    break
+            first_row_data = all_values[first_order_row - 1]  # 0-indexed
+            order_info['full_name'] = first_row_data[col_full_name] if len(first_row_data) > col_full_name else ''
+            order_info['telegram'] = first_row_data[col_telegram] if len(first_row_data) > col_telegram else ''
+            order_info['order_date'] = first_row_data[col_order_date] if len(first_row_data) > col_order_date else ''
             
             rows_to_add = []
             for item in items_to_add:
@@ -791,42 +831,58 @@ def add_items_to_order(order_id, new_items, exchange_rate):
                 ]
                 rows_to_add.append(row)
             
-            end_row = next_row + len(rows_to_add) - 1
-            worksheet.update(f'A{next_row}:W{end_row}', rows_to_add)
+            # Insert rows using insert_rows (inserts at the specified row, shifting existing rows down)
+            worksheet.insert_rows(rows_to_add, insert_row)
         
         # Clear cache since orders changed
         clear_cache('orders')
         clear_cache('inventory')
         clear_cache('order_stats')
         
-        # Recalculate totals
+        # Recalculate totals (products + admin fee)
         recalculate_order_total(order_id)
         
         return True
     except Exception as e:
         print(f"Error adding items: {e}")
+        import traceback
+        traceback.print_exc()
         return False
 
 def recalculate_order_total(order_id):
-    """Recalculate order total after adding items"""
+    """Recalculate order total after adding items - sums all product line totals + admin fee"""
     order = get_order_by_id(order_id)
     if not order:
         return
     
-    total_usd = sum(item['line_total_usd'] for item in order['items'])
-    total_php = total_usd * order['exchange_rate']
+    # Calculate total from all items
+    total_usd = sum(item.get('line_total_usd', 0) for item in order.get('items', []))
+    total_php = total_usd * order.get('exchange_rate', 1.0)
     grand_total = total_php + ADMIN_FEE_PHP
     
-    # Update first row with new total
+    # Update first row with new grand total
     if sheets_client:
         try:
             spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
             worksheet = spreadsheet.worksheet('PepHaul Entry')
-            cell = worksheet.find(order_id)
-            if cell:
-                worksheet.update_cell(cell.row, 15, grand_total)
-        except:
-            pass
+            
+            # Find the first row of this order
+            all_values = worksheet.get_all_values()
+            headers = all_values[0] if all_values else []
+            order_id_col = headers.index('Order ID') if 'Order ID' in headers else 0
+            grand_total_col = headers.index('Grand Total PHP') if 'Grand Total PHP' in headers else 14
+            
+            # Find first row with this order_id
+            for row_num, row in enumerate(all_values[1:], start=2):
+                if len(row) > order_id_col and row[order_id_col] == order_id:
+                    # Update grand total in first row
+                    worksheet.update_cell(row_num, grand_total_col + 1, grand_total)
+                    print(f"Recalculated order {order_id}: Subtotal PHP {total_php:.2f} + Admin Fee {ADMIN_FEE_PHP:.2f} = Grand Total PHP {grand_total:.2f}")
+                    break
+        except Exception as e:
+            print(f"Error recalculating order total: {e}")
+            import traceback
+            traceback.print_exc()
 
 def upload_to_imgur(file_data, order_id):
     """Upload image to Imgur as fallback storage"""
@@ -1795,17 +1851,45 @@ def api_submit_order():
     return jsonify({'success': False, 'error': 'Failed to save order'}), 500
 
 @app.route('/api/orders/<order_id>/add-items', methods=['POST'])
-def api_add_items(order_id):
-    """Add items to existing order"""
-    order = get_order_by_id(order_id)
+@app.route('/api/orders/add-items-by-telegram', methods=['POST'])
+def api_add_items(order_id=None):
+    """Add items to existing order - supports order_id or telegram username matching"""
+    data = request.json or {}
+    telegram_username = data.get('telegram_username')
+    items = data.get('items', [])
+    
+    # If order_id not in URL, try to get from request body or use telegram lookup
+    if not order_id:
+        order_id = data.get('order_id')
+    
+    # Find order by order_id or telegram_username
+    order = None
+    if order_id:
+        order = get_order_by_id(order_id)
+    elif telegram_username:
+        # Find order by telegram username
+        orders = get_orders_from_sheets()
+        telegram_normalized = telegram_username.lower().strip().lstrip('@')
+        
+        for o in orders:
+            order_telegram = str(o.get('Telegram Username', '')).lower().strip().lstrip('@')
+            if order_telegram == telegram_normalized:
+                # Get the most recent non-cancelled, non-locked order
+                order_status = o.get('Order Status', 'Pending')
+                order_locked = o.get('Locked', False)
+                if order_status != 'Cancelled' and not order_locked:
+                    order_id = o.get('Order ID')
+                    order = get_order_by_id(order_id)
+                    break
+    
     if not order:
-        return jsonify({'error': 'Order not found'}), 404
+        return jsonify({'error': 'Order not found. Provide order_id or telegram_username'}), 404
     
     if order['locked']:
         return jsonify({'error': 'Order is locked'}), 403
     
-    data = request.json
-    items = data.get('items', [])
+    if not items:
+        return jsonify({'error': 'No items provided'}), 400
     
     # Calculate prices
     products = get_products()
@@ -1828,8 +1912,15 @@ def api_add_items(order_id):
                 'line_total_php': line_total_usd * exchange_rate
             })
     
-    if add_items_to_order(order_id, items_with_prices, exchange_rate):
-        return jsonify({'success': True})
+    # Use telegram_username if provided, otherwise use order_id
+    if add_items_to_order(order_id, items_with_prices, exchange_rate, telegram_username=telegram_username):
+        # Recalculate and return updated order
+        updated_order = get_order_by_id(order_id)
+        return jsonify({
+            'success': True,
+            'order_id': order_id,
+            'grand_total_php': updated_order.get('grand_total_php', 0) if updated_order else 0
+        })
     
     return jsonify({'error': 'Failed to add items'}), 500
 
@@ -1959,24 +2050,69 @@ def update_item_quantity(order_id, product_code, order_type, new_qty):
         return False
 
 @app.route('/api/orders/<order_id>/cancel', methods=['POST'])
-def api_cancel_order(order_id):
-    """Cancel an order and delete all its rows from Google Sheets"""
-    order = get_order_by_id(order_id)
+@app.route('/api/orders/cancel-by-telegram', methods=['POST'])
+def api_cancel_order(order_id=None):
+    """Cancel an order and delete all its rows from Google Sheets - supports order_id or telegram username matching"""
+    data = request.json or {}
+    telegram_username = data.get('telegram_username')
+    
+    # If order_id not in URL, try to get from request body or use telegram lookup
+    if not order_id:
+        order_id = data.get('order_id')
+    
+    # Find order by order_id or telegram_username
+    order = None
+    if order_id:
+        order = get_order_by_id(order_id)
+    elif telegram_username:
+        # Find order by telegram username
+        orders = get_orders_from_sheets()
+        telegram_normalized = telegram_username.lower().strip().lstrip('@')
+        
+        # Get the most recent non-cancelled order for this telegram username
+        matching_orders = []
+        for o in orders:
+            order_telegram = str(o.get('Telegram Username', '')).lower().strip().lstrip('@')
+            if order_telegram == telegram_normalized:
+                order_status = o.get('Order Status', 'Pending')
+                if order_status != 'Cancelled':
+                    matching_orders.append(o)
+        
+        if matching_orders:
+            # Get the most recent order (by order date or order ID)
+            matching_orders.sort(key=lambda x: x.get('Order Date', ''), reverse=True)
+            order_id = matching_orders[0].get('Order ID')
+            order = get_order_by_id(order_id)
+    
     if not order:
-        return jsonify({'error': 'Order not found'}), 404
+        return jsonify({'error': 'Order not found. Provide order_id or telegram_username'}), 404
+    
+    # Verify telegram username matches if provided
+    if telegram_username:
+        order_telegram = str(order.get('telegram', '')).lower().strip().lstrip('@')
+        provided_telegram = telegram_username.lower().strip().lstrip('@')
+        if order_telegram != provided_telegram:
+            return jsonify({
+                'error': f'Telegram username mismatch. Order belongs to @{order.get("telegram", "unknown")}, not @{telegram_username}'
+            }), 400
     
     if order['locked']:
-        return jsonify({'error': 'Order is locked'}), 403
+        return jsonify({'error': 'Order is locked. Unlock it first before cancelling'}), 403
     
-    # Delete all rows for this order
-    if delete_order_rows(order_id):
-        print(f"✅ Order {order_id} cancelled and all rows deleted")
-        return jsonify({'success': True, 'message': f'Order {order_id} cancelled and removed from sheets'})
+    # Delete all rows for this order (matching both order_id and telegram username)
+    if delete_order_rows(order_id, telegram_username=order.get('telegram')):
+        print(f"✅ Order {order_id} cancelled and all rows deleted (Telegram: {order.get('telegram', 'N/A')})")
+        return jsonify({
+            'success': True, 
+            'message': f'Order {order_id} cancelled and removed from sheets',
+            'order_id': order_id,
+            'telegram': order.get('telegram', '')
+        })
     
     return jsonify({'error': 'Failed to cancel order'}), 500
 
-def delete_order_rows(order_id):
-    """Delete all rows for a cancelled order from Google Sheets"""
+def delete_order_rows(order_id, telegram_username=None):
+    """Delete all rows for a cancelled order from Google Sheets - verifies both order_id and telegram username match"""
     if not sheets_client:
         return False
     
@@ -1990,46 +2126,68 @@ def delete_order_rows(order_id):
         
         # Find column indices
         col_order_id = headers.index('Order ID') if 'Order ID' in headers else 0
-        col_qty = headers.index('QTY') if 'QTY' in headers else 8
-        col_line_total_usd = headers.index('Line Total USD') if 'Line Total USD' in headers else 10
-        col_line_total_php = headers.index('Line Total PHP') if 'Line Total PHP' in headers else 12
-        col_admin_fee = headers.index('Admin Fee PHP') if 'Admin Fee PHP' in headers else 13
-        col_grand_total = headers.index('Grand Total PHP') if 'Grand Total PHP' in headers else 14
+        col_telegram = headers.index('Telegram Username') if 'Telegram Username' in headers else 3
+        
+        # Normalize telegram username for comparison
+        telegram_normalized = None
+        if telegram_username:
+            telegram_normalized = str(telegram_username).lower().strip().lstrip('@')
         
         # Find all rows belonging to this order
         order_rows = []
         for row_num, row in enumerate(all_values[1:], start=2):  # Skip header
             if len(row) > col_order_id:
-                # Check if this row belongs to the order (first row has order_id, subsequent have empty)
-                if row[col_order_id] == order_id:
+                row_order_id = row[col_order_id] if len(row) > col_order_id else ''
+                row_telegram = ''
+                if len(row) > col_telegram:
+                    row_telegram = str(row[col_telegram]).lower().strip().lstrip('@') if row[col_telegram] else ''
+                
+                # Check if this row belongs to the order
+                if row_order_id == order_id:
+                    # Verify telegram username matches if provided
+                    if telegram_normalized and row_telegram:
+                        if row_telegram != telegram_normalized:
+                            print(f"⚠️ Telegram mismatch at row {row_num}: expected @{telegram_username}, found @{row[col_telegram] if len(row) > col_telegram else 'N/A'}")
+                            continue  # Skip this row if telegram doesn't match
                     order_rows.append(row_num)
-                elif order_rows and not row[col_order_id]:
+                elif order_rows and not row_order_id:
                     # Continue adding rows if they're part of the same order (empty Order ID means continuation)
-                    # Check if product code exists
+                    # Check if product code exists and verify telegram if provided
                     if len(row) > 5 and row[5]:  # Product Code column
+                        if telegram_normalized and row_telegram:
+                            if row_telegram != telegram_normalized:
+                                continue  # Skip if telegram doesn't match
                         order_rows.append(row_num)
-                elif order_rows and row[col_order_id]:
+                elif order_rows and row_order_id:
                     # New order started, stop
                     break
         
-        # Also find rows by searching for order_id anywhere in first column (for added items)
+        # Also find rows by searching for order_id anywhere (for added items)
         cells = worksheet.findall(order_id)
         for cell in cells:
             if cell.row not in order_rows:
-                order_rows.append(cell.row)
+                # Verify telegram username matches if provided
+                if cell.row <= len(all_values):
+                    row = all_values[cell.row - 1]  # 0-indexed
+                    if len(row) > col_telegram:
+                        row_telegram = str(row[col_telegram]).lower().strip().lstrip('@') if row[col_telegram] else ''
+                        if telegram_normalized and row_telegram:
+                            if row_telegram != telegram_normalized:
+                                continue  # Skip if telegram doesn't match
+                    order_rows.append(cell.row)
         
         if not order_rows:
-            print(f"⚠️ No rows found for order {order_id}")
+            print(f"⚠️ No rows found for order {order_id}" + (f" with telegram @{telegram_username}" if telegram_username else ""))
             return False
         
-        print(f"🗑️ Deleting {len(order_rows)} rows for order {order_id}: {order_rows}")
+        print(f"🗑️ Deleting {len(order_rows)} rows for order {order_id}" + (f" (Telegram: @{telegram_username})" if telegram_username else "") + f": {order_rows}")
         
         # Delete rows in reverse order (from bottom to top) to avoid index shifting
         for row_num in sorted(order_rows, reverse=True):
             worksheet.delete_rows(row_num)
             print(f"  Deleted row {row_num}")
         
-        print(f"✅ Successfully deleted all rows for order {order_id}")
+        print(f"✅ Successfully deleted all rows for order {order_id}" + (f" (Telegram: @{telegram_username})" if telegram_username else ""))
         
         # Clear cache since orders changed
         clear_cache('orders')

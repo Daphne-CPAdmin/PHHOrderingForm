@@ -980,6 +980,7 @@
                                     ? `<button class="btn-sm btn-confirm" onclick="confirmPayment('${order.order_id}')">✓ Confirm</button>
                                        <button class="btn-sm" style="background: var(--accent-violet); color: white;" onclick="sendReminder('${order.order_id}')">📲 Remind</button>` 
                                     : `<button class="btn-sm" style="background: #0ea5e9; color: white;" onclick="notifyCustomer('${order.order_id}')">📱 Notify</button>`}
+                                <button class="btn-sm" style="background: #ef4444; color: white;" onclick="cancelOrder('${order.order_id}', '${order.telegram || ''}')" title="Cancel order and delete all rows">🗑️ Cancel</button>
                             </div>
                         </td>
                     </tr>
@@ -1264,6 +1265,41 @@
                 closeOrderModal();
             }
         });
+
+        // Cancel order function
+        async function cancelOrder(orderId, telegramUsername) {
+            const telegram = telegramUsername || '';
+            const telegramDisplay = telegram ? ` (@${telegram.replace('@', '')})` : '';
+            
+            if (!confirm(`⚠️ Are you sure you want to CANCEL order ${orderId}${telegramDisplay}?\n\nThis will:\n- Delete ALL rows matching this order ID\n- Delete ALL rows matching the telegram username\n- This action CANNOT be undone!`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/orders/${orderId}/cancel`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        telegram_username: telegram 
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showToast(`✅ Order ${orderId} cancelled and all rows deleted!`);
+                    loadOrders(); // Reload orders list
+                    if (document.getElementById('order-modal').classList.contains('show')) {
+                        closeOrderModal(); // Close modal if open
+                    }
+                } else {
+                    showToast(result.error || 'Failed to cancel order');
+                }
+            } catch (error) {
+                console.error('Error cancelling order:', error);
+                showToast('❌ Error cancelling order - check console');
+            }
+        }
     </script>
 </body>
 </html>

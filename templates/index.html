@@ -1423,7 +1423,6 @@
                             <label class="form-label">Telegram Username</label>
                             <input type="text" class="form-input" id="telegram" placeholder="@username (enter to view/update your orders)">
                             <small style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.25rem; display: block;">💡 Enter your Telegram username first and your existing orders will auto-populate below</small>
-                            <small style="color: var(--accent-violet); font-size: 0.85rem; margin-top: 0.5rem; display: block; font-weight: 500;">📱 Message @pephaul_bot on Telegram to receive order updates automatically!</small>
                         </div>
                     </div>
 
@@ -1626,6 +1625,20 @@
                     <div class="inv-card-header">
                         <span class="inv-card-name">{{ product.name }}</span>
                         <span class="inv-card-code">{{ product.code }}</span>
+                    </div>
+                    <div class="inv-card-prices" style="margin-bottom: 1rem; padding: 0.75rem; background: rgba(232, 121, 169, 0.1); border-radius: 8px; display: flex; justify-content: space-between; gap: 1rem; font-size: 0.85rem;">
+                        <div style="flex: 1;">
+                            <div style="color: var(--text-muted); font-size: 0.75rem; margin-bottom: 0.25rem;">Kit Price</div>
+                            <div style="font-family: 'JetBrains Mono', monospace; font-weight: 600; color: var(--accent-primary);">
+                                ${{ "%.2f"|format(product.kit_price) }} <span style="color: var(--text-secondary);">(₱{{ "%.2f"|format(product.kit_price * exchange_rate) }})</span>
+                            </div>
+                        </div>
+                        <div style="flex: 1;">
+                            <div style="color: var(--text-muted); font-size: 0.75rem; margin-bottom: 0.25rem;">Vial Price</div>
+                            <div style="font-family: 'JetBrains Mono', monospace; font-weight: 600; color: var(--accent-primary);">
+                                ${{ "%.2f"|format(product.vial_price) }} <span style="color: var(--text-secondary);">(₱{{ "%.2f"|format(product.vial_price * exchange_rate) }})</span>
+                            </div>
+                        </div>
                     </div>
                     <div class="inv-card-stats">
                         <div class="inv-stat">
@@ -1957,8 +1970,8 @@
                         </div>
                         <div class="product-option-meta">
                             <span>${product.code}</span>
-                            <span>Kit: $${product.kit_price.toFixed(2)}</span>
-                            <span>Vial: $${product.vial_price.toFixed(2)}</span>
+                            <span>Kit: $${product.kit_price.toFixed(2)} (₱${(product.kit_price * EXCHANGE_RATE).toFixed(2)})</span>
+                            <span>Vial: $${product.vial_price.toFixed(2)} (₱${(product.vial_price * EXCHANGE_RATE).toFixed(2)})</span>
                         </div>
                     </div>
                 `;
