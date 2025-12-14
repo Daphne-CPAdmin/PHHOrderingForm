@@ -1226,21 +1226,24 @@
         }
         
         .order-status-tag.locked {
-            background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
-            color: #991b1b;
-            border: 2px solid #ef4444;
+            background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+            color: #ffffff;
+            border: 2px solid #991b1b;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.3);
         }
         
         .order-status-tag.paid {
-            background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
-            color: #065f46;
-            border: 2px solid #10b981;
+            background: linear-gradient(135deg, #059669 0%, #047857 100%);
+            color: #ffffff;
+            border: 2px solid #065f46;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.3);
         }
         
         .order-status-tag.pending-payment {
-            background: linear-gradient(135deg, #fed7aa 0%, #fdba74 100%);
-            color: #92400e;
-            border: 2px solid #f59e0b;
+            background: linear-gradient(135deg, #ea580c 0%, #c2410c 100%);
+            color: #ffffff;
+            border: 2px solid #9a3412;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.3);
         }
 
         /* Toast */
@@ -3676,14 +3679,14 @@
                     return;
                 }
                 
-                // Determine status tag to show
+                // Determine status tag to show (priority: locked > paid > awaiting confirmation)
                 let statusTagHtml = '';
                 if (order.locked) {
                     statusTagHtml = '<div class="order-status-tag locked">LOCKED 🔐</div>';
                 } else if (order.payment_status === 'Paid') {
                     statusTagHtml = '<div class="order-status-tag paid">PAID 🤑</div>';
                 } else if (order.payment_status === 'Waiting for Confirmation') {
-                    statusTagHtml = '<div class="order-status-tag pending-payment">PENDING PAYMENT CONFIRMATION 🤑</div>';
+                    statusTagHtml = '<div class="order-status-tag pending-payment">AWAITING ADMIN TO CONFIRM PAYMENT 🤑</div>';
                 }
                 
                 body.innerHTML = `
