@@ -3048,17 +3048,37 @@
                     
                     // Send ALL items from cart (backend will update/delete as needed)
                     // Filter out items with qty 0 (they should be removed, not sent)
-                    const itemsToSend = cartItems
-                        .filter(item => item.qty > 0) // Only send items with qty > 0
-                        .map(item => ({
-                            product_code: item.product_code,
-                            product_name: item.product_name,
-                            order_type: item.order_type,
-                            qty: parseFloat(item.qty) || 0, // Ensure qty is a number
-                            unit_price_usd: parseFloat(item.unit_price_usd) || 0,
-                            line_total_usd: parseFloat(item.line_total_usd) || 0,
-                            line_total_php: parseFloat(item.line_total_php) || 0
-                        }));
+                    // Consolidate items by product_code and order_type before sending
+                    // This prevents duplicate items from being sent to the backend
+                    const consolidatedMap = new Map();
+                    cartItems
+                        .filter(item => item.qty > 0) // Only process items with qty > 0
+                        .forEach(item => {
+                            const key = `${item.product_code}|${item.order_type}`;
+                            if (consolidatedMap.has(key)) {
+                                // Merge: sum quantities and totals
+                                const existing = consolidatedMap.get(key);
+                                existing.qty += parseFloat(item.qty) || 0;
+                                existing.line_total_usd += parseFloat(item.line_total_usd) || 0;
+                                existing.line_total_php += parseFloat(item.line_total_php) || 0;
+                                // Recalculate unit price based on new totals
+                                existing.unit_price_usd = existing.qty > 0 ? existing.line_total_usd / existing.qty : existing.unit_price_usd;
+                            } else {
+                                // First occurrence, add to map
+                                consolidatedMap.set(key, {
+                                    product_code: item.product_code,
+                                    product_name: item.product_name,
+                                    order_type: item.order_type,
+                                    qty: parseFloat(item.qty) || 0,
+                                    unit_price_usd: parseFloat(item.unit_price_usd) || 0,
+                                    line_total_usd: parseFloat(item.line_total_usd) || 0,
+                                    line_total_php: parseFloat(item.line_total_php) || 0
+                                });
+                            }
+                        });
+                    
+                    // Convert consolidated map to array
+                    const itemsToSend = Array.from(consolidatedMap.values());
                     
                     // Validate all items have valid quantities
                     const invalidItems = itemsToSend.filter(item => !item.qty || item.qty <= 0);
