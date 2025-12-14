@@ -2828,7 +2828,17 @@
         if (orderSearchElement) {
             orderSearchElement.addEventListener('input', async (e) => {
             const query = e.target.value.trim();
-            if (query.length < 2) { loadOrders(); return; }
+            if (query.length < 2) { 
+                // Safe call to loadOrders if it exists
+                if (typeof loadOrders === 'function') {
+                    try {
+                        loadOrders();
+                    } catch (e) {
+                        console.log('loadOrders not available');
+                    }
+                }
+                return; 
+            }
             
             try {
                 const response = await fetch(`/api/orders/search?q=${encodeURIComponent(query)}`);
@@ -3160,7 +3170,28 @@
                     showToast('✅ Order cancelled permanently. You must create a new order to reserve products.', 5000);
                     closeModal('cancel-order-modal');
                     closeModal('order-details-modal');
-                    loadOrders();
+                    
+                    // Clear cart if cancelled order was the current order
+                    if (currentOrderId === pendingCancelOrderId) {
+                        currentOrderId = null;
+                        cartItems = [];
+                        updateCart();
+                        saveCart();
+                    }
+                    
+                    // Refresh existing orders if function exists (safe call)
+                    if (typeof checkReturningCustomer === 'function') {
+                        checkReturningCustomer();
+                    }
+                    
+                    // Try to reload orders list if function exists (safe call)
+                    if (typeof loadOrders === 'function') {
+                        try {
+                            loadOrders();
+                        } catch (e) {
+                            console.log('loadOrders not available, skipping');
+                        }
+                    }
                 } else {
                     const errorMsg = result.error || 'Failed to cancel order';
                     showToast(`❌ ${errorMsg}`, 5000);
