@@ -1419,12 +1419,12 @@
 
                     <div class="form-row" style="margin-bottom: 1.5rem;">
                         <div class="form-group">
-                            <label class="form-label">Name</label>
-                            <input type="text" class="form-input" id="full-name" placeholder="Juan Dela Cruz">
+                            <label class="form-label">Name <span style="color: #ef4444;">*</span></label>
+                            <input type="text" class="form-input" id="full-name" placeholder="Juan Dela Cruz" required>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Telegram Username</label>
-                            <input type="text" class="form-input" id="telegram" placeholder="@username (enter to view/update your orders)">
+                            <label class="form-label">Telegram Username <span style="color: #ef4444;">*</span></label>
+                            <input type="text" class="form-input" id="telegram" placeholder="@username (enter to view/update your orders)" required>
                             <small style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.25rem; display: block;">💡 Enter your Telegram username first and your existing orders will auto-populate below</small>
                             <small style="color: var(--accent-violet); font-size: 0.85rem; margin-top: 0.5rem; display: block; font-weight: 500;">📱 Message @pephaul_bot for GB admin to receive updates from orders</small>
                         </div>
@@ -1432,10 +1432,11 @@
 
                     <div class="form-group product-search-container">
                         <label class="form-label">Select Product</label>
-                        <input type="text" class="form-input" id="product-search" placeholder="Search products..." autocomplete="off">
+                        <input type="text" class="form-input" id="product-search" placeholder="Please enter your Name and Telegram username first..." autocomplete="off" disabled>
                         <div class="product-dropdown" id="product-dropdown">
                             <!-- Products loaded dynamically via JavaScript -->
                         </div>
+                        <small id="product-search-hint" style="color: #ef4444; font-size: 0.85rem; margin-top: 0.5rem; display: block; font-weight: 500;">⚠️ Name and Telegram username are required before selecting products</small>
                     </div>
 
                     <div id="selected-product" style="display: none;">
@@ -1892,6 +1893,37 @@
         const productDropdown = document.getElementById('product-dropdown');
         const selectedProductDiv = document.getElementById('selected-product');
         const quantityInput = document.getElementById('quantity');
+        const fullNameInput = document.getElementById('full-name');
+        const telegramInput = document.getElementById('telegram');
+        const productSearchHint = document.getElementById('product-search-hint');
+        
+        // Function to check if required fields are filled and enable/disable product search
+        function checkRequiredFields() {
+            const fullName = fullNameInput.value.trim();
+            const telegram = telegramInput.value.trim();
+            const isFilled = fullName && telegram;
+            
+            if (isFilled) {
+                productSearch.disabled = false;
+                productSearch.placeholder = 'Search products...';
+                if (productSearchHint) productSearchHint.style.display = 'none';
+                productSearch.style.cursor = 'text';
+            } else {
+                productSearch.disabled = true;
+                productSearch.placeholder = 'Please enter your Name and Telegram username first...';
+                if (productSearchHint) productSearchHint.style.display = 'block';
+                productSearch.style.cursor = 'not-allowed';
+                // Hide dropdown if shown
+                productDropdown.classList.remove('show');
+            }
+        }
+        
+        // Check required fields on input
+        if (fullNameInput) fullNameInput.addEventListener('input', checkRequiredFields);
+        if (telegramInput) telegramInput.addEventListener('input', checkRequiredFields);
+        
+        // Initial check
+        checkRequiredFields();
 
         // Toast Notification Function (must be defined early)
         function showToast(message, duration = 3000) {
@@ -1966,6 +1998,16 @@
         function attachProductClickHandlers() {
             productDropdown.querySelectorAll('.product-option:not(.locked)').forEach(option => {
                 option.addEventListener('click', () => {
+                    // Validate required fields before allowing product selection
+                    const fullName = fullNameInput.value.trim();
+                    const telegram = telegramInput.value.trim();
+                    
+                    if (!fullName || !telegram) {
+                        showToast('Please enter your Name and Telegram username first', 3000);
+                        productDropdown.classList.remove('show');
+                        return;
+                    }
+                    
                     const productVialsPerKit = parseInt(option.dataset.vialsPerKit) || VIALS_PER_KIT;
                     selectedProduct = {
                         code: option.dataset.code,
@@ -1998,8 +2040,18 @@
         // Load products on page load
         loadProducts();
 
-        // Product Search - Show dropdown when typing
+        // Product Search - Show dropdown when typing (only if fields are filled)
         productSearch.addEventListener('focus', () => {
+            // Check if required fields are filled
+            const fullName = fullNameInput.value.trim();
+            const telegram = telegramInput.value.trim();
+            
+            if (!fullName || !telegram) {
+                showToast('Please enter your Name and Telegram username first', 3000);
+                productSearch.blur();
+                return;
+            }
+            
             // Show all products when user focuses on search
             if (allProducts.length > 0) {
                 productDropdown.classList.add('show');
@@ -2010,6 +2062,15 @@
         });
         
         productSearch.addEventListener('input', (e) => {
+            // Check if required fields are filled
+            const fullName = fullNameInput.value.trim();
+            const telegram = telegramInput.value.trim();
+            
+            if (!fullName || !telegram) {
+                productDropdown.classList.remove('show');
+                return;
+            }
+            
             const query = e.target.value.toLowerCase().trim();
             console.log('Search query:', query);
             
