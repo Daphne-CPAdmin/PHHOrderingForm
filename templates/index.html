@@ -2328,9 +2328,14 @@
                                 <span class="cart-item-name">${item.product_name}</span>
                                 <span class="cart-item-code">${item.product_code}</span>
                             </div>
-                            <div class="cart-item-details">
-                                <span>${item.order_type} × ${item.qty}</span>
-                                <span class="cart-item-price">₱${item.line_total_php.toFixed(2)}</span>
+                            <div class="cart-item-details" style="display: flex; align-items: center; gap: 0.75rem;">
+                                <span style="flex: 1;">${item.order_type} × <span id="existing-qty-${index}">${item.qty}</span></span>
+                                <div style="display: flex; align-items: center; gap: 0.5rem; background: var(--bg-input); border-radius: 8px; padding: 0.25rem;">
+                                    <button onclick="updateExistingItemQty(${index}, -1)" style="width: 28px; height: 28px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--accent-rose); font-size: 1.2rem; font-weight: 600; line-height: 1;">−</button>
+                                    <span id="existing-qty-display-${index}" style="min-width: 30px; text-align: center; font-weight: 600; color: var(--text-primary);">${item.qty}</span>
+                                    <button onclick="updateExistingItemQty(${index}, 1)" style="width: 28px; height: 28px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--accent-teal); font-size: 1.2rem; font-weight: 600; line-height: 1;">+</button>
+                                </div>
+                                <span class="cart-item-price">₱<span id="existing-price-${index}">${item.line_total_php.toFixed(2)}</span></span>
                             </div>
                         </div>
                     `;
@@ -2595,7 +2600,8 @@
                                     unit_price_usd: unitPriceUsd,
                                     line_total_usd: lineTotalUsd,
                                     line_total_php: lineTotalPhp,
-                                    isExisting: true  // Mark as existing item
+                                    isExisting: true,  // Mark as existing item
+                                    originalQty: qty   // Store original quantity for comparison
                                 };
                             });
                             
