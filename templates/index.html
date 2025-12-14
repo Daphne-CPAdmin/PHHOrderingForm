@@ -2696,16 +2696,8 @@
                                 return qty > 0;
                             });
                             
-                            // Store original order items for change detection
-                            originalOrderItems = validItems.map(item => ({
-                                product_code: item.product_code,
-                                product_name: item.product_name,
-                                order_type: item.order_type || 'Vial',
-                                qty: parseFloat(item.qty) || 1
-                            }));
-                            
-                            // Populate cart with existing order items (marked as existing)
-                            cartItems = validItems.map(item => {
+                            // First, map all items with proper price calculations
+                            const mappedItems = validItems.map(item => {
                                 // Ensure we have all required fields with proper defaults
                                 const qty = parseFloat(item.qty) || 1;
                                 
@@ -2749,11 +2741,42 @@
                                     qty: qty,
                                     unit_price_usd: unitPriceUsd,
                                     line_total_usd: lineTotalUsd,
-                                    line_total_php: lineTotalPhp,
-                                    isExisting: true,  // Mark as existing item
-                                    originalQty: qty   // Store original quantity for comparison
+                                    line_total_php: lineTotalPhp
                                 };
                             });
+                            
+                            // Consolidate items with same product_code and order_type
+                            const consolidatedMap = new Map();
+                            mappedItems.forEach(item => {
+                                const key = `${item.product_code}|${item.order_type}`;
+                                if (consolidatedMap.has(key)) {
+                                    // Merge: sum quantities and totals
+                                    const existing = consolidatedMap.get(key);
+                                    existing.qty += item.qty;
+                                    existing.line_total_usd += item.line_total_usd;
+                                    existing.line_total_php += item.line_total_php;
+                                    // Recalculate unit price based on new totals
+                                    existing.unit_price_usd = existing.qty > 0 ? existing.line_total_usd / existing.qty : existing.unit_price_usd;
+                                } else {
+                                    // First occurrence, add to map
+                                    consolidatedMap.set(key, { ...item });
+                                }
+                            });
+                            
+                            // Convert map back to array and mark as existing
+                            cartItems = Array.from(consolidatedMap.values()).map(item => ({
+                                ...item,
+                                isExisting: true,
+                                originalQty: item.qty  // Store original quantity for comparison
+                            }));
+                            
+                            // Store original order items for change detection (after consolidation)
+                            originalOrderItems = cartItems.map(item => ({
+                                product_code: item.product_code,
+                                product_name: item.product_name,
+                                order_type: item.order_type || 'Vial',
+                                qty: item.qty
+                            }));
                             
                             updateCart();
                             saveCart();
