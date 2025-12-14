@@ -1618,13 +1618,14 @@ def api_products():
 
 @app.route('/api/orders/lookup')
 def api_orders_lookup():
-    """Lookup orders by telegram"""
+    """Lookup orders by telegram - uses shorter cache for faster fetching"""
     telegram = request.args.get('telegram', '').lower().strip()
     
     if not telegram:
         return jsonify([])
     
-    orders = get_orders_from_sheets()
+    # Use shorter cache duration (30 seconds) for faster order lookup
+    orders = get_cached('orders', _fetch_orders_from_sheets, cache_duration=30)
     
     # Normalize telegram username (remove @ if present for comparison)
     telegram_normalized = telegram.lstrip('@') if telegram else ''

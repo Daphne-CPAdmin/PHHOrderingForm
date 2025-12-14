@@ -2266,9 +2266,16 @@
                 </div>
             `).join('');
             
-            const totalUsd = cartItems.reduce((sum, item) => sum + item.line_total_usd, 0);
-            const totalPhp = totalUsd * EXCHANGE_RATE;
-            const grandTotal = totalPhp + ADMIN_FEE;
+            // Calculate totals with proper NaN handling
+            const totalUsd = cartItems.reduce((sum, item) => {
+                const value = parseFloat(item.line_total_usd) || 0;
+                return sum + (isNaN(value) ? 0 : value);
+            }, 0);
+            const totalPhp = (totalUsd * EXCHANGE_RATE) || 0;
+            const grandTotal = (totalPhp + ADMIN_FEE) || 0;
+            
+            // Update button text based on existing order
+            updateSubmitButtonText();
             
             document.getElementById('summary-usd').textContent = `$${totalUsd.toFixed(2)}`;
             document.getElementById('summary-php').textContent = `₱${totalPhp.toFixed(2)}`;
@@ -2299,9 +2306,11 @@
                 hideReturningCustomerBanner();
                 // Clear cart if fields are cleared
                 if (!telegram || !fullName) {
+                    currentOrderId = null;
                     cartItems = [];
                     updateCart();
                     saveCart();
+                    updateSubmitButtonText();
                 }
                 return;
             }
@@ -2324,20 +2333,26 @@
                         const pendingOrder = orders.find(o => o.status !== 'Cancelled' && !o.locked);
                         
                         if (pendingOrder && pendingOrder.items && pendingOrder.items.length > 0) {
+                            // Store pending order ID for button text
+                            currentOrderId = pendingOrder.order_id;
+                            
                             // Populate cart with existing order items
                             cartItems = pendingOrder.items.map(item => {
-                                // Ensure we have all required fields
-                                const unitPriceUsd = item.unit_price_usd || (item.line_total_usd / (item.qty || 1));
-                                const lineTotalUsd = item.line_total_usd || (unitPriceUsd * (item.qty || 1));
-                                const lineTotalPhp = item.line_total_php || (lineTotalUsd * EXCHANGE_RATE);
+                                // Ensure we have all required fields with proper defaults
+                                const qty = parseFloat(item.qty) || 1;
+                                const lineTotalUsd = parseFloat(item.line_total_usd) || 0;
+                                const unitPriceUsd = parseFloat(item.unit_price_usd) || (qty > 0 ? lineTotalUsd / qty : 0);
+                                const calculatedLineTotalUsd = unitPriceUsd * qty;
+                                const finalLineTotalUsd = lineTotalUsd || calculatedLineTotalUsd;
+                                const lineTotalPhp = parseFloat(item.line_total_php) || (finalLineTotalUsd * EXCHANGE_RATE);
                                 
                                 return {
                                     product_code: item.product_code,
                                     product_name: item.product_name,
                                     order_type: item.order_type || 'Vial',
-                                    qty: item.qty || 1,
+                                    qty: qty,
                                     unit_price_usd: unitPriceUsd,
-                                    line_total_usd: lineTotalUsd,
+                                    line_total_usd: finalLineTotalUsd,
                                     line_total_php: lineTotalPhp
                                 };
                             });
@@ -2346,19 +2361,25 @@
                             saveCart();
                             showToast(`✅ Loaded ${cartItems.length} item(s) from your existing order`, 3000);
                         } else {
-                            // No pending order, clear cart
+                            // No pending order, clear cart and reset order ID
+                            currentOrderId = null;
                             cartItems = [];
                             updateCart();
                             saveCart();
                         }
                         
+                        // Update button text
+                        updateSubmitButtonText();
+                        
                         hideMyOrdersSection();
                         hideReturningCustomerBanner();
                     } else {
                         console.log('No orders found for', telegram);
+                        currentOrderId = null;
                         cartItems = [];
                         updateCart();
                         saveCart();
+                        updateSubmitButtonText();
                         hideReturningCustomerBanner();
                         hideMyOrdersSection();
                     }
