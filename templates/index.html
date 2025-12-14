@@ -2290,16 +2290,66 @@
                 </div>
             `).join('');
             
-            // Calculate totals with proper NaN handling
-            const totalUsd = cartItems.reduce((sum, item) => {
-                const value = parseFloat(item.line_total_usd) || 0;
-                return sum + (isNaN(value) ? 0 : value);
-            }, 0);
-            const totalPhp = (totalUsd * EXCHANGE_RATE) || 0;
-            const grandTotal = (totalPhp + ADMIN_FEE) || 0;
+            // Calculate totals with proper NaN handling - ensure all items have valid prices
+            let totalUsd = 0;
+            let totalPhp = 0;
+            
+            cartItems.forEach(item => {
+                // Ensure item has valid price values
+                let itemUsd = parseFloat(item.line_total_usd);
+                let itemPhp = parseFloat(item.line_total_php);
+                
+                // If USD is missing or invalid, calculate from PHP
+                if (isNaN(itemUsd) || itemUsd === 0) {
+                    if (!isNaN(itemPhp) && itemPhp > 0) {
+                        itemUsd = itemPhp / EXCHANGE_RATE;
+                        item.line_total_usd = itemUsd; // Update the item
+                    } else {
+                        // If both are missing, try to calculate from unit price and quantity
+                        const unitPrice = parseFloat(item.unit_price_usd) || 0;
+                        const qty = parseFloat(item.qty) || 1;
+                        itemUsd = unitPrice * qty;
+                        itemPhp = itemUsd * EXCHANGE_RATE;
+                        item.line_total_usd = itemUsd;
+                        item.line_total_php = itemPhp;
+                    }
+                }
+                
+                // If PHP is missing or invalid, calculate from USD
+                if (isNaN(itemPhp) || itemPhp === 0) {
+                    if (!isNaN(itemUsd) && itemUsd > 0) {
+                        itemPhp = itemUsd * EXCHANGE_RATE;
+                        item.line_total_php = itemPhp; // Update the item
+                    }
+                }
+                
+                // Add to totals (ensure values are valid numbers)
+                if (!isNaN(itemUsd) && itemUsd > 0) {
+                    totalUsd += itemUsd;
+                }
+                if (!isNaN(itemPhp) && itemPhp > 0) {
+                    totalPhp += itemPhp;
+                } else if (!isNaN(itemUsd) && itemUsd > 0) {
+                    // Fallback: calculate PHP from USD if PHP is still missing
+                    totalPhp += itemUsd * EXCHANGE_RATE;
+                }
+            });
+            
+            // Ensure totals are calculated correctly
+            if (totalPhp === 0 && totalUsd > 0) {
+                totalPhp = totalUsd * EXCHANGE_RATE;
+            }
+            if (totalUsd === 0 && totalPhp > 0) {
+                totalUsd = totalPhp / EXCHANGE_RATE;
+            }
+            
+            const grandTotal = totalPhp + ADMIN_FEE;
             
             // Update button text based on existing order
             updateSubmitButtonText();
+            
+            // Save updated cart items with corrected prices
+            saveCart();
             
             document.getElementById('summary-usd').textContent = `$${totalUsd.toFixed(2)}`;
             document.getElementById('summary-php').textContent = `₱${totalPhp.toFixed(2)}`;
@@ -2379,11 +2429,39 @@
                             cartItems = pendingOrder.items.map(item => {
                                 // Ensure we have all required fields with proper defaults
                                 const qty = parseFloat(item.qty) || 1;
-                                const lineTotalUsd = parseFloat(item.line_total_usd) || 0;
+                                
+                                // Try to get prices from item, prioritizing PHP since that's what's stored
+                                let lineTotalPhp = parseFloat(item.line_total_php) || 0;
+                                let lineTotalUsd = parseFloat(item.line_total_usd) || 0;
+                                
+                                // If PHP exists but USD doesn't, calculate USD from PHP
+                                if (lineTotalPhp > 0 && (lineTotalUsd === 0 || isNaN(lineTotalUsd))) {
+                                    lineTotalUsd = lineTotalPhp / EXCHANGE_RATE;
+                                }
+                                
+                                // If USD exists but PHP doesn't, calculate PHP from USD
+                                if (lineTotalUsd > 0 && (lineTotalPhp === 0 || isNaN(lineTotalPhp))) {
+                                    lineTotalPhp = lineTotalUsd * EXCHANGE_RATE;
+                                }
+                                
+                                // If both are missing, try to calculate from unit price
+                                if ((lineTotalUsd === 0 || isNaN(lineTotalUsd)) && (lineTotalPhp === 0 || isNaN(lineTotalPhp))) {
+                                    const unitPriceUsd = parseFloat(item.unit_price_usd) || 0;
+                                    if (unitPriceUsd > 0) {
+                                        lineTotalUsd = unitPriceUsd * qty;
+                                        lineTotalPhp = lineTotalUsd * EXCHANGE_RATE;
+                                    } else {
+                                        // Last resort: try to calculate from PHP price if available
+                                        const unitPricePhp = parseFloat(item.unit_price_php) || 0;
+                                        if (unitPricePhp > 0) {
+                                            lineTotalPhp = unitPricePhp * qty;
+                                            lineTotalUsd = lineTotalPhp / EXCHANGE_RATE;
+                                        }
+                                    }
+                                }
+                                
+                                // Calculate unit price if missing
                                 const unitPriceUsd = parseFloat(item.unit_price_usd) || (qty > 0 ? lineTotalUsd / qty : 0);
-                                const calculatedLineTotalUsd = unitPriceUsd * qty;
-                                const finalLineTotalUsd = lineTotalUsd || calculatedLineTotalUsd;
-                                const lineTotalPhp = parseFloat(item.line_total_php) || (finalLineTotalUsd * EXCHANGE_RATE);
                                 
                                 return {
                                     product_code: item.product_code,
@@ -2391,7 +2469,7 @@
                                     order_type: item.order_type || 'Vial',
                                     qty: qty,
                                     unit_price_usd: unitPriceUsd,
-                                    line_total_usd: finalLineTotalUsd,
+                                    line_total_usd: lineTotalUsd,
                                     line_total_php: lineTotalPhp
                                 };
                             });
