@@ -4101,9 +4101,15 @@
             // Fields are empty - clear cart and don't load anything
             cartItems = [];
             currentOrderId = null;
+            originalOrderItems = [];
             updateCart();
             saveCart();
         }
+        
+        // Always update button visibility on page load
+        setTimeout(() => {
+            updateSubmitButtonText();
+        }, 100); // Small delay to ensure DOM is fully ready
     </script>
 </body>
 </html>
