@@ -298,19 +298,12 @@
         }
         
         .stat-progress-percentage-label {
-            position: absolute;
-            top: -1.5rem;
-            left: 50%;
-            transform: translateX(-50%);
-            font-size: 0.85rem;
-            font-weight: 600;
-            color: var(--text-primary);
-            white-space: nowrap;
-            z-index: 10;
-        }
-        
-        .stat-progress {
-            position: relative;
+            font-weight: 700;
+            background: linear-gradient(90deg, #9333ea 0%, #c084fc 50%, #f472b6 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-size: 0.75rem;
         }
         
         .stat-progress-bar {
@@ -1497,7 +1490,7 @@
                     <!-- Progress to Goal for Kits -->
                     <div class="stat-progress">
                         <div class="stat-progress-label">
-                            <span>Progress to Goal</span>
+                            <span>Progress to Goal <span class="stat-progress-percentage-label">{% if order_goal > 0 %}{% set kits_progress = (order_stats.total_kits_usd / order_goal * 100) %}{% set kits_progress_pct = kits_progress if kits_progress < 100 else 100 %}{{ kits_progress_pct|round(1) }}%{% else %}0.0%{% endif %}</span></span>
                             <span>${{ "%.2f"|format(order_stats.total_kits_usd) }} / ${{ "%.0f"|format(order_goal) }}</span>
                         </div>
                         {% if order_goal > 0 %}
@@ -1506,7 +1499,6 @@
                         {% else %}
                             {% set kits_progress_pct = 0 %}
                         {% endif %}
-                        <div class="stat-progress-percentage-label">{{ kits_progress_pct|round(1) }}%</div>
                         <div class="stat-progress-bar">
                             <div class="stat-progress-fill{% if kits_progress_pct >= 100 %} goal-reached{% endif %}" style="width: {{ kits_progress_pct|round(1) }}%;"></div>
                         </div>
@@ -1519,7 +1511,7 @@
                     <!-- Progress to Goal for Vials -->
                     <div class="stat-progress">
                         <div class="stat-progress-label">
-                            <span>Progress to Goal</span>
+                            <span>Progress to Goal <span class="stat-progress-percentage-label">{% if order_goal > 0 %}{% set vials_progress = (order_stats.total_vials_usd / order_goal * 100) %}{% set vials_progress_pct = vials_progress if vials_progress < 100 else 100 %}{{ vials_progress_pct|round(1) }}%{% else %}0.0%{% endif %}</span></span>
                             <span>${{ "%.2f"|format(order_stats.total_vials_usd) }} / ${{ "%.0f"|format(order_goal) }}</span>
                         </div>
                         {% if order_goal > 0 %}
@@ -1528,7 +1520,6 @@
                         {% else %}
                             {% set vials_progress_pct = 0 %}
                         {% endif %}
-                        <div class="stat-progress-percentage-label">{{ vials_progress_pct|round(1) }}%</div>
                         <div class="stat-progress-bar">
                             <div class="stat-progress-fill{% if vials_progress_pct >= 100 %} goal-reached{% endif %}" style="width: {{ vials_progress_pct|round(1) }}%;"></div>
                         </div>
@@ -1541,7 +1532,7 @@
                     <!-- Progress to Goal for Combined -->
                     <div class="stat-progress">
                         <div class="stat-progress-label">
-                            <span>Progress to Goal</span>
+                            <span>Progress to Goal <span class="stat-progress-percentage-label">{% if order_goal > 0 %}{% set combined_progress = (order_stats.combined_total_usd / order_goal * 100) %}{% set combined_progress_pct = combined_progress if combined_progress < 100 else 100 %}{{ combined_progress_pct|round(1) }}%{% else %}0.0%{% endif %}</span></span>
                             <span>${{ "%.2f"|format(order_stats.combined_total_usd) }} / ${{ "%.0f"|format(order_goal) }}</span>
                         </div>
                         {% if order_goal > 0 %}
@@ -1550,7 +1541,6 @@
                         {% else %}
                             {% set combined_progress_pct = 0 %}
                         {% endif %}
-                        <div class="stat-progress-percentage-label">{{ combined_progress_pct|round(1) }}%</div>
                         <div class="stat-progress-bar">
                             <div class="stat-progress-fill{% if combined_progress_pct >= 100 %} goal-reached{% endif %}" style="width: {{ combined_progress_pct|round(1) }}%;"></div>
                         </div>
