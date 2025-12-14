@@ -566,11 +566,12 @@ def _fetch_orders_from_sheets():
                 if order_id_col_index is not None and len(row) > order_id_col_index:
                     print(f"  Row {i+1}: Order ID='{row[order_id_col_index] if len(row) > order_id_col_index else 'N/A'}', Telegram='{row[telegram_col_index] if telegram_col_index is not None and len(row) > telegram_col_index else 'N/A'}'")
         
+        # Try get_all_records first (faster, but might skip empty rows)
         records = worksheet.get_all_records()
         # Ensure we return a list
         if not isinstance(records, list):
             print(f"⚠️ get_all_records() did not return a list, got: {type(records)}")
-            return []
+            records = []
         
         print(f"📋 get_all_records() returned {len(records)} records")
         
@@ -578,6 +579,42 @@ def _fetch_orders_from_sheets():
         expected_count = len(all_values) - 1
         if len(records) != expected_count:
             print(f"⚠️ WARNING: Record count mismatch! Expected {expected_count} records (from {len(all_values)} rows - 1 header), but got {len(records)}")
+            print(f"📋 This might mean some rows are empty or get_all_records() stopped early")
+            
+            # Fallback: Build records manually from raw values to ensure we get everything
+            if len(all_values) > 1 and headers:
+                print(f"📋 Building records manually from raw values to capture all rows...")
+                manual_records = []
+                for row_idx, row in enumerate(all_values[1:], start=2):  # Skip header row
+                    if len(row) < len(headers):
+                        # Pad row if shorter than headers
+                        row = row + [''] * (len(headers) - len(row))
+                    elif len(row) > len(headers):
+                        # Truncate row if longer than headers
+                        row = row[:len(headers)]
+                    
+                    # Create dict from row
+                    record = {}
+                    for col_idx, header in enumerate(headers):
+                        if col_idx < len(row):
+                            value = row[col_idx]
+                            # Only include non-empty values or keep empty strings for consistency
+                            record[header] = value if value else ''
+                        else:
+                            record[header] = ''
+                    
+                    # Only add record if it has at least one non-empty value (skip completely empty rows)
+                    if any(str(v).strip() for v in record.values()):
+                        manual_records.append(record)
+                
+                print(f"📋 Manual record building found {len(manual_records)} records with data")
+                
+                # Use manual records if we got more than get_all_records
+                if len(manual_records) > len(records):
+                    print(f"📋 Using manually built records ({len(manual_records)} vs {len(records)} from get_all_records)")
+                    records = manual_records
+                else:
+                    print(f"📋 Keeping get_all_records() results ({len(records)} records)")
         
         # Debug: Log first record's keys to see what columns are available
         if records and len(records) > 0:
@@ -3437,6 +3474,8 @@ def api_admin_orders():
     if not session.get('is_admin'):
         return jsonify({'error': 'Unauthorized'}), 401
     
+    # Clear cache to ensure fresh data (admin needs latest)
+    clear_cache('orders')
     orders = get_orders_from_sheets()
     
     print(f"📊 Admin panel: Loaded {len(orders)} raw order records from sheets")
