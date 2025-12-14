@@ -886,21 +886,22 @@ def update_order_status(order_id, status=None, locked=None, payment_status=None,
             print(f"Order ID {order_id} not found in sheet")
             return False
         
-        for cell in cells:
-            row = cell.row
-            # Only update first row of order (order-level fields)
-            if cell == cells[0]:  # First occurrence is the order header row
-                if status and col_order_status is not None:
-                    worksheet.update_cell(row, col_order_status + 1, status)  # +1 because update_cell is 1-indexed
-                if locked is not None and col_locked is not None:
-                    worksheet.update_cell(row, col_locked + 1, 'Yes' if locked else 'No')
-                if payment_status and col_payment_status is not None:
-                    worksheet.update_cell(row, col_payment_status + 1, payment_status)
-                if payment_screenshot:
-                    if col_payment_link is not None:
-                        worksheet.update_cell(row, col_payment_link + 1, payment_screenshot)
-                    if col_payment_date is not None:
-                        worksheet.update_cell(row, col_payment_date + 1, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+        # Get the first row (order header row) - this is where order-level fields are stored
+        first_row = cells[0].row
+        
+        # Update order-level fields on the first row only
+        if status and col_order_status is not None:
+            worksheet.update_cell(first_row, col_order_status + 1, status)  # +1 because update_cell is 1-indexed
+        if locked is not None and col_locked is not None:
+            worksheet.update_cell(first_row, col_locked + 1, 'Yes' if locked else 'No')
+            print(f"🔒 Updating Locked column (index {col_locked + 1}) to {'Yes' if locked else 'No'} for order {order_id}")
+        if payment_status and col_payment_status is not None:
+            worksheet.update_cell(first_row, col_payment_status + 1, payment_status)
+        if payment_screenshot:
+            if col_payment_link is not None:
+                worksheet.update_cell(first_row, col_payment_link + 1, payment_screenshot)
+            if col_payment_date is not None:
+                worksheet.update_cell(first_row, col_payment_date + 1, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
         
         # Clear cache since orders changed
         clear_cache('orders')
