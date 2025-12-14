@@ -2252,6 +2252,9 @@ def api_finalize_order(order_id):
         if not order:
             return jsonify({'error': 'Order not found'}), 404
         
+        # Clean up 0 quantity rows before finalizing
+        cleanup_zero_quantity_rows(order_id)
+        
         # Recalculate totals to ensure accuracy
         recalculate_order_total(order_id)
         
@@ -2297,6 +2300,68 @@ def api_finalize_order(order_id):
         import traceback
         traceback.print_exc()
         return jsonify({'error': 'Failed to finalize order'}), 500
+
+def cleanup_zero_quantity_rows(order_id=None):
+    """Clean up all rows with 0 quantity from PepHaul Entry tab"""
+    if not sheets_client:
+        return False
+    
+    try:
+        spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
+        worksheet = spreadsheet.worksheet('PepHaul Entry')
+        
+        all_values = worksheet.get_all_values()
+        headers = all_values[0] if all_values else []
+        
+        col_order_id = headers.index('Order ID') if 'Order ID' in headers else 0
+        col_qty = headers.index('QTY') if 'QTY' in headers else 8
+        
+        # Find first row for each order (to preserve header rows)
+        order_first_rows = {}
+        for row_num, row in enumerate(all_values[1:], start=2):
+            if len(row) > col_order_id and row[col_order_id]:
+                order_id_val = row[col_order_id]
+                if order_id_val not in order_first_rows:
+                    order_first_rows[order_id_val] = row_num
+        
+        # Find all rows with 0 quantity to delete
+        zero_qty_rows = []
+        for row_num, row in enumerate(all_values[1:], start=2):
+            if len(row) > col_qty:
+                qty = int(row[col_qty] or 0) if row[col_qty] else 0
+                order_id_val = row[col_order_id] if len(row) > col_order_id else ''
+                
+                # If order_id specified, only clean that order
+                if order_id and order_id_val != order_id:
+                    continue
+                
+                # Don't delete first row of any order (contains totals)
+                if qty <= 0 and order_id_val:
+                    first_row = order_first_rows.get(order_id_val)
+                    if first_row and row_num != first_row:
+                        zero_qty_rows.append(row_num)
+                elif qty <= 0 and not order_id_val:
+                    # Orphaned row with 0 qty (no order ID) - can delete
+                    zero_qty_rows.append(row_num)
+        
+        # Delete rows in reverse order to avoid index shifting
+        if zero_qty_rows:
+            zero_qty_rows.sort(reverse=True)
+            for row_num in zero_qty_rows:
+                worksheet.delete_rows(row_num)
+            print(f"🧹 Cleaned up {len(zero_qty_rows)} rows with 0 quantity" + (f" for order {order_id}" if order_id else ""))
+            
+            # Clear cache
+            clear_cache('orders')
+            clear_cache('inventory')
+            clear_cache('order_stats')
+        
+        return True
+    except Exception as e:
+        print(f"❌ Error cleaning up zero quantity rows: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
 
 def update_item_quantity(order_id, product_code, order_type, new_qty):
     """Update quantity of a specific item in an order"""
