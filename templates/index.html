@@ -297,10 +297,11 @@
         }
         
         .stat-progress-percentage {
-            font-size: 0.6rem;
+            font-size: 0.9rem;
             color: white;
-            font-weight: 600;
-            text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+            font-weight: 800;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+            letter-spacing: 0.5px;
         }
         
         /* Progress to Goal */
@@ -1205,6 +1206,36 @@
         .status-badge.waiting { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
         .status-badge.locked { background: rgba(139, 92, 246, 0.15); color: var(--accent-violet); }
         .status-badge.cancelled { background: rgba(100, 116, 139, 0.15); color: var(--text-muted); }
+        
+        /* Order Status Tags */
+        .order-status-tag {
+            width: 100%;
+            padding: 1rem;
+            text-align: center;
+            font-weight: 700;
+            font-size: 1.1rem;
+            letter-spacing: 1px;
+            margin-bottom: 1rem;
+            border-radius: 8px;
+        }
+        
+        .order-status-tag.locked {
+            background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+            color: #991b1b;
+            border: 2px solid #ef4444;
+        }
+        
+        .order-status-tag.paid {
+            background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+            color: #065f46;
+            border: 2px solid #10b981;
+        }
+        
+        .order-status-tag.pending-payment {
+            background: linear-gradient(135deg, #fed7aa 0%, #fdba74 100%);
+            color: #92400e;
+            border: 2px solid #f59e0b;
+        }
 
         /* Toast */
         .toast {
@@ -3639,7 +3670,18 @@
                     return;
                 }
                 
+                // Determine status tag to show
+                let statusTagHtml = '';
+                if (order.locked) {
+                    statusTagHtml = '<div class="order-status-tag locked">LOCKED 🔐</div>';
+                } else if (order.payment_status === 'Paid') {
+                    statusTagHtml = '<div class="order-status-tag paid">PAID 🤑</div>';
+                } else if (order.payment_status === 'Waiting for Confirmation') {
+                    statusTagHtml = '<div class="order-status-tag pending-payment">PENDING PAYMENT CONFIRMATION 🤑</div>';
+                }
+                
                 body.innerHTML = `
+                    ${statusTagHtml}
                     <div style="margin-bottom: 1rem;">
                         <div style="display: flex; justify-content: space-between; align-items: center;">
                             <span style="font-family: 'JetBrains Mono', monospace; color: var(--accent-teal); font-size: 1.25rem;">${order.order_id}</span>
@@ -3691,7 +3733,7 @@
                         ${order.payment_screenshot ? `<a href="${order.payment_screenshot}" target="_blank" style="color: var(--accent-teal); font-size: 0.85rem;">View Receipt</a>` : ''}
                     </div>
                     
-                    ${order.payment_status === 'Unpaid' && order.status !== 'Cancelled' ? `
+                    ${order.payment_status === 'Unpaid' && order.status !== 'Cancelled' && !order.locked ? `
                     <!-- Payment Section for Unpaid Orders -->
                     <div class="payment-section" style="margin-top: 1.5rem; padding: 1.5rem; background: linear-gradient(135deg, #fdf4ff 0%, #fce7f3 100%); border-radius: 16px; border: 2px solid var(--accent-primary);">
                         <h4 style="margin-bottom: 1rem; color: var(--accent-primary); text-align: center;">💳 Make Payment</h4>
