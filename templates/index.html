@@ -181,20 +181,23 @@
             font-family: 'Lobster', cursive;
             font-size: 4rem;
             font-weight: 400;
-            background: linear-gradient(135deg, #4c1d95 0%, #5b21b6 20%, #6d28d9 40%, #7c3aed 60%, #8b5cf6 80%, #9333ea 100%);
-            background-size: 200% 200%;
+            background: linear-gradient(90deg, #9333ea 0%, #c084fc 25%, #f472b6 50%, #ec4899 75%, #dc2626 100%);
+            background-size: 200% 100%;
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
             letter-spacing: 0.02em;
-            text-shadow: 0 0 60px rgba(255, 107, 157, 0.5), 0 0 120px rgba(196, 69, 105, 0.3);
-            animation: shimmer 3s ease-in-out infinite;
+            animation: shimmer-gradient 3s ease-in-out infinite;
             filter: drop-shadow(0 4px 8px rgba(196, 69, 105, 0.3));
         }
         
-        @keyframes shimmer {
-            0%, 100% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
+        @keyframes shimmer-gradient {
+            0%, 100% {
+                background-position: 0% 50%;
+            }
+            50% {
+                background-position: 100% 50%;
+            }
         }
 
         /* Shimmering Header Title */
