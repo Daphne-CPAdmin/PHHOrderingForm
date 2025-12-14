@@ -2562,17 +2562,24 @@
         
         // Function to update quantity of existing items
         function updateExistingItemQty(index, change) {
-            if (index < 0 || index >= cartItems.length) return;
+            // Validate index
+            if (index < 0 || index >= cartItems.length) {
+                console.error('Invalid index for updateExistingItemQty:', index, 'cartItems.length:', cartItems.length);
+                return;
+            }
             
             const item = cartItems[index];
-            if (!item) return;
+            if (!item) {
+                console.error('Item not found at index:', index);
+                return;
+            }
             
             // Store original qty if not set (for existing items)
-            if (item.isExisting === true && !item.originalQty) {
+            if (item.isExisting === true && item.originalQty === undefined) {
                 item.originalQty = item.qty;
             }
             
-            const originalQty = item.originalQty || item.qty;
+            const originalQty = item.originalQty !== undefined ? item.originalQty : item.qty;
             const newQty = Math.max(0, item.qty + change);
             
             if (newQty === item.qty) return; // No change
@@ -2598,16 +2605,17 @@
             // If quantity is 0, remove item
             if (newQty === 0) {
                 cartItems.splice(index, 1);
+                showToast(`✅ ${item.product_name} removed from cart`, 3000);
+            } else {
+                showToast(newQty > originalQty ? `✅ ${item.product_name} quantity increased to ${newQty}` : `✅ ${item.product_name} quantity decreased to ${newQty}`, 3000);
             }
             
             // Update cart display
             updateCart();
             saveCart();
-            
-            showToast(newQty > originalQty ? '✅ Quantity increased' : newQty < originalQty ? '✅ Quantity decreased' : '✅ Quantity updated');
         }
         
-        // Expose to global scope
+        // Expose to global scope for inline onclick handlers (backup)
         window.updateExistingItemQty = updateExistingItemQty;
 
         // Auto-lookup returning customers
