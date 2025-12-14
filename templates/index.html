@@ -2494,10 +2494,14 @@
             // Save updated cart items with corrected prices
             saveCart();
             
-            // Update summary displays
-            document.getElementById('summary-usd').textContent = `$${totalUsd.toFixed(2)}`;
-            document.getElementById('summary-php').textContent = `₱${totalPhp.toFixed(2)}`;
-            document.getElementById('grand-total').textContent = `₱${grandTotal.toFixed(2)}`;
+            // Update summary displays (safely check if elements exist)
+            const summaryUsdEl = document.getElementById('summary-usd');
+            const summaryPhpEl = document.getElementById('summary-php');
+            const grandTotalEl = document.getElementById('grand-total');
+            
+            if (summaryUsdEl) summaryUsdEl.textContent = `$${totalUsd.toFixed(2)}`;
+            if (summaryPhpEl) summaryPhpEl.textContent = `₱${totalPhp.toFixed(2)}`;
+            if (grandTotalEl) grandTotalEl.textContent = `₱${grandTotal.toFixed(2)}`;
             
             // Update existing/new item summaries (safely check if elements exist)
             const existingSummary = document.getElementById('existing-summary');
