@@ -1916,6 +1916,31 @@ def api_add_items(order_id=None):
     if add_items_to_order(order_id, items_with_prices, exchange_rate, telegram_username=telegram_username):
         # Recalculate and return updated order
         updated_order = get_order_by_id(order_id)
+        
+        if updated_order:
+            # Send Telegram notification to GB Admin with recalculated total
+            new_items_text = '\n'.join([f"• {item['product_name']} ({item['order_type']} x{item['qty']}) - ₱{item['line_total_php']:.2f}" for item in items_with_prices])
+            
+            # Calculate totals for display
+            subtotal_php = sum(item.get('line_total_php', 0) for item in updated_order.get('items', []))
+            grand_total_php = updated_order.get('grand_total_php', 0)
+            
+            telegram_msg = f"""📝 <b>Order Updated!</b>
+
+<b>Order ID:</b> {order_id}
+<b>Customer:</b> {updated_order.get('full_name', 'N/A')}
+<b>Telegram:</b> @{updated_order.get('telegram', 'N/A').replace('@', '')}
+
+<b>New Items Added:</b>
+{new_items_text}
+
+<b>Subtotal (PHP):</b> ₱{subtotal_php:,.2f}
+<b>GB Admin Fee:</b> ₱{ADMIN_FEE_PHP:,.2f}
+<b>Grand Total:</b> ₱{grand_total_php:,.2f}
+
+<b>Status:</b> Updated Order - Pending Payment"""
+            send_telegram_notification(telegram_msg)
+        
         return jsonify({
             'success': True,
             'order_id': order_id,
@@ -1946,6 +1971,33 @@ def api_update_item(order_id):
         return jsonify({'error': 'Missing product_code or order_type'}), 400
     
     if update_item_quantity(order_id, product_code, order_type, new_qty):
+        # Get updated order and send Telegram notification to GB Admin
+        updated_order = get_order_by_id(order_id)
+        if updated_order:
+            # Calculate totals for display
+            subtotal_php = sum(item.get('line_total_php', 0) for item in updated_order.get('items', []))
+            grand_total_php = updated_order.get('grand_total_php', 0)
+            
+            # Find the updated item for display
+            updated_item = next((item for item in updated_order.get('items', []) 
+                                if item.get('product_code') == product_code and item.get('order_type') == order_type), None)
+            
+            telegram_msg = f"""📝 <b>Order Updated!</b>
+
+<b>Order ID:</b> {order_id}
+<b>Customer:</b> {updated_order.get('full_name', 'N/A')}
+<b>Telegram:</b> @{updated_order.get('telegram', 'N/A').replace('@', '')}
+
+<b>Item Updated:</b>
+• {updated_item.get('product_name', product_code) if updated_item else product_code} ({order_type} x{new_qty})
+
+<b>Subtotal (PHP):</b> ₱{subtotal_php:,.2f}
+<b>GB Admin Fee:</b> ₱{ADMIN_FEE_PHP:,.2f}
+<b>Grand Total:</b> ₱{grand_total_php:,.2f}
+
+<b>Status:</b> Updated Order - Pending Payment"""
+            send_telegram_notification(telegram_msg)
+        
         return jsonify({'success': True})
     
     return jsonify({'error': 'Failed to update item'}), 500
