@@ -2696,6 +2696,7 @@
                             
                             updateCart();
                             saveCart();
+                            updateSubmitButtonText(); // Update buttons after loading existing items
                             showToast(`✅ Loaded ${cartItems.length} item(s) from your existing order`, 3000);
                         } else {
                             // No pending order, clear cart and reset order ID
