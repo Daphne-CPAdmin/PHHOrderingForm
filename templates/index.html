@@ -197,6 +197,27 @@
             50% { background-position: 100% 50%; }
         }
 
+        /* Shimmering Header Title */
+        .header h1 {
+            background: linear-gradient(90deg, #9333ea 0%, #c084fc 25%, #f472b6 50%, #ec4899 75%, #dc2626 100%);
+            background-size: 200% 100%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: shimmer-gradient 3s ease-in-out infinite;
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+        
+        @keyframes shimmer-gradient {
+            0%, 100% {
+                background-position: 0% 50%;
+            }
+            50% {
+                background-position: 100% 50%;
+            }
+        }
+        
         .header-subtitle {
             font-family: 'Lobster', cursive;
             font-size: 1.3rem;
@@ -271,6 +292,22 @@
             font-size: 0.7rem;
             color: var(--text-muted);
             margin-bottom: 0.4rem;
+        }
+        
+        .stat-progress-percentage-label {
+            position: absolute;
+            top: -1.5rem;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            white-space: nowrap;
+            z-index: 10;
+        }
+        
+        .stat-progress {
+            position: relative;
         }
         
         .stat-progress-bar {
@@ -1460,13 +1497,14 @@
                             <span>Progress to Goal</span>
                             <span>${{ "%.2f"|format(order_stats.total_kits_usd) }} / ${{ "%.0f"|format(order_goal) }}</span>
                         </div>
+                        {% if order_goal > 0 %}
+                            {% set kits_progress = (order_stats.total_kits_usd / order_goal * 100) %}
+                            {% set kits_progress_pct = kits_progress if kits_progress < 100 else 100 %}
+                        {% else %}
+                            {% set kits_progress_pct = 0 %}
+                        {% endif %}
+                        <div class="stat-progress-percentage-label">{{ kits_progress_pct|round(1) }}%</div>
                         <div class="stat-progress-bar">
-                            {% if order_goal > 0 %}
-                                {% set kits_progress = (order_stats.total_kits_usd / order_goal * 100) %}
-                                {% set kits_progress_pct = kits_progress if kits_progress < 100 else 100 %}
-                            {% else %}
-                                {% set kits_progress_pct = 0 %}
-                            {% endif %}
                             <div class="stat-progress-fill{% if kits_progress_pct >= 100 %} goal-reached{% endif %}" style="width: {{ kits_progress_pct|round(1) }}%;"></div>
                         </div>
                     </div>
@@ -1481,13 +1519,14 @@
                             <span>Progress to Goal</span>
                             <span>${{ "%.2f"|format(order_stats.total_vials_usd) }} / ${{ "%.0f"|format(order_goal) }}</span>
                         </div>
+                        {% if order_goal > 0 %}
+                            {% set vials_progress = (order_stats.total_vials_usd / order_goal * 100) %}
+                            {% set vials_progress_pct = vials_progress if vials_progress < 100 else 100 %}
+                        {% else %}
+                            {% set vials_progress_pct = 0 %}
+                        {% endif %}
+                        <div class="stat-progress-percentage-label">{{ vials_progress_pct|round(1) }}%</div>
                         <div class="stat-progress-bar">
-                            {% if order_goal > 0 %}
-                                {% set vials_progress = (order_stats.total_vials_usd / order_goal * 100) %}
-                                {% set vials_progress_pct = vials_progress if vials_progress < 100 else 100 %}
-                            {% else %}
-                                {% set vials_progress_pct = 0 %}
-                            {% endif %}
                             <div class="stat-progress-fill{% if vials_progress_pct >= 100 %} goal-reached{% endif %}" style="width: {{ vials_progress_pct|round(1) }}%;"></div>
                         </div>
                     </div>
@@ -1502,13 +1541,14 @@
                             <span>Progress to Goal</span>
                             <span>${{ "%.2f"|format(order_stats.combined_total_usd) }} / ${{ "%.0f"|format(order_goal) }}</span>
                         </div>
+                        {% if order_goal > 0 %}
+                            {% set combined_progress = (order_stats.combined_total_usd / order_goal * 100) %}
+                            {% set combined_progress_pct = combined_progress if combined_progress < 100 else 100 %}
+                        {% else %}
+                            {% set combined_progress_pct = 0 %}
+                        {% endif %}
+                        <div class="stat-progress-percentage-label">{{ combined_progress_pct|round(1) }}%</div>
                         <div class="stat-progress-bar">
-                            {% if order_goal > 0 %}
-                                {% set combined_progress = (order_stats.combined_total_usd / order_goal * 100) %}
-                                {% set combined_progress_pct = combined_progress if combined_progress < 100 else 100 %}
-                            {% else %}
-                                {% set combined_progress_pct = 0 %}
-                            {% endif %}
                             <div class="stat-progress-fill{% if combined_progress_pct >= 100 %} goal-reached{% endif %}" style="width: {{ combined_progress_pct|round(1) }}%;"></div>
                         </div>
                     </div>
