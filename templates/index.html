@@ -464,9 +464,18 @@
             background-clip: text;
         }
 
-        /* Main Grid */
-        .main-grid { display: grid; grid-template-columns: 1fr 420px; gap: 2rem; margin-bottom: 300px; }
-        @media (max-width: 1024px) { .main-grid { grid-template-columns: 1fr; margin-bottom: 300px; } }
+        /* Main Grid - Equal width sections */
+        .main-grid { 
+            display: grid; 
+            grid-template-columns: 1fr 1fr; 
+            gap: 2rem; 
+            align-items: start;
+        }
+        @media (max-width: 1024px) { 
+            .main-grid { 
+                grid-template-columns: 1fr; 
+            } 
+        }
 
         /* Cards - Glass Morphism */
         .card {
@@ -689,7 +698,11 @@
 
         /* Cart */
         .cart-empty { text-align: center; padding: 3rem 1rem; color: var(--text-muted); }
-        .cart-items { max-height: 300px; overflow-y: auto; }
+        .cart-items { 
+            /* Remove scrolling - show all items */
+            overflow-y: visible;
+            max-height: none;
+        }
         .cart-item {
             background: var(--bg-input);
             border-radius: 12px;
@@ -1530,14 +1543,14 @@
                         <h3 style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 0.75rem; font-weight: 600;">
                             📋 Existing Order Items
                         </h3>
-                        <div id="existing-items-list" class="cart-items" style="max-height: 200px; overflow-y: auto;"></div>
+                        <div id="existing-items-list" class="cart-items" style="overflow-y: visible; max-height: none;"></div>
                     </div>
                     
                     <div id="new-items-section" style="display: none; margin-bottom: 1.5rem;">
                         <h3 style="font-size: 0.9rem; color: var(--accent-teal); margin-bottom: 0.75rem; font-weight: 600;">
                             ➕ New/Updated Items
                         </h3>
-                        <div id="new-items-list" class="cart-items" style="max-height: 200px; overflow-y: auto;"></div>
+                        <div id="new-items-list" class="cart-items" style="overflow-y: visible; max-height: none;"></div>
                     </div>
 
                     <div id="cart-summary" class="cart-summary" style="display: none;">
@@ -2275,14 +2288,33 @@
         }
 
         function loadCart() {
+            // Only load cart if Name and Telegram username are filled
+            const telegram = fullNameInput && telegramInput ? telegramInput.value.trim() : '';
+            const fullName = fullNameInput ? fullNameInput.value.trim() : '';
+            
+            // If fields are empty, don't load cart - clear it instead
+            if (!telegram || !fullName) {
+                cartItems = [];
+                currentOrderId = null;
+                updateCart();
+                saveCart();
+                return;
+            }
+            
             try {
                 const saved = localStorage.getItem('pephaul_cart');
                 if (saved) {
+                    // Only load if we have matching telegram username
+                    // Otherwise, clear cart and check for existing orders
                     cartItems = JSON.parse(saved);
+                    // Verify the saved cart matches current telegram username
+                    // If not, clear and reload from server
                     updateCart();
                 }
             } catch (e) {
                 console.warn('Could not load cart from localStorage:', e);
+                cartItems = [];
+                updateCart();
             }
         }
 
@@ -4018,8 +4050,23 @@
         }
 
         // Initialize
-        loadCart();  // Load saved cart from localStorage
-        updateCart();
+        // On page load: only load cart if Name and Telegram are filled
+        // Otherwise, clear cart and wait for user input
+        const initialTelegram = telegramInput ? telegramInput.value.trim() : '';
+        const initialFullName = fullNameInput ? fullNameInput.value.trim() : '';
+        
+        if (initialTelegram && initialFullName) {
+            // Fields are pre-filled (e.g., from URL params or previous session)
+            // Load cart and check for existing orders
+            loadCart();
+            checkReturningCustomer();
+        } else {
+            // Fields are empty - clear cart and don't load anything
+            cartItems = [];
+            currentOrderId = null;
+            updateCart();
+            saveCart();
+        }
     </script>
 </body>
 </html>
