@@ -35,7 +35,7 @@ TELEGRAM_BOT_USERNAME = os.getenv('TELEGRAM_BOT_USERNAME', 'pephaul_bot')  # Bot
 # Simple cache to reduce Google Sheets API calls
 _cache = {}
 _cache_timestamps = {}
-CACHE_DURATION = 30  # seconds
+CACHE_DURATION = 60  # seconds - increased to reduce API calls
 
 def get_cached(key, fetch_func, cache_duration=CACHE_DURATION):
     """Get cached data or fetch if expired - with rate limit protection"""
@@ -2177,7 +2177,14 @@ def api_add_items(order_id=None):
             'updated_order': updated_order
         })
     
-    return jsonify({'error': 'Failed to add items'}), 500
+    except Exception as e:
+        print(f"❌ Unexpected error in api_add_items: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': 'An unexpected error occurred. Please try again or contact support.'
+        }), 500
 
 @app.route('/api/orders/<order_id>/update-item', methods=['POST'])
 def api_update_item(order_id):
