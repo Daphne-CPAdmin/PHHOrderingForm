@@ -1834,6 +1834,30 @@
         </div>
     </div>
 
+    <!-- Cancel Order Confirmation Modal -->
+    <div class="modal" id="cancel-order-modal">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3 class="modal-title" style="color: #ef4444;">⚠️ Cancel Order</h3>
+                <button class="modal-close" onclick="closeModal('cancel-order-modal')">&times;</button>
+            </div>
+            <div class="modal-body" style="text-align: center; padding: 2rem;">
+                <div style="font-size: 3rem; margin-bottom: 1rem;">🗑️</div>
+                <h4 style="margin-bottom: 1rem; color: var(--text-primary);">Are you sure you want to cancel this order?</h4>
+                <p style="color: var(--text-secondary); margin-bottom: 1.5rem; line-height: 1.6;">
+                    This action <strong>cannot be undone</strong>.<br>
+                    Your order will be permanently deleted and all product reservations will be released.<br>
+                    You will need to create a <strong>new order</strong> to reserve products again.
+                </p>
+                <div id="cancel-countdown" style="font-size: 1.5rem; font-weight: 700; color: var(--accent-rose); margin-bottom: 1.5rem; min-height: 2rem;"></div>
+            </div>
+            <div class="modal-footer" style="display: flex; gap: 1rem; justify-content: center;">
+                <button class="btn btn-secondary" id="undo-cancel-btn" onclick="undoCancelOrder()" style="min-width: 150px;">Undo (5s)</button>
+                <button class="btn btn-rose" id="confirm-cancel-btn" onclick="confirmCancelOrder()" style="min-width: 150px;">Yes, Cancel Order</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Mailing Address Modal -->
     <div class="modal" id="mailing-address-modal">
         <div class="modal-content" style="max-width: 500px;">
@@ -2872,7 +2896,7 @@
                 }
                 
                 if (canEdit) {
-                    footerHtml += `<button class="btn btn-rose" onclick="cancelOrder('${order.order_id}')" style="font-weight: 600;" title="⚠️ Warning: This action cannot be undone. You will need to create a new order to reserve products.">🗑️ Cancel Order</button>`;
+                    footerHtml += `<button class="btn btn-rose" onclick="cancelOrder('${order.order_id}', '${(order.telegram || '').replace(/'/g, "\\'")}')" style="font-weight: 600;" title="⚠️ Warning: This action cannot be undone. You will need to create a new order to reserve products.">🗑️ Cancel Order</button>`;
                 }
                 
                 footerHtml += `<button class="btn btn-secondary" onclick="closeModal('order-details-modal')">Close</button>`;
@@ -2955,48 +2979,116 @@
             }
         }
 
-        async function cancelOrder(orderId) {
-            const confirmMessage = `⚠️ CANCEL ORDER - PERMANENT ACTION ⚠️\n\n` +
-                `Are you absolutely sure you want to cancel Order ${orderId}?\n\n` +
-                `⚠️ IMPORTANT WARNINGS:\n` +
-                `• This action CANNOT be undone\n` +
-                `• Your order will be permanently deleted\n` +
-                `• All product reservations will be released\n` +
-                `• You will need to create a NEW ORDER to reserve products again\n\n` +
-                `If you cancel this order, you must place a new order to reserve your products.\n\n` +
-                `Type "CANCEL" to confirm:`;
+        let cancelOrderTimeout = null;
+        let cancelOrderCountdown = null;
+        let pendingCancelOrderId = null;
+        let pendingCancelTelegram = null;
+        
+        function cancelOrder(orderId, telegramUsername = '') {
+            pendingCancelOrderId = orderId;
+            pendingCancelTelegram = telegramUsername;
             
-            const userInput = prompt(confirmMessage);
-            if (!userInput || userInput.trim().toUpperCase() !== 'CANCEL') {
-                showToast('❌ Cancellation cancelled. Your order is safe.');
+            // Show cancel confirmation modal
+            const modal = document.getElementById('cancel-order-modal');
+            modal.classList.add('show');
+            
+            // Reset buttons
+            const undoBtn = document.getElementById('undo-cancel-btn');
+            const confirmBtn = document.getElementById('confirm-cancel-btn');
+            undoBtn.disabled = false;
+            confirmBtn.disabled = false;
+            
+            // Start 5-second countdown
+            let countdown = 5;
+            const countdownEl = document.getElementById('cancel-countdown');
+            countdownEl.textContent = `You have ${countdown} seconds to undo...`;
+            
+            cancelOrderCountdown = setInterval(() => {
+                countdown--;
+                if (countdown > 0) {
+                    countdownEl.textContent = `You have ${countdown} seconds to undo...`;
+                    undoBtn.textContent = `Undo (${countdown}s)`;
+                } else {
+                    clearInterval(cancelOrderCountdown);
+                    countdownEl.textContent = '';
+                    undoBtn.disabled = true;
+                    undoBtn.textContent = 'Undo (expired)';
+                    // Auto-confirm after countdown
+                    confirmCancelOrder();
+                }
+            }, 1000);
+        }
+        
+        function undoCancelOrder() {
+            if (cancelOrderCountdown) {
+                clearInterval(cancelOrderCountdown);
+                cancelOrderCountdown = null;
+            }
+            if (cancelOrderTimeout) {
+                clearTimeout(cancelOrderTimeout);
+                cancelOrderTimeout = null;
+            }
+            
+            pendingCancelOrderId = null;
+            pendingCancelTelegram = null;
+            
+            closeModal('cancel-order-modal');
+            showToast('✅ Cancellation cancelled. Your order is safe.');
+        }
+        
+        async function confirmCancelOrder() {
+            if (!pendingCancelOrderId) {
                 return;
             }
             
-            // Double confirmation
-            if (!confirm(`⚠️ FINAL CONFIRMATION ⚠️\n\n` +
-                `You are about to PERMANENTLY DELETE Order ${orderId}.\n\n` +
-                `This action:\n` +
-                `• CANNOT be undone\n` +
-                `• Will delete all order data\n` +
-                `• Will release all product reservations\n` +
-                `• Requires you to create a NEW ORDER to reserve products\n\n` +
-                `Are you absolutely certain you want to proceed?`)) {
-                showToast('❌ Cancellation cancelled. Your order is safe.');
-                return;
+            // Clear countdown
+            if (cancelOrderCountdown) {
+                clearInterval(cancelOrderCountdown);
+                cancelOrderCountdown = null;
             }
+            
+            // Disable buttons
+            const undoBtn = document.getElementById('undo-cancel-btn');
+            const confirmBtn = document.getElementById('confirm-cancel-btn');
+            undoBtn.disabled = true;
+            confirmBtn.disabled = true;
+            confirmBtn.textContent = 'Cancelling...';
             
             try {
-                const response = await fetch(`/api/orders/${orderId}/cancel`, { method: 'POST' });
+                const requestBody = {};
+                if (pendingCancelTelegram) {
+                    requestBody.telegram_username = pendingCancelTelegram;
+                }
+                
+                const response = await fetch(`/api/orders/${pendingCancelOrderId}/cancel`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+                
+                // Check if response is JSON
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    const text = await response.text();
+                    console.error('Non-JSON response:', text);
+                    throw new Error(`Server returned ${response.status}: ${text.substring(0, 100)}`);
+                }
+                
                 const result = await response.json();
                 
                 if (result.success) {
                     showToast('✅ Order cancelled permanently. You must create a new order to reserve products.', 5000);
+                    closeModal('cancel-order-modal');
                     closeModal('order-details-modal');
                     loadOrders();
                 } else {
                     const errorMsg = result.error || 'Failed to cancel order';
                     showToast(`❌ ${errorMsg}`, 5000);
                     console.error('Cancel order error:', result);
+                    confirmBtn.disabled = false;
+                    confirmBtn.textContent = 'Yes, Cancel Order';
                 }
             } catch (error) {
                 console.error('Error cancelling order:', error);
@@ -3007,8 +3099,16 @@
                     errorMessage = `Error: ${error.message}`;
                 }
                 showToast(`❌ ${errorMessage}`, 5000);
+                confirmBtn.disabled = false;
+                confirmBtn.textContent = 'Yes, Cancel Order';
+            } finally {
+                pendingCancelOrderId = null;
+                pendingCancelTelegram = null;
             }
         }
+        
+        // Expose cancelOrder to global scope
+        window.cancelOrder = cancelOrder;
 
         // Mailing Address Functions
         let currentMailingOrderId = null;
