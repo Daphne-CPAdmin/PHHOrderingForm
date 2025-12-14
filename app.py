@@ -1076,6 +1076,9 @@ def _fetch_inventory_stats():
                 
             order_type = order.get('Order Type', 'Vial')
             qty = int(order.get('QTY', 0) or 0)
+            # Skip items with 0 quantity for inventory calculations
+            if qty <= 0:
+                continue
             vials_per_kit = product_vials_map.get(product_code, VIALS_PER_KIT)
             
             if order_type == 'Kit':
@@ -1458,6 +1461,9 @@ def _fetch_consolidated_order_stats():
             product_code = order.get('Product Code', '')
             order_type = order.get('Order Type', 'Vial')
             qty = int(order.get('QTY', 0) or 0)
+            # Skip items with 0 quantity for revenue calculations
+            if qty <= 0:
+                continue
             
             if product_code in product_prices:
                 if order_type == 'Kit':
@@ -1713,13 +1719,16 @@ def api_orders_lookup():
             }
         
         if order.get('Product Code'):
-            grouped[order_id]['items'].append({
-                'product_code': order.get('Product Code', ''),
-                'product_name': order.get('Product Name', ''),
-                'order_type': order.get('Order Type', 'Vial'),  # Default to 'Vial' if missing
-                'qty': int(order.get('QTY', 0) or 0),
-                'line_total_php': float(order.get('Line Total PHP', 0) or 0)
-            })
+            qty = int(order.get('QTY', 0) or 0)
+            # Only include items with quantity > 0
+            if qty > 0:
+                grouped[order_id]['items'].append({
+                    'product_code': order.get('Product Code', ''),
+                    'product_name': order.get('Product Name', ''),
+                    'order_type': order.get('Order Type', 'Vial'),  # Default to 'Vial' if missing
+                    'qty': qty,
+                    'line_total_php': float(order.get('Line Total PHP', 0) or 0)
+                })
     
     return jsonify(list(grouped.values()))
 
@@ -1749,13 +1758,16 @@ def api_orders():
             }
         
         if order.get('Product Code'):
-            grouped[order_id]['items'].append({
-                'product_code': order.get('Product Code', ''),
-                'product_name': order.get('Product Name', ''),
-                'order_type': order.get('Order Type', ''),
-                'qty': int(order.get('QTY', 0) or 0),
-                'line_total_php': float(order.get('Line Total PHP', 0) or 0)
-            })
+            qty = int(order.get('QTY', 0) or 0)
+            # Only include items with quantity > 0
+            if qty > 0:
+                grouped[order_id]['items'].append({
+                    'product_code': order.get('Product Code', ''),
+                    'product_name': order.get('Product Name', ''),
+                    'order_type': order.get('Order Type', ''),
+                    'qty': qty,
+                    'line_total_php': float(order.get('Line Total PHP', 0) or 0)
+                })
     
     return jsonify(list(grouped.values()))
 
@@ -2181,6 +2193,13 @@ def api_add_items(order_id=None):
                 'success': False,
                 'error': 'Failed to add items to order. Please try again.'
             }), 500
+        
+        # Clean up any 0-quantity rows for this order
+        try:
+            cleanup_zero_quantity_rows(order_id)
+        except Exception as e:
+            print(f"⚠️ Warning: Failed to cleanup zero-quantity rows: {e}")
+            # Don't fail the request if cleanup fails
         
         # Recalculate and return updated order
         try:

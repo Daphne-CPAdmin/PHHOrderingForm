@@ -1960,6 +1960,7 @@
         let cartItems = [];
         let currentOrderId = null;
         let paymentFile = null;
+        let removedItems = []; // Track items removed from existing orders (for backend deletion)
 
         // DOM Elements
         const productSearch = document.getElementById('product-search');
@@ -2596,9 +2597,28 @@
         }
 
         function removeItem(index) {
+            if (index < 0 || index >= cartItems.length) {
+                console.error('Invalid index for removeItem:', index);
+                return;
+            }
+            
+            const item = cartItems[index];
+            
+            // If removing an existing item, track it for backend deletion
+            if (item && item.isExisting === true && item.originalQty !== undefined && item.originalQty > 0) {
+                removedItems.push({
+                    product_code: item.product_code,
+                    product_name: item.product_name,
+                    order_type: item.order_type,
+                    qty: 0, // Mark for deletion
+                    originalQty: item.originalQty
+                });
+            }
+            
             cartItems.splice(index, 1);
             updateCart();
             saveCart();
+            updateSubmitButtonText(); // Update button state when items are removed
         }
         
         // Expose removeItem to global scope for onclick handlers
@@ -2646,17 +2666,29 @@
                 item.isUpdated = false;
             }
             
-            // If quantity is 0, remove item
+            // If quantity is 0, handle removal
             if (newQty === 0) {
+                // If this was an existing item, track it for backend deletion
+                if (item.isExisting === true && originalQty > 0) {
+                    // Store removed item info for backend deletion
+                    removedItems.push({
+                        product_code: item.product_code,
+                        product_name: item.product_name,
+                        order_type: item.order_type,
+                        qty: 0, // Mark for deletion
+                        originalQty: originalQty // Keep track of what was removed
+                    });
+                }
                 cartItems.splice(index, 1);
                 showToast(`✅ ${item.product_name} removed from cart`, 3000);
             } else {
                 showToast(newQty > originalQty ? `✅ ${item.product_name} quantity increased to ${newQty}` : `✅ ${item.product_name} quantity decreased to ${newQty}`, 3000);
             }
             
-            // Update cart display
+            // Update cart display and button state
             updateCart();
             saveCart();
+            updateSubmitButtonText(); // Update button state when items change
         }
         
         // Expose to global scope for inline onclick handlers (backup)
@@ -2666,7 +2698,7 @@
         let customerLookupTimeout = null;
         let existingCustomerOrders = [];
         
-        // Function to update submit button text based on existing order
+        // Function to update submit button text and state based on existing order
         function updateSubmitButtonText() {
             const submitBtn = document.getElementById('submit-order');
             const existingButtons = document.getElementById('existing-order-buttons');
@@ -2678,7 +2710,13 @@
             // Check if there's a pending order
             const pendingOrder = existingCustomerOrders.find(o => o.status !== 'Cancelled' && !o.locked);
             
-            if (pendingOrder && cartItems.length > 0) {
+            // Check if there are any changes (new items, updates, or removals)
+            const hasNewItems = cartItems.some(item => item.isExisting !== true);
+            const hasUpdatedItems = cartItems.some(item => item.isUpdated === true);
+            const hasRemovals = removedItems.length > 0;
+            const hasChanges = hasNewItems || hasUpdatedItems || hasRemovals;
+            
+            if (pendingOrder && (cartItems.length > 0 || hasRemovals)) {
                 // Show existing order buttons, hide submit button
                 submitBtn.style.display = 'none';
                 if (existingButtons) existingButtons.style.display = 'flex';
@@ -2694,7 +2732,13 @@
                 
                 // Set up update order button (same as submit)
                 if (updateOrderBtn) {
+                    // Enable/disable update button based on whether there are changes
+                    updateOrderBtn.disabled = !hasChanges;
                     updateOrderBtn.onclick = () => {
+                        if (!hasChanges) {
+                            showToast('❌ No changes detected. Please add, update, or remove items before updating.', 3000);
+                            return;
+                        }
                         // Trigger the submit order click handler
                         const submitBtnClick = document.getElementById('submit-order');
                         if (submitBtnClick && submitBtnClick.onclick) {
@@ -2709,6 +2753,8 @@
                 // Show submit button, hide existing order buttons
                 submitBtn.style.display = 'block';
                 submitBtn.textContent = 'Submit Order';
+                // Enable submit button if cart has items
+                submitBtn.disabled = cartItems.length === 0;
                 if (existingButtons) existingButtons.style.display = 'none';
             }
         }
@@ -2725,6 +2771,7 @@
                 if (!telegram || !fullName) {
                     currentOrderId = null;
                     cartItems = [];
+                    removedItems = []; // Clear removed items tracking
                     updateCart();
                     saveCart();
                     updateSubmitButtonText();
@@ -2753,8 +2800,17 @@
                             // Store pending order ID for button text
                             currentOrderId = pendingOrder.order_id;
                             
+                            // Clear removed items tracking when loading fresh order
+                            removedItems = [];
+                            
+                            // Filter out items with 0 quantity before populating cart
+                            const validItems = pendingOrder.items.filter(item => {
+                                const qty = parseFloat(item.qty) || 0;
+                                return qty > 0;
+                            });
+                            
                             // Populate cart with existing order items (marked as existing)
-                            cartItems = pendingOrder.items.map(item => {
+                            cartItems = validItems.map(item => {
                                 // Ensure we have all required fields with proper defaults
                                 const qty = parseFloat(item.qty) || 1;
                                 
@@ -2812,6 +2868,7 @@
                             // No pending order, clear cart and reset order ID
                             currentOrderId = null;
                             cartItems = [];
+                            removedItems = []; // Clear removed items tracking
                             updateCart();
                             saveCart();
                         }
@@ -2825,6 +2882,7 @@
                         console.log('No orders found for', telegram);
                         currentOrderId = null;
                         cartItems = [];
+                        removedItems = []; // Clear removed items tracking
                         updateCart();
                         saveCart();
                         updateSubmitButtonText();
@@ -3052,15 +3110,20 @@
                     // Update existing order - add items to it (no notification yet)
                     btn.textContent = 'Updating...';
                     
-                    // Only send NEW/UPDATED items (not unchanged existing ones) to avoid duplication
-                    // Include items that are new OR have been updated (quantity changed)
+                    // Collect all items to send:
+                    // 1. NEW/UPDATED items (items that are new OR have been updated with qty > 0)
+                    // 2. REMOVED items (original items that were reduced to 0 - send with qty 0 for deletion)
                     const newItems = cartItems.filter(item => {
                         // Include if: not existing, or is updated (quantity changed from original)
                         return (item.isExisting !== true || item.isUpdated === true) && item.qty > 0;
                     });
                     
-                    if (newItems.length === 0) {
-                        showToast('❌ Please add new items or update quantities before submitting', 3000);
+                    // Combine new/updated items with removed items (for backend deletion)
+                    const itemsToSend = [...newItems, ...removedItems];
+                    
+                    // Allow submission if there are changes (new items, updates, or removals)
+                    if (itemsToSend.length === 0 && removedItems.length === 0) {
+                        showToast('❌ Please add new items, update quantities, or remove items before submitting', 3000);
                         btn.disabled = false;
                         btn.textContent = 'Confirm & Submit Order';
                         return;
@@ -3070,7 +3133,7 @@
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ 
-                            items: newItems,  // Only send new items
+                            items: itemsToSend,  // Send new items + removed items (qty 0)
                             telegram_username: telegram
                         })
                     });
@@ -3079,6 +3142,9 @@
                     
                     if (result.success) {
                         currentOrderId = pendingOrder.order_id;
+                        
+                        // Clear removed items tracking after successful submission
+                        removedItems = [];
                         
                         // Close confirmation modal
                         closeModal('order-confirmation-modal');
