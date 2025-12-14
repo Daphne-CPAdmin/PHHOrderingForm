@@ -337,6 +337,8 @@
             border-radius: 20px;
             padding: 1.5rem;
             margin-top: 1.5rem;
+            position: relative;
+            z-index: 1;
         }
         
         .orders-summary-title {
@@ -641,7 +643,7 @@
         .btn-full { width: 100%; }
 
         /* Product Dropdown */
-        .product-search-container { position: relative; }
+        .product-search-container { position: relative; z-index: 1000; }
         .product-dropdown {
             position: absolute;
             top: 100%;
@@ -652,9 +654,10 @@
             border-radius: 10px;
             max-height: 420px;
             overflow-y: auto;
-            z-index: 100;
+            z-index: 1001;
             display: none;
             margin-top: 4px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         }
         .product-dropdown.show { display: block; }
         .product-option {
