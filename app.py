@@ -1377,6 +1377,11 @@ def _fetch_products_from_sheets():
         records = worksheet.get_all_records()
         print(f"📋 Found {len(records)} records in Price List tab")
         
+        # Debug: Log available columns if records exist
+        if records:
+            print(f"📋 Available columns in Price List: {list(records[0].keys())}")
+            print(f"📋 Sample record: {records[0]}")
+        
         products = []
         for record in records:
             # Handle different column name variations
@@ -1425,7 +1430,7 @@ def get_products():
     # Try to get from sheet first (with caching)
     try:
         print("🔄 Attempting to load products from Google Sheets...")
-        cached_products = get_cached('products_sheet', _fetch_products_from_sheets, cache_duration=600)  # 10 minutes - products rarely change
+        cached_products = get_cached('products_sheet', _fetch_products_from_sheets, cache_duration=60)  # 1 minute - allow faster updates
         if cached_products and len(cached_products) > 0:
             print(f"✅ Loaded {len(cached_products)} products from Google Sheet")
             return cached_products
