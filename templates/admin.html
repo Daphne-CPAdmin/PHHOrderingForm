@@ -931,25 +931,52 @@
 
         async function loadOrders() {
             try {
+                console.log('📊 Admin: Fetching orders from /api/admin/orders...');
                 const response = await fetch('/api/admin/orders');
+                console.log('📊 Admin: Response status:', response.status, response.statusText);
+                
+                if (!response.ok) {
+                    console.error('📊 Admin: Response not OK:', response.status, response.statusText);
+                    const errorText = await response.text();
+                    console.error('📊 Admin: Error response:', errorText);
+                    return;
+                }
+                
                 const orders = await response.json();
+                console.log('📊 Admin: Received orders:', orders.length, 'orders');
+                console.log('📊 Admin: Orders data:', orders);
+                
+                if (orders.length === 0) {
+                    console.warn('📊 Admin: WARNING - No orders returned from API!');
+                } else {
+                    console.log('📊 Admin: Sample order:', orders[0]);
+                }
+                
                 allOrders = orders;
                 renderOrders(orders);
             } catch (error) {
-                console.error('Error loading orders:', error);
+                console.error('📊 Admin: Error loading orders:', error);
+                console.error('📊 Admin: Error stack:', error.stack);
             }
         }
 
         function renderOrders(orders) {
             const tbody = document.getElementById('orders-tbody');
             
-            if (orders.length === 0) {
+            console.log('📊 Admin: renderOrders called with', orders.length, 'orders');
+            
+            if (!orders || orders.length === 0) {
+                console.warn('📊 Admin: No orders to render');
                 tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; padding: 2rem; color: var(--text-muted);">No orders found</td></tr>';
                 return;
             }
             
             tbody.innerHTML = orders.map(order => {
-                const itemsPreview = order.items.map(i => `${i.product_code} (${i.qty})`).join(', ');
+                // Safety check for items
+                const items = order.items || [];
+                const itemsPreview = items.length > 0 
+                    ? items.map(i => `${i.product_code || 'N/A'} (${i.qty || 0})`).join(', ')
+                    : 'No items';
                 const isPaid = order.payment_status && order.payment_status.toLowerCase() === 'paid';
                 const isLocked = order.locked === true;
                 

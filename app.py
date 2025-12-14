@@ -523,32 +523,75 @@ def _fetch_orders_from_sheets():
         all_values = worksheet.get_all_values()
         if not all_values or len(all_values) <= 1:
             # Empty worksheet or only headers, return empty list
+            print(f"⚠️ Worksheet appears empty or only has headers: {len(all_values) if all_values else 0} rows")
             return []
         
         # Log headers for debugging
         headers = all_values[0] if all_values else []
+        print(f"📋 Sheet headers ({len(headers)}): {headers[:15]}")
+        print(f"📋 Total rows in sheet (including header): {len(all_values)}")
+        
         telegram_col_index = None
+        order_id_col_index = None
         for i, header in enumerate(headers):
-            if 'telegram' in header.lower():
+            header_lower = str(header).lower().strip()
+            if 'telegram' in header_lower:
                 telegram_col_index = i
                 print(f"📋 Found Telegram column at index {i}: '{header}'")
+            if 'order id' in header_lower or 'orderid' in header_lower:
+                order_id_col_index = i
+                print(f"📋 Found Order ID column at index {i}: '{header}'")
+        
+        # Debug: Show sample raw data rows
+        if len(all_values) > 1:
+            print(f"📋 Sample raw data rows (first 3 data rows):")
+            for i in range(1, min(4, len(all_values))):
+                row = all_values[i]
+                if order_id_col_index is not None and len(row) > order_id_col_index:
+                    print(f"  Row {i+1}: Order ID='{row[order_id_col_index] if len(row) > order_id_col_index else 'N/A'}', Telegram='{row[telegram_col_index] if telegram_col_index is not None and len(row) > telegram_col_index else 'N/A'}'")
         
         records = worksheet.get_all_records()
         # Ensure we return a list
         if not isinstance(records, list):
+            print(f"⚠️ get_all_records() did not return a list, got: {type(records)}")
             return []
+        
+        print(f"📋 get_all_records() returned {len(records)} records")
+        
+        # Verify records match expected count (should be all_values - 1 for header)
+        expected_count = len(all_values) - 1
+        if len(records) != expected_count:
+            print(f"⚠️ WARNING: Record count mismatch! Expected {expected_count} records (from {len(all_values)} rows - 1 header), but got {len(records)}")
         
         # Debug: Log first record's keys to see what columns are available
         if records and len(records) > 0:
             first_record_keys = list(records[0].keys())
-            print(f"📋 Available columns in records: {first_record_keys}")
+            print(f"📋 Available columns in records ({len(first_record_keys)}): {first_record_keys}")
+            
+            # Check for Order ID column
+            order_id_keys = [k for k in first_record_keys if 'order' in k.lower() and 'id' in k.lower()]
+            if order_id_keys:
+                print(f"📋 Order ID-related columns found: {order_id_keys}")
+                # Show sample Order IDs
+                for i, record in enumerate(records[:5]):
+                    for oid_key in order_id_keys:
+                        value = record.get(oid_key, None)
+                        if value:
+                            print(f"📋 Record {i+1} Order ID [{oid_key}]: {repr(str(value))}")
+                            break
+            
             telegram_keys = [k for k in first_record_keys if 'telegram' in k.lower()]
             if telegram_keys:
                 print(f"📋 Telegram-related columns found: {telegram_keys}")
-                # Log sample telegram values
-                sample_telegrams = [str(r.get(telegram_keys[0], ''))[:50] for r in records[:5] if r.get(telegram_keys[0])]
-                if sample_telegrams:
-                    print(f"📋 Sample telegram values: {sample_telegrams}")
+                # Log sample telegram values with their exact representation
+                for i, record in enumerate(records[:10]):
+                    for tg_key in telegram_keys:
+                        value = record.get(tg_key, None)
+                        if value is not None:
+                            value_repr = repr(str(value))  # Show exact string representation including whitespace
+                            order_id_val = record.get(order_id_keys[0] if order_id_keys else 'Order ID', 'N/A')
+                            print(f"📋 Record {i+1} [Order: {order_id_val}] [{tg_key}]: {value_repr} (type: {type(value).__name__})")
+                            break  # Only log first telegram column found
         
         return records
     except IndexError as e:
@@ -1743,63 +1786,107 @@ def api_orders_lookup():
     print(f"🔍 Looking up orders for telegram: '{telegram}' (normalized: '{telegram_normalized}')")
     print(f"📊 Total orders in cache: {len(orders)}")
     
+    # Debug: Show sample of what's in the cache
+    if orders and len(orders) > 0:
+        print(f"📋 First order sample keys: {list(orders[0].keys())[:10]}")
+        # Check if first order has Order ID
+        first_order_id = orders[0].get('Order ID', None)
+        print(f"📋 First order Order ID: {repr(first_order_id)}")
+    
     # Group by Order ID and filter by telegram
     grouped = {}
     matched_count = 0
+    checked_count = 0
     
     for order in orders:
         order_id = order.get('Order ID', '')
         if not order_id:
             continue
         
+        checked_count += 1
+        
         # Try multiple possible column name variations (case-insensitive, handle whitespace)
         # Also check all keys that contain 'telegram' (case-insensitive)
         order_telegram_raw = None
+        telegram_key_found = None
         for key in order.keys():
             if 'telegram' in key.lower():
                 value = order.get(key, '')
-                if value and str(value).strip():
-                    order_telegram_raw = value
-                    break
+                # Check if value exists and is not empty (even if it's just whitespace, we want to see it)
+                if value is not None:
+                    value_str = str(value).strip()
+                    if value_str:  # Only use if non-empty after stripping
+                        order_telegram_raw = value
+                        telegram_key_found = key
+                        break
+                    elif value_str == '' and order_telegram_raw is None:
+                        # Store empty string if we haven't found anything yet (for debugging)
+                        order_telegram_raw = value_str
+                        telegram_key_found = key
         
         # Fallback to common variations if not found
-        if not order_telegram_raw:
-            order_telegram_raw = (
-                order.get('Telegram Username', '') or 
-                order.get('telegram username', '') or 
-                order.get('Telegram Username ', '') or  # Extra space
-                order.get('TelegramUsername', '') or
-                ''
-            )
+        if order_telegram_raw is None:
+            for fallback_key in ['Telegram Username', 'telegram username', 'Telegram Username ', 'TelegramUsername']:
+                value = order.get(fallback_key, None)
+                if value is not None:
+                    value_str = str(value).strip()
+                    if value_str:
+                        order_telegram_raw = value
+                        telegram_key_found = fallback_key
+                        break
         
-        order_telegram = str(order_telegram_raw).lower().strip()
+        # Default to empty string if still not found
+        if order_telegram_raw is None:
+            order_telegram_raw = ''
+        
+        # Convert to string and normalize
+        order_telegram_str = str(order_telegram_raw) if order_telegram_raw is not None else ''
+        order_telegram = order_telegram_str.lower().strip()
         order_telegram_normalized = order_telegram.lstrip('@')
         
-        # Debug: Log first few orders for troubleshooting
-        if matched_count < 3:
-            print(f"  Order {order_id}: telegram='{order_telegram_raw}' (normalized: '{order_telegram_normalized}')")
+        # Debug: Log ALL orders for troubleshooting (limit to first 10 to avoid spam)
+        if checked_count <= 10:
+            print(f"  [{checked_count}] Order {order_id}: key='{telegram_key_found}', raw='{repr(order_telegram_raw)}', normalized='{order_telegram_normalized}'")
+            print(f"      Comparing: search='{telegram_normalized}' vs order='{order_telegram_normalized}'")
         
         # Match telegram with or without @ symbol (exact match after normalization)
         matches = False
         if telegram_normalized and order_telegram_normalized:
-            # Try exact match first
+            # Try exact match first (case-insensitive, whitespace trimmed)
             if telegram_normalized == order_telegram_normalized:
                 matches = True
                 matched_count += 1
+                print(f"  ✅ MATCH! Order {order_id}: '{telegram_normalized}' == '{order_telegram_normalized}'")
             # Fallback to substring match for flexibility (user input contained in order telegram)
             elif telegram_normalized in order_telegram_normalized:
                 matches = True
                 matched_count += 1
+                print(f"  ✅ MATCH (substring)! Order {order_id}: '{telegram_normalized}' in '{order_telegram_normalized}'")
+        elif checked_count <= 10:
+            # Log why it didn't match (only for first 10 to avoid spam)
+            if not telegram_normalized:
+                print(f"      ⚠️ No match: search telegram is empty")
+            elif not order_telegram_normalized:
+                print(f"      ⚠️ No match: order telegram is empty")
+            else:
+                print(f"      ⚠️ No match: '{telegram_normalized}' != '{order_telegram_normalized}'")
         
         if not matches:
             continue
             
         if order_id not in grouped:
+            # Use the dynamically found telegram value instead of hardcoded column name
+            telegram_value_for_result = order_telegram_raw if order_telegram_raw else (
+                order.get('Telegram Username', '') or 
+                order.get('telegram username', '') or 
+                ''
+            )
+            
             grouped[order_id] = {
                 'order_id': order_id,
                 'order_date': order.get('Order Date', ''),
                 'full_name': order.get('Name', order.get('Full Name', '')),
-                'telegram': order.get('Telegram Username', ''),
+                'telegram': telegram_value_for_result,
                 'grand_total_php': float(order.get('Grand Total PHP', 0) or 0),
                 'status': order.get('Order Status', 'Pending'),
                 'payment_status': order.get('Payment Status', order.get('Confirmed Paid?', 'Unpaid')),
@@ -1831,39 +1918,76 @@ def api_orders_lookup():
         orders = get_cached('orders', _fetch_orders_from_sheets, cache_duration=30)
         print(f"📊 Retry: Total orders after cache clear: {len(orders)}")
         
-        # Retry the lookup
+        # Retry the lookup with improved column detection
         grouped = {}
+        retry_matched_count = 0
+        retry_checked_count = 0
+        
         for order in orders:
             order_id = order.get('Order ID', '')
             if not order_id:
                 continue
             
-            order_telegram_raw = (
-                order.get('Telegram Username', '') or 
-                order.get('telegram username', '') or 
-                order.get('Telegram Username ', '') or
-                order.get('TelegramUsername', '') or
-                ''
-            )
+            retry_checked_count += 1
+            
+            # Use same improved column lookup as main loop
+            order_telegram_raw = None
+            telegram_key_found = None
+            for key in order.keys():
+                if 'telegram' in key.lower():
+                    value = order.get(key, '')
+                    if value is not None:
+                        value_str = str(value).strip()
+                        if value_str:
+                            order_telegram_raw = value
+                            telegram_key_found = key
+                            break
+            
+            if order_telegram_raw is None:
+                for fallback_key in ['Telegram Username', 'telegram username', 'Telegram Username ', 'TelegramUsername']:
+                    value = order.get(fallback_key, None)
+                    if value is not None:
+                        value_str = str(value).strip()
+                        if value_str:
+                            order_telegram_raw = value
+                            telegram_key_found = fallback_key
+                            break
+            
+            if order_telegram_raw is None:
+                order_telegram_raw = ''
+            
             order_telegram = str(order_telegram_raw).lower().strip()
             order_telegram_normalized = order_telegram.lstrip('@')
+            
+            if retry_checked_count <= 5:
+                print(f"  [RETRY {retry_checked_count}] Order {order_id}: key='{telegram_key_found}', telegram='{order_telegram_raw}' (normalized: '{order_telegram_normalized}')")
             
             matches = False
             if telegram_normalized and order_telegram_normalized:
                 if telegram_normalized == order_telegram_normalized:
                     matches = True
+                    retry_matched_count += 1
+                    print(f"  ✅ RETRY MATCH! Order {order_id}: '{telegram_normalized}' == '{order_telegram_normalized}'")
                 elif telegram_normalized in order_telegram_normalized:
                     matches = True
+                    retry_matched_count += 1
+                    print(f"  ✅ RETRY MATCH (substring)! Order {order_id}: '{telegram_normalized}' in '{order_telegram_normalized}'")
             
             if not matches:
                 continue
                 
             if order_id not in grouped:
+                telegram_value_for_result = order_telegram_raw if order_telegram_raw else (
+                    order.get('Telegram Username', '') or 
+                    order.get('telegram username', '') or 
+                    ''
+                )
+                
                 grouped[order_id] = {
                     'order_id': order_id,
                     'order_date': order.get('Order Date', ''),
                     'full_name': order.get('Name', order.get('Full Name', '')),
-                    'telegram': order.get('Telegram Username', ''),
+                    'telegram': telegram_value_for_result,
                     'grand_total_php': float(order.get('Grand Total PHP', 0) or 0),
                     'status': order.get('Order Status', 'Pending'),
                     'payment_status': order.get('Payment Status', order.get('Confirmed Paid?', 'Unpaid')),
@@ -1885,7 +2009,7 @@ def api_orders_lookup():
                     })
         
         result = list(grouped.values())
-        print(f"✅ Retry result: Found {len(result)} matching orders")
+        print(f"✅ Retry result: Found {len(result)} matching orders ({retry_matched_count} matches)")
     
     return jsonify(result)
 
@@ -3301,31 +3425,84 @@ def api_admin_orders():
     
     print(f"📊 Admin panel: Loaded {len(orders)} raw order records from sheets")
     
+    # Debug: Show first few records to understand structure
+    if orders and len(orders) > 0:
+        print(f"📋 First record keys: {list(orders[0].keys())[:15]}")
+        first_order_id = orders[0].get('Order ID', None)
+        print(f"📋 First record Order ID: {repr(first_order_id)}")
+        first_product_code = orders[0].get('Product Code', None)
+        print(f"📋 First record Product Code: {repr(first_product_code)}")
+    
     # Group by Order ID with full details
     grouped = {}
+    orders_without_id = 0
+    orders_processed = 0
+    
     for order in orders:
-        order_id = order.get('Order ID', '')
+        # Find Order ID column dynamically (handle variations)
+        order_id = None
+        order_id_key_found = None
+        for key in order.keys():
+            if 'order' in key.lower() and 'id' in key.lower():
+                value = order.get(key, None)
+                if value is not None:
+                    value_str = str(value).strip()
+                    if value_str:  # Only use if non-empty
+                        order_id = value_str
+                        order_id_key_found = key
+                        break
+        
+        # Fallback to common variations
         if not order_id:
+            for fallback_key in ['Order ID', 'order id', 'OrderID', 'Order Id']:
+                value = order.get(fallback_key, None)
+                if value is not None:
+                    value_str = str(value).strip()
+                    if value_str:
+                        order_id = value_str
+                        order_id_key_found = fallback_key
+                        break
+        
+        if not order_id or not str(order_id).strip():
+            orders_without_id += 1
+            if orders_without_id <= 3:
+                print(f"⚠️ Skipping record without Order ID: keys={list(order.keys())[:5]}")
             continue
+        
+        orders_processed += 1
         
         # Find telegram column dynamically (handle variations)
         telegram_value = None
+        telegram_key_found = None
         for key in order.keys():
             if 'telegram' in key.lower():
-                telegram_value = order.get(key, '')
-                if telegram_value:
-                    break
+                value = order.get(key, None)
+                if value is not None:
+                    value_str = str(value).strip()
+                    if value_str:  # Only use if non-empty
+                        telegram_value = value
+                        telegram_key_found = key
+                        break
         
-        # Fallback to common variations
-        if not telegram_value:
-            telegram_value = (
-                order.get('Telegram Username', '') or 
-                order.get('telegram username', '') or 
-                order.get('Telegram Username ', '') or
-                order.get('TelegramUsername', '') or
-                ''
-            )
-            
+        # Fallback to common variations if not found
+        if telegram_value is None:
+            for fallback_key in ['Telegram Username', 'telegram username', 'Telegram Username ', 'TelegramUsername']:
+                value = order.get(fallback_key, None)
+                if value is not None:
+                    value_str = str(value).strip()
+                    if value_str:
+                        telegram_value = value
+                        telegram_key_found = fallback_key
+                        break
+        
+        # Default to empty string if still not found
+        if telegram_value is None:
+            telegram_value = ''
+        
+        # Debug: Log first few orders being processed
+        if orders_processed <= 5:
+            print(f"  [{orders_processed}] Processing Order {order_id}: telegram_key='{telegram_key_found}', telegram='{telegram_value}'")
+        
         if order_id not in grouped:
             grouped[order_id] = {
                 'order_id': order_id,
@@ -3342,27 +3519,39 @@ def api_admin_orders():
                 'items': []
             }
         
-        if order.get('Product Code'):
+        # Add items (only if Product Code exists)
+        product_code = order.get('Product Code', '')
+        if product_code and str(product_code).strip():
+            qty = int(order.get('QTY', 0) or 0)
+            # Include all items, even with qty 0 (admin should see everything)
             grouped[order_id]['items'].append({
-                'product_code': order.get('Product Code', ''),
+                'product_code': product_code,
                 'product_name': order.get('Product Name', ''),
                 'order_type': order.get('Order Type', ''),
-                'qty': int(order.get('QTY', 0) or 0),
+                'qty': qty,
                 'unit_price_usd': float(order.get('Unit Price USD', 0) or 0),
                 'line_total_php': float(order.get('Line Total PHP', 0) or 0)
             })
     
+    print(f"📊 Admin panel: Processed {orders_processed} records with Order IDs, {orders_without_id} without Order IDs")
     print(f"📊 Admin panel: Grouped into {len(grouped)} unique orders")
     
-    # Debug: Log sample orders
+    # Debug: Log ALL orders (not just samples) to see what's being returned
     if grouped:
-        sample_order_ids = list(grouped.keys())[:3]
-        for oid in sample_order_ids:
-            order = grouped[oid]
-            print(f"  Sample order {oid}: telegram='{order['telegram']}', items={len(order['items'])}")
+        print(f"📋 All grouped orders:")
+        for oid, order_data in grouped.items():
+            print(f"  Order {oid}: name='{order_data['full_name']}', telegram='{order_data['telegram']}', items={len(order_data['items'])}, status='{order_data['status']}'")
+    else:
+        print(f"⚠️ WARNING: No orders grouped! This means no orders have Order IDs or all were filtered out.")
+        # Debug: Show what we have
+        if orders:
+            print(f"📋 Sample raw records (first 3):")
+            for i, order in enumerate(orders[:3]):
+                print(f"  Record {i+1}: {dict(list(order.items())[:8])}")
     
     # Sort by date (newest first)
-    sorted_orders = sorted(grouped.values(), key=lambda x: x['order_date'], reverse=True)
+    sorted_orders = sorted(grouped.values(), key=lambda x: x.get('order_date', '') or '', reverse=True)
+    print(f"📊 Admin panel: Returning {len(sorted_orders)} orders to frontend")
     return jsonify(sorted_orders)
 
 @app.route('/api/admin/orders/<order_id>/confirm-payment', methods=['POST'])
