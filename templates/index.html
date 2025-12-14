@@ -2352,25 +2352,48 @@
             if (existingItems.length > 0 && existingSection && existingList) {
                 existingSection.style.display = 'block';
                 existingList.innerHTML = existingItems.map((item, i) => {
-                    const index = cartItems.indexOf(item);
+                    // Find the actual index in cartItems array
+                    const index = cartItems.findIndex(cartItem => 
+                        cartItem.product_code === item.product_code && 
+                        cartItem.order_type === item.order_type &&
+                        cartItem.isExisting === true
+                    );
+                    // Fallback to indexOf if findIndex doesn't work
+                    const actualIndex = index >= 0 ? index : cartItems.indexOf(item);
+                    const itemId = `${item.product_code}-${item.order_type}-existing`;
                     return `
-                        <div class="cart-item" style="opacity: 0.85; border-left: 3px solid var(--accent-amber);">
+                        <div class="cart-item" style="opacity: 0.85; border-left: 3px solid var(--accent-amber);" data-item-index="${actualIndex}">
                             <div class="cart-item-header">
                                 <span class="cart-item-name">${item.product_name}</span>
                                 <span class="cart-item-code">${item.product_code}</span>
                             </div>
                             <div class="cart-item-details" style="display: flex; align-items: center; gap: 0.75rem;">
-                                <span style="flex: 1;">${item.order_type} × <span id="existing-qty-${index}">${item.qty}</span></span>
+                                <span style="flex: 1;">${item.order_type} × <span id="existing-qty-${actualIndex}">${item.qty}</span></span>
                                 <div style="display: flex; align-items: center; gap: 0.5rem; background: var(--bg-input); border-radius: 8px; padding: 0.25rem;">
-                                    <button onclick="updateExistingItemQty(${index}, -1)" style="width: 28px; height: 28px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--accent-rose); font-size: 1.2rem; font-weight: 600; line-height: 1;">−</button>
-                                    <span id="existing-qty-display-${index}" style="min-width: 30px; text-align: center; font-weight: 600; color: var(--text-primary);">${item.qty}</span>
-                                    <button onclick="updateExistingItemQty(${index}, 1)" style="width: 28px; height: 28px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--accent-teal); font-size: 1.2rem; font-weight: 600; line-height: 1;">+</button>
+                                    <button type="button" class="qty-btn-minus" data-index="${actualIndex}" data-action="decrease" style="width: 28px; height: 28px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--accent-rose); font-size: 1.2rem; font-weight: 600; line-height: 1; pointer-events: auto; z-index: 10; position: relative;">−</button>
+                                    <span id="existing-qty-display-${actualIndex}" style="min-width: 30px; text-align: center; font-weight: 600; color: var(--text-primary);">${item.qty}</span>
+                                    <button type="button" class="qty-btn-plus" data-index="${actualIndex}" data-action="increase" style="width: 28px; height: 28px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--accent-teal); font-size: 1.2rem; font-weight: 600; line-height: 1; pointer-events: auto; z-index: 10; position: relative;">+</button>
                                 </div>
-                                <span class="cart-item-price">₱<span id="existing-price-${index}">${(item.line_total_php || 0).toFixed(2)}</span></span>
+                                <span class="cart-item-price">₱<span id="existing-price-${actualIndex}">${(item.line_total_php || 0).toFixed(2)}</span></span>
                             </div>
                         </div>
                     `;
                 }).join('');
+                
+                // Attach event listeners using event delegation
+                if (existingList) {
+                    existingList.addEventListener('click', function(e) {
+                        const btn = e.target.closest('.qty-btn-minus, .qty-btn-plus');
+                        if (btn) {
+                            const index = parseInt(btn.getAttribute('data-index'));
+                            const action = btn.getAttribute('data-action');
+                            if (!isNaN(index) && index >= 0 && index < cartItems.length) {
+                                const change = action === 'increase' ? 1 : -1;
+                                updateExistingItemQty(index, change);
+                            }
+                        }
+                    });
+                }
             } else {
                 if (existingSection) existingSection.style.display = 'none';
             }
