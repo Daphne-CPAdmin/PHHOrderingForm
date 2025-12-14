@@ -3181,6 +3181,9 @@
         function showFinalizeOrderModal(orderId) {
             pendingFinalizeOrderId = orderId;
             
+            // Store order data for later use
+            let currentOrderData = null;
+            
             // Fetch updated order details (with cache busting to get fresh data)
             fetch(`/api/orders/${orderId}?t=${Date.now()}`)
                 .then(response => {
@@ -3190,6 +3193,8 @@
                     return response.json();
                 })
                 .then(order => {
+                    currentOrderData = order; // Store order data
+                    
                     const summaryEl = document.getElementById('finalize-order-summary');
                     if (!summaryEl) {
                         console.error('finalize-order-summary element not found');
@@ -3343,18 +3348,29 @@
             if (newQty === 0) {
                 // Remove item if quantity becomes 0
                 finalizeOrderItems.splice(index, 1);
-                // Re-render the entire summary
-                const order = {
-                    order_id: document.querySelector('.finalize-item-row') ? document.querySelector('.finalize-item-row').closest('#finalize-order-summary').querySelector('[style*="font-family"]').textContent : '',
-                    order_date: '',
-                    full_name: '',
-                    telegram: '',
-                    status: 'Pending',
-                    payment_status: 'Unpaid'
-                };
-                const summaryEl = document.getElementById('finalize-order-summary');
-                if (summaryEl) {
-                    renderFinalizeOrderSummary(order, summaryEl);
+                
+                // If no items left, show message
+                if (finalizeOrderItems.length === 0) {
+                    const summaryEl = document.getElementById('finalize-order-summary');
+                    if (summaryEl) {
+                        summaryEl.innerHTML = '<p style="color: var(--accent-rose); text-align: center; padding: 2rem;">No items remaining. Please add items before finalizing.</p>';
+                    }
+                    return;
+                }
+                
+                // Re-render the entire summary - fetch order data again
+                if (pendingFinalizeOrderId) {
+                    fetch(`/api/orders/${pendingFinalizeOrderId}?t=${Date.now()}`)
+                        .then(response => response.json())
+                        .then(order => {
+                            const summaryEl = document.getElementById('finalize-order-summary');
+                            if (summaryEl) {
+                                renderFinalizeOrderSummary(order, summaryEl);
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error re-fetching order:', error);
+                        });
                 }
                 return;
             }
