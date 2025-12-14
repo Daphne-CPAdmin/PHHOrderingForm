@@ -661,6 +661,7 @@
             try {
                 const response = await fetch('/api/admin/login', {
                     method: 'POST',
+                    credentials: 'same-origin',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ password })
                 });
@@ -685,6 +686,25 @@
             }
         }
 
+        // Boot: if session is already authenticated, show admin content and load data.
+        async function bootAdmin() {
+            try {
+                const resp = await fetch('/api/admin/whoami', { credentials: 'same-origin' });
+                const data = await resp.json();
+                if (data && data.is_admin) {
+                    isLoggedIn = true;
+                    document.getElementById('login-section').style.display = 'none';
+                    document.getElementById('admin-content').classList.add('show');
+                    loadProducts();
+                    loadOrders();
+                    loadOrderFormStatus();
+                    loadOrderGoal();
+                }
+            } catch (e) {
+                // If this fails, user can still log in manually.
+            }
+        }
+
         // Enter key for login
         document.getElementById('admin-password').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') login();
@@ -695,7 +715,7 @@
 
         async function loadOrderFormStatus() {
             try {
-                const response = await fetch('/api/admin/order-form-status');
+                const response = await fetch('/api/admin/order-form-status', { credentials: 'same-origin' });
                 const data = await response.json();
                 orderFormLocked = data.is_locked;
                 updateFormLockUI(data.is_locked, data.message);
@@ -707,7 +727,7 @@
         // Order Goal Functions
         async function loadOrderGoal() {
             try {
-                const response = await fetch('/api/admin/order-goal');
+                const response = await fetch('/api/admin/order-goal', { credentials: 'same-origin' });
                 const data = await response.json();
                 document.getElementById('order-goal-amount').value = data.goal || 1000;
             } catch (error) {
@@ -730,6 +750,7 @@
             try {
                 const response = await fetch('/api/admin/order-goal', {
                     method: 'POST',
+                    credentials: 'same-origin',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ goal: goalAmount })
                 });
@@ -813,7 +834,7 @@
         // Load Products
         async function loadProducts() {
             try {
-                const response = await fetch('/api/admin/products');
+                const response = await fetch('/api/admin/products', { credentials: 'same-origin' });
                 const products = await response.json();
                 
                 // Update stats
@@ -874,6 +895,7 @@
             try {
                 const response = await fetch('/api/admin/lock-product', {
                     method: 'POST',
+                    credentials: 'same-origin',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ product_code: productCode, is_locked: isLocked })
                 });
@@ -895,6 +917,7 @@
             try {
                 const response = await fetch('/api/admin/lock-product', {
                     method: 'POST',
+                    credentials: 'same-origin',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ product_code: productCode, is_locked: false, max_kits: parseInt(maxKits) })
                 });
@@ -932,7 +955,7 @@
         async function loadOrders() {
             try {
                 console.log('📊 Admin: Fetching orders from /api/admin/orders...');
-                const response = await fetch('/api/admin/orders');
+                const response = await fetch('/api/admin/orders', { credentials: 'same-origin' });
                 console.log('📊 Admin: Response status:', response.status, response.statusText);
                 
                 if (!response.ok) {
@@ -1129,6 +1152,7 @@
             try {
                 const response = await fetch('/api/admin/confirm-payment', {
                     method: 'POST',
+                    credentials: 'same-origin',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ order_id: orderId })
                 });
@@ -1185,6 +1209,7 @@
             try {
                 const response = await fetch(`/api/admin/orders/${orderId}/lock`, {
                     method: 'POST',
+                    credentials: 'same-origin',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ locked: isLocked })
                 });
@@ -1218,6 +1243,7 @@
             try {
                 const response = await fetch('/api/admin/orders/bulk-lock', {
                     method: 'POST',
+                    credentials: 'same-origin',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
                         order_ids: orderIds,
@@ -1246,6 +1272,7 @@
             try {
                 const response = await fetch(`/api/admin/orders/${orderId}/notify-customer`, {
                     method: 'POST',
+                    credentials: 'same-origin',
                     headers: { 'Content-Type': 'application/json' }
                 });
                 
@@ -1272,6 +1299,7 @@
             try {
                 const response = await fetch(`/api/admin/orders/${orderId}/send-reminder`, {
                     method: 'POST',
+                    credentials: 'same-origin',
                     headers: { 'Content-Type': 'application/json' }
                 });
                 
@@ -1316,6 +1344,7 @@
             try {
                 const response = await fetch(`/api/orders/${orderId}/cancel`, {
                     method: 'POST',
+                    credentials: 'same-origin',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
                         telegram_username: telegram 
@@ -1338,6 +1367,9 @@
                 showToast('❌ Error cancelling order - check console');
             }
         }
+
+        // Auto-boot on page load (if session is already logged in)
+        document.addEventListener('DOMContentLoaded', bootAdmin);
     </script>
 </body>
 </html>

@@ -1722,6 +1722,102 @@ def admin_login():
         return jsonify({'success': True})
     return jsonify({'success': False, 'error': 'Invalid password'}), 401
 
+@app.route('/api/admin/whoami')
+def api_admin_whoami():
+    """Return whether the current session is authenticated as admin (used by admin UI bootstrapping)."""
+    return jsonify({'is_admin': bool(session.get('is_admin'))})
+
+@app.route('/api/admin/debug/orders')
+def api_admin_debug_orders():
+    """
+    Admin-only diagnostic endpoint for troubleshooting why orders are not appearing.
+    Returns sheet/worksheet info plus row/record counts from multiple read methods.
+    """
+    if not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    if not sheets_client:
+        return jsonify({
+            'error': 'Sheets client not initialized',
+            'sheets_configured': False,
+            'google_sheets_id': GOOGLE_SHEETS_ID,
+        }), 500
+
+    try:
+        clear_cache('orders')
+        spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
+        worksheet_titles = [ws.title for ws in spreadsheet.worksheets()]
+
+        pep_title = 'PepHaul Entry'
+        if pep_title not in worksheet_titles:
+            return jsonify({
+                'error': f"Worksheet '{pep_title}' not found",
+                'worksheet_titles': worksheet_titles,
+                'google_sheets_id': GOOGLE_SHEETS_ID,
+            }), 500
+
+        worksheet = spreadsheet.worksheet(pep_title)
+        all_values = worksheet.get_all_values()
+        headers = all_values[0] if all_values else []
+
+        try:
+            records = worksheet.get_all_records()
+            if not isinstance(records, list):
+                records = []
+        except Exception as e:
+            records = []
+            records_error = str(e)
+        else:
+            records_error = None
+
+        # Manual build (same logic as _fetch_orders_from_sheets fallback)
+        manual_records = []
+        if all_values and headers:
+            for row in all_values[1:]:
+                if len(row) < len(headers):
+                    row = row + [''] * (len(headers) - len(row))
+                elif len(row) > len(headers):
+                    row = row[:len(headers)]
+                rec = {headers[i]: (row[i] if i < len(row) and row[i] else '') for i in range(len(headers))}
+                if any(str(v).strip() for v in rec.values()):
+                    manual_records.append(rec)
+
+        # Quick sample
+        def _norm(s):
+            return str(s or '').strip()
+
+        sample = []
+        for rec in (manual_records[:10] or records[:10]):
+            # Try to locate likely columns
+            oid = ''
+            tg = ''
+            pc = ''
+            for k in rec.keys():
+                kl = k.lower()
+                if not oid and ('order' in kl and 'id' in kl):
+                    oid = _norm(rec.get(k))
+                if not tg and ('telegram' in kl):
+                    tg = _norm(rec.get(k))
+                if not pc and ('product' in kl and 'code' in kl):
+                    pc = _norm(rec.get(k))
+            sample.append({'order_id': oid, 'telegram': tg, 'product_code': pc})
+
+        return jsonify({
+            'google_sheets_id': GOOGLE_SHEETS_ID,
+            'worksheet_titles': worksheet_titles,
+            'worksheet_used': pep_title,
+            'all_values_rows_including_header': len(all_values) if all_values else 0,
+            'headers_count': len(headers) if headers else 0,
+            'headers_preview': headers[:25] if headers else [],
+            'get_all_records_count': len(records),
+            'get_all_records_error': records_error,
+            'manual_records_count': len(manual_records),
+            'sample_rows': sample,
+        })
+    except Exception as e:
+        import traceback
+        return jsonify({'error': str(e), 'traceback': traceback.format_exc()}), 500
+
 @app.route('/api/admin/products')
 def api_admin_products():
     """Get products with admin data"""
