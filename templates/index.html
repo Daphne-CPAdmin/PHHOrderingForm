@@ -1416,6 +1416,7 @@
                 <!-- Order Form -->
                 <div class="card">
                     <h2 class="card-title"><span class="icon">📦</span> Customer Order Section</h2>
+                    <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: -0.5rem; margin-bottom: 1.5rem;">💡 Enter your Name and Telegram username and your existing orders will auto-populate in the Order Summary</p>
 
                     <div class="form-row" style="margin-bottom: 1.5rem;">
                         <div class="form-group">
@@ -1425,7 +1426,6 @@
                         <div class="form-group">
                             <label class="form-label">Telegram Username <span style="color: #ef4444;">*</span></label>
                             <input type="text" class="form-input" id="telegram" placeholder="@username (enter to view/update your orders)" required>
-                            <small style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.25rem; display: block;">💡 Enter your Telegram username first and your existing orders will auto-populate below</small>
                             <small style="color: var(--accent-violet); font-size: 0.85rem; margin-top: 0.5rem; display: block; font-weight: 500;">📱 Message @pephaul_bot for GB admin to receive updates from orders</small>
                         </div>
                     </div>
@@ -1919,8 +1919,18 @@
         }
         
         // Check required fields on input
-        if (fullNameInput) fullNameInput.addEventListener('input', checkRequiredFields);
-        if (telegramInput) telegramInput.addEventListener('input', checkRequiredFields);
+        if (fullNameInput) {
+            fullNameInput.addEventListener('input', () => {
+                checkRequiredFields();
+                checkReturningCustomer(); // Also check for existing orders
+            });
+        }
+        if (telegramInput) {
+            telegramInput.addEventListener('input', () => {
+                checkRequiredFields();
+                checkReturningCustomer(); // Also check for existing orders
+            });
+        }
         
         // Initial check
         checkRequiredFields();
@@ -2281,11 +2291,18 @@
         
         function checkReturningCustomer() {
             const telegram = document.getElementById('telegram').value.trim();
+            const fullName = document.getElementById('full-name').value.trim();
             
-            // Need telegram to look up
-            if (!telegram) {
+            // Need both name and telegram to populate orders
+            if (!telegram || !fullName) {
                 hideMyOrdersSection();
                 hideReturningCustomerBanner();
+                // Clear cart if fields are cleared
+                if (!telegram || !fullName) {
+                    cartItems = [];
+                    updateCart();
+                    saveCart();
+                }
                 return;
             }
             
@@ -2302,10 +2319,46 @@
                     
                     if (orders && orders.length > 0) {
                         existingCustomerOrders = orders;
-                        showReturningCustomerBanner(orders);
-                        showMyOrdersSection(orders);
+                        
+                        // Find the most recent pending (non-cancelled, non-locked) order
+                        const pendingOrder = orders.find(o => o.status !== 'Cancelled' && !o.locked);
+                        
+                        if (pendingOrder && pendingOrder.items && pendingOrder.items.length > 0) {
+                            // Populate cart with existing order items
+                            cartItems = pendingOrder.items.map(item => {
+                                // Ensure we have all required fields
+                                const unitPriceUsd = item.unit_price_usd || (item.line_total_usd / (item.qty || 1));
+                                const lineTotalUsd = item.line_total_usd || (unitPriceUsd * (item.qty || 1));
+                                const lineTotalPhp = item.line_total_php || (lineTotalUsd * EXCHANGE_RATE);
+                                
+                                return {
+                                    product_code: item.product_code,
+                                    product_name: item.product_name,
+                                    order_type: item.order_type || 'Vial',
+                                    qty: item.qty || 1,
+                                    unit_price_usd: unitPriceUsd,
+                                    line_total_usd: lineTotalUsd,
+                                    line_total_php: lineTotalPhp
+                                };
+                            });
+                            
+                            updateCart();
+                            saveCart();
+                            showToast(`✅ Loaded ${cartItems.length} item(s) from your existing order`, 3000);
+                        } else {
+                            // No pending order, clear cart
+                            cartItems = [];
+                            updateCart();
+                            saveCart();
+                        }
+                        
+                        hideMyOrdersSection();
+                        hideReturningCustomerBanner();
                     } else {
                         console.log('No orders found for', telegram);
+                        cartItems = [];
+                        updateCart();
+                        saveCart();
                         hideReturningCustomerBanner();
                         hideMyOrdersSection();
                     }
@@ -2430,7 +2483,7 @@
         }
         
         // Add event listeners for customer lookup
-        document.getElementById('telegram').addEventListener('input', checkReturningCustomer);
+        // checkReturningCustomer is now called from the required fields check above
 
         // Submit Order - Show confirmation modal first
         document.getElementById('submit-order').addEventListener('click', () => {
