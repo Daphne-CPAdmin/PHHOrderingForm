@@ -1565,10 +1565,7 @@
                     <!-- Button container for dynamic buttons -->
                     <div id="order-action-buttons" style="margin-top: 1.5rem; display: flex; flex-direction: column; gap: 0.75rem;">
                         <button type="button" class="btn btn-violet btn-full" id="submit-order" disabled>Submit Order</button>
-                        <div id="existing-order-buttons" style="display: none; display: flex; gap: 0.75rem;">
-                            <button type="button" class="btn btn-secondary btn-full" id="view-total-order-btn" style="flex: 1;">View Total Order</button>
-                            <button type="button" class="btn btn-violet btn-full" id="update-order-btn" style="flex: 1;">Update Order</button>
-                        </div>
+                        <button type="button" class="btn btn-violet btn-full" id="update-order-btn" style="display: none;">Update Order</button>
                     </div>
                     {% endif %}
 
@@ -1880,24 +1877,6 @@
         </div>
     </div>
 
-    <!-- Finalize Order Modal -->
-    <div class="modal" id="finalize-order-modal">
-        <div class="modal-content" style="max-width: 600px;">
-            <div class="modal-header">
-                <h3 class="modal-title">Order Details</h3>
-                <button class="modal-close" onclick="closeModal('finalize-order-modal')">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div id="finalize-order-summary">
-                    <!-- Order summary details will be populated here by JavaScript -->
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeModal('finalize-order-modal');">Cancel</button>
-                <button class="btn btn-teal" id="finalize-order-btn" onclick="finalizeOrder()">✅ Finalize Order</button>
-            </div>
-        </div>
-    </div>
 
     <!-- Mailing Address Modal -->
     <div class="modal" id="mailing-address-modal">
@@ -2948,6 +2927,28 @@
             showOrderConfirmationModal();
         });
         
+        // Update Order - Show confirmation modal first
+        const updateOrderBtn = document.getElementById('update-order-btn');
+        if (updateOrderBtn) {
+            updateOrderBtn.addEventListener('click', () => {
+                const fullName = document.getElementById('full-name').value.trim();
+                const telegram = document.getElementById('telegram').value.trim();
+                
+                if (!fullName || !telegram) {
+                    showToast('Please fill in name and telegram username');
+                    return;
+                }
+                
+                if (cartItems.length === 0) {
+                    showToast('Your cart is empty');
+                    return;
+                }
+                
+                // Show confirmation modal (same as submit)
+                showOrderConfirmationModal();
+            });
+        }
+        
         // Show order confirmation modal
         function showOrderConfirmationModal() {
             const modal = document.getElementById('order-confirmation-modal');
@@ -3103,8 +3104,22 @@
                         // Clear removed items tracking (no longer needed since we send all items)
                         removedItems = [];
                         
+                        // Finalize order immediately (send Telegram notification)
+                        const finalizeResponse = await fetch(`/api/orders/${pendingOrder.order_id}/finalize`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' }
+                        });
+                        
+                        const finalizeResult = await finalizeResponse.json();
+                        
                         // Close confirmation modal
                         closeModal('order-confirmation-modal');
+                        
+                        if (finalizeResult.success) {
+                            showToast('✅ Order updated and GB Admin notified!', 5000);
+                        } else {
+                            showToast('✅ Order updated! (Note: Could not notify GB Admin)', 5000);
+                        }
                         
                         // Refresh order lookup immediately to get updated totals
                         if (typeof checkReturningCustomer === 'function') {
@@ -3112,9 +3127,6 @@
                                 checkReturningCustomer();
                             }, 500); // Small delay to ensure backend has processed
                         }
-                        
-                        // Show finalize order modal
-                        showFinalizeOrderModal(pendingOrder.order_id);
                         
                         // Clear cart
                         cartItems = [];
@@ -3175,324 +3187,7 @@
         // Expose to global scope
         window.confirmOrderSubmission = confirmOrderSubmission;
         
-        let pendingFinalizeOrderId = null;
-        let finalizeOrderItems = []; // Store items for editing in finalize modal
-        
-        function showFinalizeOrderModal(orderId) {
-            pendingFinalizeOrderId = orderId;
-            
-            // Store order data for later use
-            let currentOrderData = null;
-            
-            // Fetch updated order details (with cache busting to get fresh data)
-            fetch(`/api/orders/${orderId}?t=${Date.now()}`)
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('Failed to fetch order');
-                    }
-                    return response.json();
-                })
-                .then(order => {
-                    currentOrderData = order; // Store order data
-                    
-                    const summaryEl = document.getElementById('finalize-order-summary');
-                    if (!summaryEl) {
-                        console.error('finalize-order-summary element not found');
-                        showToast('❌ Error: Order summary element not found', 3000);
-                        return;
-                    }
-                    
-                    // Filter out 0 quantity items and store for editing
-                    finalizeOrderItems = order.items
-                        .filter(item => item.qty > 0)
-                        .map(item => ({
-                            ...item,
-                            qty: parseFloat(item.qty) || 0,
-                            unit_price_usd: parseFloat(item.unit_price_usd) || 0,
-                            line_total_usd: parseFloat(item.line_total_usd) || 0,
-                            line_total_php: parseFloat(item.line_total_php) || 0
-                        }));
-                    
-                    if (finalizeOrderItems.length === 0) {
-                        summaryEl.innerHTML = '<p style="color: var(--accent-rose); text-align: center; padding: 2rem;">No items with quantity > 0 in this order. Please add items before finalizing.</p>';
-                        return;
-                    }
-                    
-                    // Render order details with editable quantities
-                    renderFinalizeOrderSummary(order, summaryEl);
-                    
-                    const modal = document.getElementById('finalize-order-modal');
-                    if (modal) {
-                        modal.classList.add('show');
-                    } else {
-                        console.error('finalize-order-modal element not found');
-                        showToast('❌ Error: Order modal not found', 3000);
-                    }
-                })
-                .catch(error => {
-                    console.error('Error fetching order:', error);
-                    showToast('❌ Error loading order details. Please try again.', 3000);
-                });
-        }
-        
-        function renderFinalizeOrderSummary(order, summaryEl) {
-            // Calculate totals from current items
-            const subtotalPhp = finalizeOrderItems.reduce((sum, item) => sum + item.line_total_php, 0);
-            const grandTotalPhp = subtotalPhp + ADMIN_FEE;
-            
-            // Determine status badge
-            const status = order.status || 'Pending';
-            const statusColor = status === 'Finalized' ? 'var(--accent-emerald)' : 'var(--accent-amber)';
-            const statusBg = status === 'Finalized' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)';
-            
-            // Determine payment status
-            const paymentStatus = order.payment_status || 'Unpaid';
-            const paymentColor = paymentStatus.toLowerCase() === 'paid' ? 'var(--accent-emerald)' : 'var(--accent-rose)';
-            const paymentBg = paymentStatus.toLowerCase() === 'paid' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)';
-            
-            summaryEl.innerHTML = `
-                <div style="margin-bottom: 1.5rem;">
-                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.5rem;">
-                        <div>
-                            <div style="font-family: 'JetBrains Mono', monospace; color: var(--accent-primary); font-size: 1.1rem; font-weight: 700; margin-bottom: 0.25rem;">${order.order_id}</div>
-                            <div style="color: var(--text-muted); font-size: 0.85rem;">${order.order_date}</div>
-                        </div>
-                        <div style="display: inline-block; padding: 0.35rem 0.85rem; border-radius: 20px; font-size: 0.75rem; font-weight: 700; background: ${statusBg}; color: ${statusColor};">${status}</div>
-                    </div>
-                    <div style="margin-top: 0.75rem;">
-                        <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.25rem;">${order.full_name || 'N/A'}</div>
-                        <div style="color: var(--text-muted); font-size: 0.9rem;">📱 ${order.telegram || 'N/A'}</div>
-                    </div>
-                </div>
-                
-                <div style="margin-bottom: 1.5rem;">
-                    <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.75rem; font-size: 1rem;">Items:</div>
-                    <div id="finalize-items-list">
-                        ${finalizeOrderItems.map((item, index) => `
-                            <div class="finalize-item-row" data-index="${index}" style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 0; border-bottom: 1px solid var(--border);">
-                                <div style="flex: 1;">
-                                    <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.25rem;">${item.product_name}</div>
-                                    <div style="display: flex; align-items: center; gap: 0.75rem;">
-                                        <span style="color: var(--text-secondary); font-size: 0.9rem;">${item.order_type} ×</span>
-                                        <div style="display: flex; align-items: center; gap: 0.5rem; background: var(--bg-input); border-radius: 8px; padding: 0.25rem;">
-                                            <button type="button" class="finalize-qty-btn-minus" data-index="${index}" style="width: 28px; height: 28px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--accent-rose); font-size: 1.2rem; font-weight: 600; line-height: 1;">−</button>
-                                            <span class="finalize-qty-display-${index}" style="min-width: 30px; text-align: center; font-weight: 600; color: var(--text-primary);">${item.qty}</span>
-                                            <button type="button" class="finalize-qty-btn-plus" data-index="${index}" style="width: 28px; height: 28px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--accent-teal); font-size: 1.2rem; font-weight: 600; line-height: 1;">+</button>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div style="text-align: right;">
-                                    <div class="finalize-item-price-${index}" style="font-weight: 600; color: var(--text-primary);">₱${item.line_total_php.toFixed(2)}</div>
-                                </div>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-                
-                <div style="border-top: 2px solid var(--border); padding-top: 1rem; margin-top: 1rem;">
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-                        <span style="color: var(--text-secondary);">Subtotal (PHP):</span>
-                        <span class="finalize-subtotal" style="font-weight: 600;">₱${subtotalPhp.toFixed(2)}</span>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-                        <span style="color: var(--text-secondary);">Admin Fee:</span>
-                        <span style="font-weight: 600;">₱${ADMIN_FEE.toFixed(2)}</span>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; font-size: 1.2rem; font-weight: 700; color: var(--accent-primary); margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--border);">
-                        <span>Grand Total:</span>
-                        <span class="finalize-grand-total">₱${grandTotalPhp.toFixed(2)}</span>
-                    </div>
-                    <div style="margin-top: 0.75rem;">
-                        <div style="display: inline-block; padding: 0.35rem 0.85rem; border-radius: 20px; font-size: 0.75rem; font-weight: 700; background: ${paymentBg}; color: ${paymentColor};">${paymentStatus}</div>
-                    </div>
-                </div>
-            `;
-            
-            // Attach event listeners for quantity buttons
-            attachFinalizeQuantityListeners();
-        }
-        
-        function attachFinalizeQuantityListeners() {
-            // Remove old listeners by cloning
-            const itemsList = document.getElementById('finalize-items-list');
-            if (!itemsList) return;
-            
-            const newList = itemsList.cloneNode(true);
-            itemsList.parentNode.replaceChild(newList, itemsList);
-            
-            // Add event delegation
-            newList.addEventListener('click', function(e) {
-                const btn = e.target.closest('.finalize-qty-btn-minus, .finalize-qty-btn-plus');
-                if (btn) {
-                    const index = parseInt(btn.getAttribute('data-index'));
-                    const isIncrease = btn.classList.contains('finalize-qty-btn-plus');
-                    updateFinalizeItemQty(index, isIncrease ? 1 : -1);
-                }
-            });
-        }
-        
-        function updateFinalizeItemQty(index, change) {
-            if (index < 0 || index >= finalizeOrderItems.length) {
-                console.error('Invalid index for updateFinalizeItemQty:', index);
-                return;
-            }
-            
-            const item = finalizeOrderItems[index];
-            if (!item) {
-                console.error('Item not found at index:', index);
-                return;
-            }
-            
-            const newQty = Math.max(0, item.qty + change);
-            
-            if (newQty === 0) {
-                // Remove item if quantity becomes 0
-                finalizeOrderItems.splice(index, 1);
-                
-                // If no items left, show message
-                if (finalizeOrderItems.length === 0) {
-                    const summaryEl = document.getElementById('finalize-order-summary');
-                    if (summaryEl) {
-                        summaryEl.innerHTML = '<p style="color: var(--accent-rose); text-align: center; padding: 2rem;">No items remaining. Please add items before finalizing.</p>';
-                    }
-                    return;
-                }
-                
-                // Re-render the entire summary - fetch order data again
-                if (pendingFinalizeOrderId) {
-                    fetch(`/api/orders/${pendingFinalizeOrderId}?t=${Date.now()}`)
-                        .then(response => response.json())
-                        .then(order => {
-                            const summaryEl = document.getElementById('finalize-order-summary');
-                            if (summaryEl) {
-                                renderFinalizeOrderSummary(order, summaryEl);
-                            }
-                        })
-                        .catch(error => {
-                            console.error('Error re-fetching order:', error);
-                        });
-                }
-                return;
-            }
-            
-            // Update quantity and recalculate totals
-            item.qty = newQty;
-            item.line_total_usd = item.unit_price_usd * newQty;
-            item.line_total_php = item.line_total_usd * EXCHANGE_RATE;
-            
-            // Update display
-            const qtyDisplay = document.querySelector(`.finalize-qty-display-${index}`);
-            const priceDisplay = document.querySelector(`.finalize-item-price-${index}`);
-            
-            if (qtyDisplay) qtyDisplay.textContent = newQty;
-            if (priceDisplay) priceDisplay.textContent = `₱${item.line_total_php.toFixed(2)}`;
-            
-            // Recalculate and update totals
-            const subtotalPhp = finalizeOrderItems.reduce((sum, item) => sum + item.line_total_php, 0);
-            const grandTotalPhp = subtotalPhp + ADMIN_FEE;
-            
-            const subtotalEl = document.querySelector('.finalize-subtotal');
-            const grandTotalEl = document.querySelector('.finalize-grand-total');
-            
-            if (subtotalEl) subtotalEl.textContent = `₱${subtotalPhp.toFixed(2)}`;
-            if (grandTotalEl) grandTotalEl.textContent = `₱${grandTotalPhp.toFixed(2)}`;
-        }
-        
-        async function finalizeOrder() {
-            if (!pendingFinalizeOrderId) {
-                return;
-            }
-            
-            const btn = document.getElementById('finalize-order-btn');
-            btn.disabled = true;
-            btn.textContent = 'Finalizing...';
-            
-            try {
-                // First, update order with any quantity changes
-                if (finalizeOrderItems.length > 0) {
-                    const telegram = document.getElementById('telegram').value.trim();
-                    
-                    // Consolidate items before sending
-                    const consolidatedMap = new Map();
-                    finalizeOrderItems.forEach(item => {
-                        const key = `${item.product_code}|${item.order_type}`;
-                        if (consolidatedMap.has(key)) {
-                            const existing = consolidatedMap.get(key);
-                            existing.qty += item.qty;
-                            existing.line_total_usd += item.line_total_usd;
-                            existing.line_total_php += item.line_total_php;
-                            existing.unit_price_usd = existing.qty > 0 ? existing.line_total_usd / existing.qty : existing.unit_price_usd;
-                        } else {
-                            consolidatedMap.set(key, { ...item });
-                        }
-                    });
-                    
-                    const itemsToSend = Array.from(consolidatedMap.values()).map(item => ({
-                        product_code: item.product_code,
-                        product_name: item.product_name,
-                        order_type: item.order_type,
-                        qty: item.qty,
-                        unit_price_usd: item.unit_price_usd,
-                        line_total_usd: item.line_total_usd,
-                        line_total_php: item.line_total_php
-                    }));
-                    
-                    // Update order items
-                    const updateResponse = await fetch(`/api/orders/${pendingFinalizeOrderId}/add-items`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            items: itemsToSend,
-                            telegram_username: telegram
-                        })
-                    });
-                    
-                    const updateResult = await updateResponse.json();
-                    if (!updateResult.success) {
-                        throw new Error(updateResult.error || 'Failed to update order');
-                    }
-                }
-                
-                // Then finalize the order
-                const response = await fetch(`/api/orders/${pendingFinalizeOrderId}/finalize`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
-                });
-                
-                const result = await response.json();
-                
-                if (result.success) {
-                    showToast('✅ Order finalized! GB Admin has been notified.', 5000);
-                    closeModal('finalize-order-modal');
-                    
-                    // Refresh order lookup
-                    if (typeof checkReturningCustomer === 'function') {
-                        checkReturningCustomer();
-                    }
-                    
-                    // Show order details
-                    if (typeof viewOrder === 'function') {
-                        viewOrder(pendingFinalizeOrderId);
-                    }
-                } else {
-                    const errorMsg = result.error || 'Failed to finalize order';
-                    showToast(`❌ ${errorMsg}`, 5000);
-                    btn.disabled = false;
-                    btn.textContent = 'Finalize Order';
-                }
-            } catch (error) {
-                console.error('Error finalizing order:', error);
-                showToast(`❌ Error finalizing order: ${error.message || 'Please try again.'}`, 5000);
-                btn.disabled = false;
-                btn.textContent = 'Finalize Order';
-            } finally {
-                pendingFinalizeOrderId = null;
-                finalizeOrderItems = [];
-            }
-        }
-        
-        // Expose to global scope
-        window.finalizeOrder = finalizeOrder;
+        // Finalize order modal removed - orders are finalized automatically after update
 
         function showOrderModal(order) {
             const modalOrderId = document.getElementById('modal-order-id');
