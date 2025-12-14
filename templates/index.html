@@ -1524,6 +1524,21 @@
                     </div>
 
                     <div id="cart-items" class="cart-items" style="display: none;"></div>
+                    
+                    <!-- Separate sections for existing and new items -->
+                    <div id="existing-items-section" style="display: none; margin-bottom: 1.5rem;">
+                        <h3 style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 0.75rem; font-weight: 600;">
+                            📋 Existing Order Items
+                        </h3>
+                        <div id="existing-items-list" class="cart-items" style="max-height: 200px; overflow-y: auto;"></div>
+                    </div>
+                    
+                    <div id="new-items-section" style="display: none; margin-bottom: 1.5rem;">
+                        <h3 style="font-size: 0.9rem; color: var(--accent-teal); margin-bottom: 0.75rem; font-weight: 600;">
+                            ➕ New/Updated Items
+                        </h3>
+                        <div id="new-items-list" class="cart-items" style="max-height: 200px; overflow-y: auto;"></div>
+                    </div>
 
                     <div id="cart-summary" class="cart-summary" style="display: none;">
                         <div class="summary-row">
@@ -2206,6 +2221,8 @@
                 cartItems[existingIndex].qty += qty;
                 cartItems[existingIndex].line_total_usd = cartItems[existingIndex].qty * unitPrice;
                 cartItems[existingIndex].line_total_php = cartItems[existingIndex].line_total_usd * EXCHANGE_RATE;
+                // If consolidating with existing item, mark as new (user is updating)
+                cartItems[existingIndex].isExisting = false;
                 showToast('✅ Quantity updated!');
             } else {
                 // New item
@@ -2216,7 +2233,8 @@
                     qty: qty,
                     unit_price_usd: unitPrice,
                     line_total_usd: unitPrice * qty,
-                    line_total_php: unitPrice * qty * EXCHANGE_RATE
+                    line_total_php: unitPrice * qty * EXCHANGE_RATE,
+                    isExisting: false  // Mark as new item
                 });
                 showToast('✅ Item added to cart!');
             }
@@ -2276,6 +2294,60 @@
             summary.style.display = 'block';
             submit.disabled = false;
             
+            // Separate existing and new items
+            const existingItems = cartItems.filter(item => item.isExisting === true);
+            const newItems = cartItems.filter(item => item.isExisting !== true);
+            
+            // Show/hide sections
+            const existingSection = document.getElementById('existing-items-section');
+            const newSection = document.getElementById('new-items-section');
+            const existingList = document.getElementById('existing-items-list');
+            const newList = document.getElementById('new-items-list');
+            
+            if (existingItems.length > 0) {
+                existingSection.style.display = 'block';
+                existingList.innerHTML = existingItems.map((item, i) => {
+                    const index = cartItems.indexOf(item);
+                    return `
+                        <div class="cart-item" style="opacity: 0.85; border-left: 3px solid var(--accent-amber);">
+                            <div class="cart-item-header">
+                                <span class="cart-item-name">${item.product_name}</span>
+                                <span class="cart-item-code">${item.product_code}</span>
+                            </div>
+                            <div class="cart-item-details">
+                                <span>${item.order_type} × ${item.qty}</span>
+                                <span class="cart-item-price">₱${item.line_total_php.toFixed(2)}</span>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } else {
+                existingSection.style.display = 'none';
+            }
+            
+            if (newItems.length > 0) {
+                newSection.style.display = 'block';
+                newList.innerHTML = newItems.map((item, i) => {
+                    const index = cartItems.indexOf(item);
+                    return `
+                        <div class="cart-item" style="border-left: 3px solid var(--accent-teal);">
+                            <button class="cart-item-remove" onclick="removeItem(${index})">×</button>
+                            <div class="cart-item-header">
+                                <span class="cart-item-name">${item.product_name}</span>
+                                <span class="cart-item-code">${item.product_code}</span>
+                            </div>
+                            <div class="cart-item-details">
+                                <span>${item.order_type} × ${item.qty}</span>
+                                <span class="cart-item-price">₱${item.line_total_php.toFixed(2)}</span>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } else {
+                newSection.style.display = 'none';
+            }
+            
+            // Legacy display (all items combined) - keep for backward compatibility
             items.innerHTML = cartItems.map((item, i) => `
                 <div class="cart-item">
                     <button class="cart-item-remove" onclick="removeItem(${i})">×</button>
@@ -2326,12 +2398,31 @@
                 // Add to totals (ensure values are valid numbers)
                 if (!isNaN(itemUsd) && itemUsd > 0) {
                     totalUsd += itemUsd;
+                    // Track existing vs new totals
+                    if (item.isExisting === true) {
+                        existingTotalUsd += itemUsd;
+                    } else {
+                        newTotalUsd += itemUsd;
+                    }
                 }
                 if (!isNaN(itemPhp) && itemPhp > 0) {
                     totalPhp += itemPhp;
+                    // Track existing vs new totals
+                    if (item.isExisting === true) {
+                        existingTotalPhp += itemPhp;
+                    } else {
+                        newTotalPhp += itemPhp;
+                    }
                 } else if (!isNaN(itemUsd) && itemUsd > 0) {
                     // Fallback: calculate PHP from USD if PHP is still missing
-                    totalPhp += itemUsd * EXCHANGE_RATE;
+                    const calculatedPhp = itemUsd * EXCHANGE_RATE;
+                    totalPhp += calculatedPhp;
+                    // Track existing vs new totals
+                    if (item.isExisting === true) {
+                        existingTotalPhp += calculatedPhp;
+                    } else {
+                        newTotalPhp += calculatedPhp;
+                    }
                 }
             });
             
@@ -2351,9 +2442,28 @@
             // Save updated cart items with corrected prices
             saveCart();
             
+            // Update summary displays
             document.getElementById('summary-usd').textContent = `$${totalUsd.toFixed(2)}`;
             document.getElementById('summary-php').textContent = `₱${totalPhp.toFixed(2)}`;
             document.getElementById('grand-total').textContent = `₱${grandTotal.toFixed(2)}`;
+            
+            // Update existing/new item summaries
+            const existingSummary = document.getElementById('existing-summary');
+            const newSummary = document.getElementById('new-summary');
+            
+            if (existingTotalPhp > 0) {
+                existingSummary.style.display = 'block';
+                document.getElementById('existing-subtotal-php').textContent = `₱${existingTotalPhp.toFixed(2)}`;
+            } else {
+                existingSummary.style.display = 'none';
+            }
+            
+            if (newTotalPhp > 0) {
+                newSummary.style.display = 'block';
+                document.getElementById('new-subtotal-php').textContent = `₱${newTotalPhp.toFixed(2)}`;
+            } else {
+                newSummary.style.display = 'none';
+            }
         }
 
         function removeItem(index) {
@@ -2425,7 +2535,7 @@
                             // Store pending order ID for button text
                             currentOrderId = pendingOrder.order_id;
                             
-                            // Populate cart with existing order items
+                            // Populate cart with existing order items (marked as existing)
                             cartItems = pendingOrder.items.map(item => {
                                 // Ensure we have all required fields with proper defaults
                                 const qty = parseFloat(item.qty) || 1;
@@ -2470,7 +2580,8 @@
                                     qty: qty,
                                     unit_price_usd: unitPriceUsd,
                                     line_total_usd: lineTotalUsd,
-                                    line_total_php: lineTotalPhp
+                                    line_total_php: lineTotalPhp,
+                                    isExisting: true  // Mark as existing item
                                 };
                             });
                             
@@ -2721,11 +2832,11 @@
                     // Update existing order - add items to it (no notification yet)
                     btn.textContent = 'Updating...';
                     
-                    // Filter out 0 quantity items
-                    const validItems = cartItems.filter(item => item.qty > 0);
+                    // Only send NEW items (not existing ones) to avoid duplication
+                    const newItems = cartItems.filter(item => item.isExisting !== true && item.qty > 0);
                     
-                    if (validItems.length === 0) {
-                        showToast('❌ Please add items with quantity > 0', 3000);
+                    if (newItems.length === 0) {
+                        showToast('❌ Please add new items or update quantities before submitting', 3000);
                         btn.disabled = false;
                         btn.textContent = 'Confirm & Submit Order';
                         return;
@@ -2735,7 +2846,7 @@
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ 
-                            items: validItems,
+                            items: newItems,  // Only send new items
                             telegram_username: telegram
                         })
                     });
