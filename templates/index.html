@@ -1894,13 +1894,13 @@
         const quantityInput = document.getElementById('quantity');
 
         // Toast Notification Function (must be defined early)
-        function showToast(message) {
+        function showToast(message, duration = 3000) {
             const toast = document.getElementById('toast');
             const toastMessage = document.getElementById('toast-message');
             if (toast && toastMessage) {
                 toastMessage.textContent = message;
                 toast.classList.add('show');
-                setTimeout(() => toast.classList.remove('show'), 3000);
+                setTimeout(() => toast.classList.remove('show'), duration);
             } else {
                 console.log('Toast:', message);
             }
@@ -2490,7 +2490,9 @@
                         // Show updated order details
                         showViewOrderDetails(pendingOrder.order_id);
                     } else {
-                        showToast(result.error || 'Failed to update order');
+                        const errorMsg = result.error || 'Failed to update order';
+                        showToast(`❌ ${errorMsg}`, 5000);
+                        console.error('Order update error:', result);
                     }
                 } else {
                     // Create new order
@@ -2519,12 +2521,20 @@
                         document.getElementById('full-name').value = '';
                         document.getElementById('telegram').value = '';
                     } else {
-                        showToast(result.error || 'Failed to submit');
+                        const errorMsg = result.error || 'Failed to submit order';
+                        showToast(`❌ ${errorMsg}`, 5000);
+                        console.error('Order submission error:', result);
                     }
                 }
             } catch (error) {
                 console.error('Order submission error:', error);
-                showToast('Error submitting order');
+                let errorMessage = 'Error submitting order';
+                if (error instanceof TypeError && error.message.includes('fetch')) {
+                    errorMessage = 'Network error. Please check your connection and try again.';
+                } else if (error.message) {
+                    errorMessage = `Error: ${error.message}`;
+                }
+                showToast(errorMessage, 5000);
             } finally {
                 btn.disabled = false;
                 btn.textContent = 'Confirm & Submit Order';
@@ -2712,7 +2722,7 @@
                 }
                 
                 if (canEdit) {
-                    footerHtml += `<button class="btn btn-rose" onclick="cancelOrder('${order.order_id}')">Cancel Order</button>`;
+                    footerHtml += `<button class="btn btn-rose" onclick="cancelOrder('${order.order_id}')" style="font-weight: 600;" title="⚠️ Warning: This action cannot be undone. You will need to create a new order to reserve products.">🗑️ Cancel Order</button>`;
                 }
                 
                 footerHtml += `<button class="btn btn-secondary" onclick="closeModal('order-details-modal')">Close</button>`;
@@ -2796,21 +2806,57 @@
         }
 
         async function cancelOrder(orderId) {
-            if (!confirm('Are you sure you want to cancel this order?')) return;
+            const confirmMessage = `⚠️ CANCEL ORDER - PERMANENT ACTION ⚠️\n\n` +
+                `Are you absolutely sure you want to cancel Order ${orderId}?\n\n` +
+                `⚠️ IMPORTANT WARNINGS:\n` +
+                `• This action CANNOT be undone\n` +
+                `• Your order will be permanently deleted\n` +
+                `• All product reservations will be released\n` +
+                `• You will need to create a NEW ORDER to reserve products again\n\n` +
+                `If you cancel this order, you must place a new order to reserve your products.\n\n` +
+                `Type "CANCEL" to confirm:`;
+            
+            const userInput = prompt(confirmMessage);
+            if (!userInput || userInput.trim().toUpperCase() !== 'CANCEL') {
+                showToast('❌ Cancellation cancelled. Your order is safe.');
+                return;
+            }
+            
+            // Double confirmation
+            if (!confirm(`⚠️ FINAL CONFIRMATION ⚠️\n\n` +
+                `You are about to PERMANENTLY DELETE Order ${orderId}.\n\n` +
+                `This action:\n` +
+                `• CANNOT be undone\n` +
+                `• Will delete all order data\n` +
+                `• Will release all product reservations\n` +
+                `• Requires you to create a NEW ORDER to reserve products\n\n` +
+                `Are you absolutely certain you want to proceed?`)) {
+                showToast('❌ Cancellation cancelled. Your order is safe.');
+                return;
+            }
             
             try {
                 const response = await fetch(`/api/orders/${orderId}/cancel`, { method: 'POST' });
                 const result = await response.json();
                 
                 if (result.success) {
-                    showToast('Order cancelled');
+                    showToast('✅ Order cancelled permanently. You must create a new order to reserve products.', 5000);
                     closeModal('order-details-modal');
                     loadOrders();
                 } else {
-                    showToast(result.error || 'Failed to cancel');
+                    const errorMsg = result.error || 'Failed to cancel order';
+                    showToast(`❌ ${errorMsg}`, 5000);
+                    console.error('Cancel order error:', result);
                 }
             } catch (error) {
-                showToast('Error cancelling order');
+                console.error('Error cancelling order:', error);
+                let errorMessage = 'Error cancelling order';
+                if (error instanceof TypeError && error.message.includes('fetch')) {
+                    errorMessage = 'Network error. Please check your connection and try again.';
+                } else if (error.message) {
+                    errorMessage = `Error: ${error.message}`;
+                }
+                showToast(`❌ ${errorMessage}`, 5000);
             }
         }
 

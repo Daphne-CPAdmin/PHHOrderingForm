@@ -1752,75 +1752,161 @@ def api_search_orders():
 
 @app.route('/api/submit-order', methods=['POST'])
 def api_submit_order():
-    """Submit new order"""
-    data = request.json
-    exchange_rate = get_exchange_rate()
-    
-    # Check for locked products
-    inventory = get_inventory_stats()
-    for item in data.get('items', []):
-        code = item.get('product_code')
-        if inventory.get(code, {}).get('is_locked'):
+    """Submit new order with comprehensive error handling"""
+    try:
+        # Validate request data
+        if not request.json:
             return jsonify({
                 'success': False,
-                'error': f'Product {code} is currently locked and cannot be ordered'
+                'error': 'Invalid request: No data provided'
             }), 400
-    
-    # Consolidate items with same product_code + order_type
-    consolidated = {}
-    for item in data.get('items', []):
-        key = (item['product_code'], item.get('order_type', 'Vial'))
-        if key in consolidated:
-            consolidated[key]['qty'] += item['qty']
-        else:
-            consolidated[key] = {
-                'product_code': item['product_code'],
-                'order_type': item.get('order_type', 'Vial'),
-                'qty': item['qty']
-            }
-    
-    # Calculate totals
-    total_usd = 0
-    items_with_prices = []
-    products = get_products()
-    
-    for key, item in consolidated.items():
-        product = next((p for p in products if p['code'] == item['product_code']), None)
-        if product:
-            unit_price = product['kit_price'] if item.get('order_type') == 'Kit' else product['vial_price']
-            line_total_usd = unit_price * item['qty']
-            line_total_php = line_total_usd * exchange_rate
+        
+        data = request.json
+        
+        # Validate required fields
+        if not data.get('full_name') or not data.get('full_name').strip():
+            return jsonify({
+                'success': False,
+                'error': 'Full name is required'
+            }), 400
+        
+        if not data.get('items') or not isinstance(data.get('items'), list) or len(data.get('items', [])) == 0:
+            return jsonify({
+                'success': False,
+                'error': 'At least one item is required'
+            }), 400
+        
+        # Validate items structure
+        for idx, item in enumerate(data.get('items', [])):
+            if not item.get('product_code'):
+                return jsonify({
+                    'success': False,
+                    'error': f'Item {idx + 1}: Product code is required'
+                }), 400
+            if not isinstance(item.get('qty'), (int, float)) or item.get('qty', 0) <= 0:
+                return jsonify({
+                    'success': False,
+                    'error': f'Item {idx + 1}: Quantity must be a positive number'
+                }), 400
+        
+        # Get exchange rate with error handling
+        try:
+            exchange_rate = get_exchange_rate()
+            if not exchange_rate or exchange_rate <= 0:
+                exchange_rate = FALLBACK_EXCHANGE_RATE
+                print(f"⚠️ Using fallback exchange rate: {exchange_rate}")
+        except Exception as e:
+            print(f"⚠️ Error getting exchange rate: {e}, using fallback")
+            exchange_rate = FALLBACK_EXCHANGE_RATE
+        
+        # Check for locked products
+        try:
+            inventory = get_inventory_stats()
+            for item in data.get('items', []):
+                code = item.get('product_code')
+                if inventory.get(code, {}).get('is_locked'):
+                    return jsonify({
+                        'success': False,
+                        'error': f'Product {code} is currently locked and cannot be ordered'
+                    }), 400
+        except Exception as e:
+            print(f"⚠️ Error checking inventory: {e}")
+            # Continue without inventory check if it fails
+        
+        # Consolidate items with same product_code + order_type
+        consolidated = {}
+        for item in data.get('items', []):
+            key = (item['product_code'], item.get('order_type', 'Vial'))
+            if key in consolidated:
+                consolidated[key]['qty'] += item['qty']
+            else:
+                consolidated[key] = {
+                    'product_code': item['product_code'],
+                    'order_type': item.get('order_type', 'Vial'),
+                    'qty': item['qty']
+                }
+        
+        # Calculate totals
+        total_usd = 0
+        items_with_prices = []
+        try:
+            products = get_products()
+        except Exception as e:
+            print(f"❌ Error getting products: {e}")
+            return jsonify({
+                'success': False,
+                'error': 'Failed to load product information. Please try again.'
+            }), 500
+        
+        for key, item in consolidated.items():
+            product = next((p for p in products if p['code'] == item['product_code']), None)
+            if not product:
+                return jsonify({
+                    'success': False,
+                    'error': f'Product {item["product_code"]} not found'
+                }), 404
             
-            items_with_prices.append({
-                'product_code': item['product_code'],
-                'product_name': product['name'],
-                'order_type': item.get('order_type', 'Vial'),
-                'qty': item['qty'],
-                'unit_price_usd': unit_price,
-                'line_total_usd': line_total_usd,
-                'line_total_php': line_total_php
-            })
-            total_usd += line_total_usd
-    
-    total_php = total_usd * exchange_rate
-    grand_total_php = total_php + ADMIN_FEE_PHP
-    
-    order_data = {
-        'full_name': data.get('full_name', ''),
-        'telegram': data.get('telegram', ''),
-        'contact_number': data.get('contact_number', ''),
-        'mailing_address': data.get('mailing_address', ''),
-        'items': items_with_prices,
-        'exchange_rate': exchange_rate,
-        'grand_total_php': grand_total_php
-    }
-    
-    order_id = save_order_to_sheets(order_data)
-    
-    if order_id:
-        # Send Telegram notification
-        items_text = '\n'.join([f"• {item['product_name']} ({item['order_type']} x{item['qty']}) - ₱{item['line_total_php']:.2f}" for item in items_with_prices])
-        telegram_msg = f"""🛒 <b>New Order!</b>
+            try:
+                unit_price = product['kit_price'] if item.get('order_type') == 'Kit' else product['vial_price']
+                if not unit_price or unit_price <= 0:
+                    return jsonify({
+                        'success': False,
+                        'error': f'Invalid price for product {item["product_code"]}'
+                    }), 400
+                
+                line_total_usd = unit_price * item['qty']
+                line_total_php = line_total_usd * exchange_rate
+                
+                items_with_prices.append({
+                    'product_code': item['product_code'],
+                    'product_name': product['name'],
+                    'order_type': item.get('order_type', 'Vial'),
+                    'qty': item['qty'],
+                    'unit_price_usd': unit_price,
+                    'line_total_usd': line_total_usd,
+                    'line_total_php': line_total_php
+                })
+                total_usd += line_total_usd
+            except (KeyError, TypeError, ValueError) as e:
+                print(f"❌ Error calculating price for {item['product_code']}: {e}")
+                return jsonify({
+                    'success': False,
+                    'error': f'Error calculating price for product {item["product_code"]}'
+                }), 500
+        
+        total_php = total_usd * exchange_rate
+        grand_total_php = total_php + ADMIN_FEE_PHP
+        
+        order_data = {
+            'full_name': data.get('full_name', '').strip(),
+            'telegram': data.get('telegram', '').strip(),
+            'contact_number': data.get('contact_number', '').strip(),
+            'mailing_address': data.get('mailing_address', '').strip(),
+            'items': items_with_prices,
+            'exchange_rate': exchange_rate,
+            'grand_total_php': grand_total_php
+        }
+        
+        # Save order to sheets
+        try:
+            order_id = save_order_to_sheets(order_data)
+        except Exception as e:
+            print(f"❌ Error saving order to sheets: {e}")
+            return jsonify({
+                'success': False,
+                'error': 'Failed to save order. Please try again or contact support.'
+            }), 500
+        
+        if not order_id:
+            return jsonify({
+                'success': False,
+                'error': 'Failed to save order. Please try again.'
+            }), 500
+        
+        # Send Telegram notification (non-blocking - don't fail if this fails)
+        try:
+            items_text = '\n'.join([f"• {item['product_name']} ({item['order_type']} x{item['qty']}) - ₱{item['line_total_php']:.2f}" for item in items_with_prices])
+            telegram_msg = f"""🛒 <b>New Order!</b>
 
 <b>Order ID:</b> {order_id}
 <b>Customer:</b> {order_data['full_name']}
@@ -1831,10 +1917,17 @@ def api_submit_order():
 
 <b>Grand Total:</b> ₱{grand_total_php:,.2f}
 <b>Status:</b> Pending Payment"""
-        send_telegram_notification(telegram_msg)
+            send_telegram_notification(telegram_msg)
+        except Exception as e:
+            print(f"⚠️ Error sending Telegram notification: {e}")
+            # Don't fail the order if Telegram fails
         
-        # Also notify customer if registered
-        notify_customer_order(order_data, order_id)
+        # Also notify customer if registered (non-blocking)
+        try:
+            notify_customer_order(order_data, order_id)
+        except Exception as e:
+            print(f"⚠️ Error notifying customer: {e}")
+            # Don't fail the order if customer notification fails
         
         return jsonify({
             'success': True,
@@ -1848,77 +1941,211 @@ def api_submit_order():
             }
         })
     
-    return jsonify({'success': False, 'error': 'Failed to save order'}), 500
+    except Exception as e:
+        print(f"❌ Unexpected error in api_submit_order: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': 'An unexpected error occurred. Please try again or contact support.'
+        }), 500
 
 @app.route('/api/orders/<order_id>/add-items', methods=['POST'])
 @app.route('/api/orders/add-items-by-telegram', methods=['POST'])
 def api_add_items(order_id=None):
-    """Add items to existing order - supports order_id or telegram username matching"""
-    data = request.json or {}
-    telegram_username = data.get('telegram_username')
-    items = data.get('items', [])
-    
-    # If order_id not in URL, try to get from request body or use telegram lookup
-    if not order_id:
-        order_id = data.get('order_id')
-    
-    # Find order by order_id or telegram_username
-    order = None
-    if order_id:
-        order = get_order_by_id(order_id)
-    elif telegram_username:
-        # Find order by telegram username
-        orders = get_orders_from_sheets()
-        telegram_normalized = telegram_username.lower().strip().lstrip('@')
+    """Add items to existing order - supports order_id or telegram username matching with comprehensive error handling"""
+    try:
+        # Validate request data
+        if not request.json:
+            return jsonify({
+                'success': False,
+                'error': 'Invalid request: No data provided'
+            }), 400
         
-        for o in orders:
-            order_telegram = str(o.get('Telegram Username', '')).lower().strip().lstrip('@')
-            if order_telegram == telegram_normalized:
-                # Get the most recent non-cancelled, non-locked order
-                order_status = o.get('Order Status', 'Pending')
-                order_locked = o.get('Locked', False)
-                if order_status != 'Cancelled' and not order_locked:
-                    order_id = o.get('Order ID')
-                    order = get_order_by_id(order_id)
-                    break
-    
-    if not order:
-        return jsonify({'error': 'Order not found. Provide order_id or telegram_username'}), 404
-    
-    if order['locked']:
-        return jsonify({'error': 'Order is locked'}), 403
-    
-    if not items:
-        return jsonify({'error': 'No items provided'}), 400
-    
-    # Calculate prices
-    products = get_products()
-    exchange_rate = order['exchange_rate']
-    
-    items_with_prices = []
-    for item in items:
-        product = next((p for p in products if p['code'] == item['product_code']), None)
-        if product:
-            unit_price = product['kit_price'] if item.get('order_type') == 'Kit' else product['vial_price']
-            line_total_usd = unit_price * item['qty']
-            
-            items_with_prices.append({
-                'product_code': item['product_code'],
-                'product_name': product['name'],
-                'order_type': item.get('order_type', 'Vial'),
-                'qty': item['qty'],
-                'unit_price_usd': unit_price,
-                'line_total_usd': line_total_usd,
-                'line_total_php': line_total_usd * exchange_rate
-            })
-    
-    # Use telegram_username if provided, otherwise use order_id
-    if add_items_to_order(order_id, items_with_prices, exchange_rate, telegram_username=telegram_username):
+        data = request.json or {}
+        telegram_username = data.get('telegram_username')
+        items = data.get('items', [])
+        
+        # Validate items
+        if not items or not isinstance(items, list) or len(items) == 0:
+            return jsonify({
+                'success': False,
+                'error': 'No items provided. Please add at least one item.'
+            }), 400
+        
+        # Validate items structure
+        for idx, item in enumerate(items):
+            if not item.get('product_code'):
+                return jsonify({
+                    'success': False,
+                    'error': f'Item {idx + 1}: Product code is required'
+                }), 400
+            if not isinstance(item.get('qty'), (int, float)) or item.get('qty', 0) <= 0:
+                return jsonify({
+                    'success': False,
+                    'error': f'Item {idx + 1}: Quantity must be a positive number'
+                }), 400
+        
+        # If order_id not in URL, try to get from request body or use telegram lookup
+        if not order_id:
+            order_id = data.get('order_id')
+        
+        # Find order by order_id or telegram_username
+        order = None
+        try:
+            if order_id:
+                order = get_order_by_id(order_id)
+            elif telegram_username:
+                if not telegram_username or not telegram_username.strip():
+                    return jsonify({
+                        'success': False,
+                        'error': 'Telegram username is required when order_id is not provided'
+                    }), 400
+                
+                # Find order by telegram username
+                try:
+                    orders = get_orders_from_sheets()
+                except Exception as e:
+                    print(f"❌ Error getting orders from sheets: {e}")
+                    return jsonify({
+                        'success': False,
+                        'error': 'Failed to load orders. Please try again.'
+                    }), 500
+                
+                telegram_normalized = telegram_username.lower().strip().lstrip('@')
+                
+                for o in orders:
+                    order_telegram = str(o.get('Telegram Username', '')).lower().strip().lstrip('@')
+                    if order_telegram == telegram_normalized:
+                        # Get the most recent non-cancelled, non-locked order
+                        order_status = o.get('Order Status', 'Pending')
+                        order_locked = o.get('Locked', False)
+                        if order_status != 'Cancelled' and not order_locked:
+                            order_id = o.get('Order ID')
+                            if order_id:
+                                order = get_order_by_id(order_id)
+                                break
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': 'Order ID or Telegram username is required'
+                }), 400
+        except Exception as e:
+            print(f"❌ Error finding order: {e}")
+            return jsonify({
+                'success': False,
+                'error': 'Error finding order. Please try again.'
+            }), 500
+        
+        if not order:
+            return jsonify({
+                'success': False,
+                'error': 'Order not found. Please check the Order ID or Telegram username.'
+            }), 404
+        
+        if order.get('locked'):
+            return jsonify({
+                'success': False,
+                'error': 'Order is locked and cannot be modified. Please contact admin.'
+            }), 403
+        
+        if order.get('status') == 'Cancelled':
+            return jsonify({
+                'success': False,
+                'error': 'Cannot add items to a cancelled order. Please create a new order.'
+            }), 400
+        
+        # Calculate prices with error handling
+        try:
+            products = get_products()
+        except Exception as e:
+            print(f"❌ Error getting products: {e}")
+            return jsonify({
+                'success': False,
+                'error': 'Failed to load product information. Please try again.'
+            }), 500
+        
+        try:
+            exchange_rate = order.get('exchange_rate')
+            if not exchange_rate or exchange_rate <= 0:
+                exchange_rate = FALLBACK_EXCHANGE_RATE
+                print(f"⚠️ Using fallback exchange rate: {exchange_rate}")
+        except (KeyError, TypeError, ValueError):
+            exchange_rate = FALLBACK_EXCHANGE_RATE
+            print(f"⚠️ Using fallback exchange rate: {exchange_rate}")
+        
+        items_with_prices = []
+        for idx, item in enumerate(items):
+            try:
+                product = next((p for p in products if p['code'] == item['product_code']), None)
+                if not product:
+                    return jsonify({
+                        'success': False,
+                        'error': f'Product {item["product_code"]} not found'
+                    }), 404
+                
+                unit_price = product['kit_price'] if item.get('order_type') == 'Kit' else product['vial_price']
+                if not unit_price or unit_price <= 0:
+                    return jsonify({
+                        'success': False,
+                        'error': f'Invalid price for product {item["product_code"]}'
+                    }), 400
+                
+                line_total_usd = unit_price * item['qty']
+                line_total_php = line_total_usd * exchange_rate
+                
+                items_with_prices.append({
+                    'product_code': item['product_code'],
+                    'product_name': product['name'],
+                    'order_type': item.get('order_type', 'Vial'),
+                    'qty': item['qty'],
+                    'unit_price_usd': unit_price,
+                    'line_total_usd': line_total_usd,
+                    'line_total_php': line_total_php
+                })
+            except (KeyError, TypeError, ValueError) as e:
+                print(f"❌ Error processing item {idx + 1}: {e}")
+                return jsonify({
+                    'success': False,
+                    'error': f'Error processing item {idx + 1}: {str(e)}'
+                }), 500
+        
+        # Add items to order
+        try:
+            success = add_items_to_order(order_id, items_with_prices, exchange_rate, telegram_username=telegram_username)
+        except Exception as e:
+            print(f"❌ Error adding items to order: {e}")
+            import traceback
+            traceback.print_exc()
+            return jsonify({
+                'success': False,
+                'error': 'Failed to add items to order. Please try again.'
+            }), 500
+        
+        if not success:
+            return jsonify({
+                'success': False,
+                'error': 'Failed to add items to order. Please try again.'
+            }), 500
+        
         # Recalculate and return updated order
-        updated_order = get_order_by_id(order_id)
+        try:
+            updated_order = get_order_by_id(order_id)
+        except Exception as e:
+            print(f"❌ Error getting updated order: {e}")
+            return jsonify({
+                'success': False,
+                'error': 'Items added but failed to retrieve updated order. Please refresh.'
+            }), 500
         
-        if updated_order:
-            # Send Telegram notification to GB Admin with recalculated total
+        if not updated_order:
+            return jsonify({
+                'success': False,
+                'error': 'Items added but order not found. Please refresh.'
+            }), 404
+        
+        # Send Telegram notification (non-blocking)
+        try:
             new_items_text = '\n'.join([f"• {item['product_name']} ({item['order_type']} x{item['qty']}) - ₱{item['line_total_php']:.2f}" for item in items_with_prices])
             
             # Calculate totals for display
@@ -1940,11 +2167,14 @@ def api_add_items(order_id=None):
 
 <b>Status:</b> Updated Order - Pending Payment"""
             send_telegram_notification(telegram_msg)
+        except Exception as e:
+            print(f"⚠️ Error sending Telegram notification: {e}")
+            # Don't fail if Telegram fails
         
         return jsonify({
             'success': True,
             'order_id': order_id,
-            'grand_total_php': updated_order.get('grand_total_php', 0) if updated_order else 0
+            'updated_order': updated_order
         })
     
     return jsonify({'error': 'Failed to add items'}), 500
