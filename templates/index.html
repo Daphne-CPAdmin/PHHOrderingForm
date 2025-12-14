@@ -1537,37 +1537,8 @@
                     </div>
 
                     <div id="cart-items" class="cart-items" style="display: none;"></div>
-                    
-                    <!-- Separate sections for existing and new items -->
-                    <div id="existing-items-section" style="display: none; margin-bottom: 1.5rem;">
-                        <h3 style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 0.75rem; font-weight: 600;">
-                            📋 Existing Order Items
-                        </h3>
-                        <div id="existing-items-list" class="cart-items" style="overflow-y: visible; max-height: none;"></div>
-                    </div>
-                    
-                    <div id="new-items-section" style="display: none; margin-bottom: 1.5rem;">
-                        <h3 style="font-size: 0.9rem; color: var(--accent-teal); margin-bottom: 0.75rem; font-weight: 600;">
-                            ➕ New/Updated Items
-                        </h3>
-                        <div id="new-items-list" class="cart-items" style="overflow-y: visible; max-height: none;"></div>
-                    </div>
 
                     <div id="cart-summary" class="cart-summary" style="display: none;">
-                        <div id="existing-summary" style="display: none; margin-bottom: 1rem; padding: 1rem; background: rgba(245, 158, 11, 0.1); border-radius: 8px; border-left: 3px solid var(--accent-amber);">
-                            <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem; font-weight: 600;">📋 Existing Order Items</div>
-                            <div class="summary-row" style="font-size: 0.9rem;">
-                                <span class="summary-label">Subtotal (PHP):</span>
-                                <span class="summary-value" id="existing-subtotal-php">₱0.00</span>
-                            </div>
-                        </div>
-                        <div id="new-summary" style="display: none; margin-bottom: 1rem; padding: 1rem; background: rgba(20, 184, 166, 0.1); border-radius: 8px; border-left: 3px solid var(--accent-teal);">
-                            <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem; font-weight: 600;">➕ New/Updated Items</div>
-                            <div class="summary-row" style="font-size: 0.9rem;">
-                                <span class="summary-label">Subtotal (PHP):</span>
-                                <span class="summary-value" id="new-subtotal-php">₱0.00</span>
-                            </div>
-                        </div>
                         <div class="summary-row">
                             <span class="summary-label">Subtotal (USD)</span>
                             <span class="summary-value" id="summary-usd">$0.00</span>
@@ -1960,7 +1931,7 @@
         let cartItems = [];
         let currentOrderId = null;
         let paymentFile = null;
-        let removedItems = []; // Track items removed from existing orders (for backend deletion)
+        // Removed items tracking no longer needed - we send all items when updating
 
         // DOM Elements
         const productSearch = document.getElementById('product-search');
@@ -2372,120 +2343,56 @@
             if (summary) summary.style.display = 'block';
             if (submit) submit.disabled = false;
             
-            // Separate existing and new items
-            const existingItems = cartItems.filter(item => item.isExisting === true);
-            const newItems = cartItems.filter(item => item.isExisting !== true);
-            
-            // Show/hide sections
-            const existingSection = document.getElementById('existing-items-section');
-            const newSection = document.getElementById('new-items-section');
-            const existingList = document.getElementById('existing-items-list');
-            const newList = document.getElementById('new-items-list');
-            
-            if (existingItems.length > 0 && existingSection && existingList) {
-                existingSection.style.display = 'block';
-                existingList.innerHTML = existingItems.map((item, i) => {
-                    // Find the actual index in cartItems array
-                    const index = cartItems.findIndex(cartItem => 
-                        cartItem.product_code === item.product_code && 
-                        cartItem.order_type === item.order_type &&
-                        cartItem.isExisting === true
-                    );
-                    // Fallback to indexOf if findIndex doesn't work
-                    const actualIndex = index >= 0 ? index : cartItems.indexOf(item);
-                    const itemId = `${item.product_code}-${item.order_type}-existing`;
+            // Display all items together with + - X buttons
+            if (items) {
+                items.innerHTML = cartItems.map((item, i) => {
+                    const isExisting = item.isExisting === true;
+                    const hasChanged = item.originalQty !== undefined && item.qty !== item.originalQty;
                     return `
-                        <div class="cart-item" style="opacity: 0.85; border-left: 3px solid var(--accent-amber);" data-item-index="${actualIndex}">
+                        <div class="cart-item" style="${isExisting ? 'border-left: 3px solid var(--accent-amber);' : ''}">
+                            <button class="cart-item-remove" onclick="removeItem(${i})" style="position: absolute; top: 0.5rem; right: 0.5rem; width: 24px; height: 24px; border: none; background: var(--accent-rose); color: white; border-radius: 50%; cursor: pointer; font-size: 1.2rem; font-weight: 600; display: flex; align-items: center; justify-content: center; line-height: 1; z-index: 10;">×</button>
                             <div class="cart-item-header">
-                                <span class="cart-item-name">${item.product_name}</span>
+                                <span class="cart-item-name">${item.product_name}${hasChanged ? ' <span style="font-size: 0.75rem; color: var(--accent-teal);">(Updated)</span>' : ''}</span>
                                 <span class="cart-item-code">${item.product_code}</span>
                             </div>
                             <div class="cart-item-details" style="display: flex; align-items: center; gap: 0.75rem;">
-                                <span style="flex: 1;">${item.order_type} × <span id="existing-qty-${actualIndex}">${item.qty}</span></span>
+                                <span style="flex: 1;">${item.order_type} × <span id="qty-${i}">${item.qty}</span></span>
                                 <div style="display: flex; align-items: center; gap: 0.5rem; background: var(--bg-input); border-radius: 8px; padding: 0.25rem;">
-                                    <button type="button" class="qty-btn-minus" data-index="${actualIndex}" data-action="decrease" style="width: 28px; height: 28px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--accent-rose); font-size: 1.2rem; font-weight: 600; line-height: 1; pointer-events: auto; z-index: 10; position: relative;">−</button>
-                                    <span id="existing-qty-display-${actualIndex}" style="min-width: 30px; text-align: center; font-weight: 600; color: var(--text-primary);">${item.qty}</span>
-                                    <button type="button" class="qty-btn-plus" data-index="${actualIndex}" data-action="increase" style="width: 28px; height: 28px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--accent-teal); font-size: 1.2rem; font-weight: 600; line-height: 1; pointer-events: auto; z-index: 10; position: relative;">+</button>
+                                    <button type="button" class="qty-btn-minus" data-index="${i}" data-action="decrease" style="width: 28px; height: 28px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--accent-rose); font-size: 1.2rem; font-weight: 600; line-height: 1; pointer-events: auto; z-index: 10; position: relative;">−</button>
+                                    <span id="qty-display-${i}" style="min-width: 30px; text-align: center; font-weight: 600; color: var(--text-primary);">${item.qty}</span>
+                                    <button type="button" class="qty-btn-plus" data-index="${i}" data-action="increase" style="width: 28px; height: 28px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--accent-teal); font-size: 1.2rem; font-weight: 600; line-height: 1; pointer-events: auto; z-index: 10; position: relative;">+</button>
                                 </div>
-                                <span class="cart-item-price">₱<span id="existing-price-${actualIndex}">${(item.line_total_php || 0).toFixed(2)}</span></span>
+                                <span class="cart-item-price">₱<span id="price-${i}">${(item.line_total_php || 0).toFixed(2)}</span></span>
                             </div>
                         </div>
                     `;
                 }).join('');
                 
-                // Attach event listeners using event delegation (remove old listener first to prevent duplicates)
-                if (existingList) {
-                    // Remove existing listener if any (by cloning and replacing)
-                    const newList = existingList.cloneNode(true);
-                    existingList.parentNode.replaceChild(newList, existingList);
-                    
-                    // Add fresh event listener
-                    newList.addEventListener('click', function(e) {
-                        try {
-                            const btn = e.target.closest('.qty-btn-minus, .qty-btn-plus');
-                            if (btn) {
-                                const index = parseInt(btn.getAttribute('data-index'));
-                                const action = btn.getAttribute('data-action');
-                                if (!isNaN(index) && index >= 0 && index < cartItems.length) {
-                                    const change = action === 'increase' ? 1 : -1;
-                                    updateExistingItemQty(index, change);
-                                } else {
-                                    console.warn('Invalid button click - index out of range:', index);
-                                }
+                // Attach event listeners using event delegation
+                const clonedItems = items.cloneNode(true);
+                items.parentNode.replaceChild(clonedItems, items);
+                
+                clonedItems.addEventListener('click', function(e) {
+                    try {
+                        const btn = e.target.closest('.qty-btn-minus, .qty-btn-plus');
+                        if (btn) {
+                            const index = parseInt(btn.getAttribute('data-index'));
+                            const action = btn.getAttribute('data-action');
+                            if (!isNaN(index) && index >= 0 && index < cartItems.length) {
+                                const change = action === 'increase' ? 1 : -1;
+                                updateItemQty(index, change);
+                            } else {
+                                console.warn('Invalid button click - index out of range:', index);
                             }
-                        } catch (error) {
-                            console.error('Error handling quantity button click:', error);
-                            showToast('❌ Error updating quantity. Please try again.', 3000);
                         }
-                    });
-                }
-            } else {
-                if (existingSection) existingSection.style.display = 'none';
-            }
-            
-            if (newItems.length > 0 && newSection && newList) {
-                newSection.style.display = 'block';
-                newList.innerHTML = newItems.map((item, i) => {
-                    const index = cartItems.indexOf(item);
-                    const isUpdated = item.isUpdated === true;
-                    return `
-                        <div class="cart-item" style="border-left: 3px solid var(--accent-teal); ${isUpdated ? 'background: rgba(20, 184, 166, 0.05);' : ''}">
-                            <button class="cart-item-remove" onclick="removeItem(${index})">×</button>
-                            <div class="cart-item-header">
-                                <span class="cart-item-name">${item.product_name}${isUpdated ? ' <span style="font-size: 0.75rem; color: var(--accent-teal);">(Updated)</span>' : ''}</span>
-                                <span class="cart-item-code">${item.product_code}</span>
-                            </div>
-                            <div class="cart-item-details">
-                                <span>${item.order_type} × ${item.qty}${item.originalQty && item.qty !== item.originalQty ? ` <span style="font-size: 0.75rem; color: var(--text-muted);">(was ${item.originalQty})</span>` : ''}</span>
-                                <span class="cart-item-price">₱${(item.line_total_php || 0).toFixed(2)}</span>
-                            </div>
-                        </div>
-                    `;
-                }).join('');
-            } else {
-                if (newSection) newSection.style.display = 'none';
-            }
-            
-            // Legacy display (all items combined) - keep for backward compatibility
-            if (items) {
-                items.innerHTML = cartItems.map((item, i) => `
-                    <div class="cart-item">
-                        <button class="cart-item-remove" onclick="removeItem(${i})">×</button>
-                        <div class="cart-item-header">
-                            <span class="cart-item-name">${item.product_name}</span>
-                            <span class="cart-item-code">${item.product_code}</span>
-                        </div>
-                        <div class="cart-item-details">
-                            <span>${item.order_type} × ${item.qty}</span>
-                            <span class="cart-item-price">₱${(item.line_total_php || 0).toFixed(2)}</span>
-                        </div>
-                    </div>
-                `).join('');
+                    } catch (error) {
+                        console.error('Error handling quantity button click:', error);
+                        showToast('❌ Error updating quantity. Please try again.', 3000);
+                    }
+                });
             }
             
             // Calculate totals with proper NaN handling - ensure all items have valid prices
-            // IMPORTANT: Include ALL items in cart (existing + new) for correct total calculation
-            
             cartItems.forEach(item => {
                 // Ensure item has valid price values
                 let itemUsd = parseFloat(item.line_total_usd);
@@ -2495,7 +2402,7 @@
                 if (isNaN(itemUsd) || itemUsd === 0) {
                     if (!isNaN(itemPhp) && itemPhp > 0) {
                         itemUsd = itemPhp / EXCHANGE_RATE;
-                        item.line_total_usd = itemUsd; // Update the item
+                        item.line_total_usd = itemUsd;
                     } else {
                         // If both are missing, try to calculate from unit price and quantity
                         const unitPrice = parseFloat(item.unit_price_usd) || 0;
@@ -2511,38 +2418,20 @@
                 if (isNaN(itemPhp) || itemPhp === 0) {
                     if (!isNaN(itemUsd) && itemUsd > 0) {
                         itemPhp = itemUsd * EXCHANGE_RATE;
-                        item.line_total_php = itemPhp; // Update the item
+                        item.line_total_php = itemPhp;
                     }
                 }
                 
                 // Add to totals (ensure values are valid numbers)
                 if (!isNaN(itemUsd) && itemUsd > 0) {
                     totalUsd += itemUsd;
-                    // Track existing vs new totals
-                    if (item.isExisting === true) {
-                        existingTotalUsd += itemUsd;
-                    } else {
-                        newTotalUsd += itemUsd;
-                    }
                 }
                 if (!isNaN(itemPhp) && itemPhp > 0) {
                     totalPhp += itemPhp;
-                    // Track existing vs new totals
-                    if (item.isExisting === true) {
-                        existingTotalPhp += itemPhp;
-                    } else {
-                        newTotalPhp += itemPhp;
-                    }
                 } else if (!isNaN(itemUsd) && itemUsd > 0) {
                     // Fallback: calculate PHP from USD if PHP is still missing
                     const calculatedPhp = itemUsd * EXCHANGE_RATE;
                     totalPhp += calculatedPhp;
-                    // Track existing vs new totals
-                    if (item.isExisting === true) {
-                        existingTotalPhp += calculatedPhp;
-                    } else {
-                        newTotalPhp += calculatedPhp;
-                    }
                 }
             });
             
@@ -2562,7 +2451,7 @@
             // Save updated cart items with corrected prices
             saveCart();
             
-            // Update summary displays (safely check if elements exist)
+            // Update summary displays
             const summaryUsdEl = document.getElementById('summary-usd');
             const summaryPhpEl = document.getElementById('summary-php');
             const grandTotalEl = document.getElementById('grand-total');
@@ -2570,30 +2459,6 @@
             if (summaryUsdEl) summaryUsdEl.textContent = `$${totalUsd.toFixed(2)}`;
             if (summaryPhpEl) summaryPhpEl.textContent = `₱${totalPhp.toFixed(2)}`;
             if (grandTotalEl) grandTotalEl.textContent = `₱${grandTotal.toFixed(2)}`;
-            
-            // Update existing/new item summaries (safely check if elements exist)
-            const existingSummary = document.getElementById('existing-summary');
-            const newSummary = document.getElementById('new-summary');
-            const existingSubtotalEl = document.getElementById('existing-subtotal-php');
-            const newSubtotalEl = document.getElementById('new-subtotal-php');
-            
-            if (existingSummary && existingSubtotalEl) {
-                if (existingTotalPhp > 0) {
-                    existingSummary.style.display = 'block';
-                    existingSubtotalEl.textContent = `₱${existingTotalPhp.toFixed(2)}`;
-                } else {
-                    existingSummary.style.display = 'none';
-                }
-            }
-            
-            if (newSummary && newSubtotalEl) {
-                if (newTotalPhp > 0) {
-                    newSummary.style.display = 'block';
-                    newSubtotalEl.textContent = `₱${newTotalPhp.toFixed(2)}`;
-                } else {
-                    newSummary.style.display = 'none';
-                }
-            }
         }
 
         function removeItem(index) {
@@ -2604,16 +2469,7 @@
             
             const item = cartItems[index];
             
-            // If removing an existing item, track it for backend deletion
-            if (item && item.isExisting === true && item.originalQty !== undefined && item.originalQty > 0) {
-                removedItems.push({
-                    product_code: item.product_code,
-                    product_name: item.product_name,
-                    order_type: item.order_type,
-                    qty: 0, // Mark for deletion
-                    originalQty: item.originalQty
-                });
-            }
+            // Removed items tracking no longer needed - we send all items when updating
             
             cartItems.splice(index, 1);
             updateCart();
@@ -2624,11 +2480,11 @@
         // Expose removeItem to global scope for onclick handlers
         window.removeItem = removeItem;
         
-        // Function to update quantity of existing items
-        function updateExistingItemQty(index, change) {
+        // Function to update quantity of any item
+        function updateItemQty(index, change) {
             // Validate index
             if (index < 0 || index >= cartItems.length) {
-                console.error('Invalid index for updateExistingItemQty:', index, 'cartItems.length:', cartItems.length);
+                console.error('Invalid index for updateItemQty:', index, 'cartItems.length:', cartItems.length);
                 return;
             }
             
@@ -2656,29 +2512,15 @@
             item.line_total_usd = unitPriceUsd * newQty;
             item.line_total_php = item.line_total_usd * EXCHANGE_RATE;
             
-            // If quantity changed from original, mark as updated (move to new section)
+            // Mark as updated if quantity changed from original
             if (newQty !== originalQty) {
-                item.isExisting = false; // Move to new/updated section
-                item.isUpdated = true; // Mark as updated
+                item.isUpdated = true; // Mark as updated for change detection
             } else {
-                // If quantity matches original, mark back as existing
-                item.isExisting = true;
-                item.isUpdated = false;
+                item.isUpdated = false; // Revert if quantity matches original
             }
             
-            // If quantity is 0, handle removal
+            // If quantity is 0, remove from cart
             if (newQty === 0) {
-                // If this was an existing item, track it for backend deletion
-                if (item.isExisting === true && originalQty > 0) {
-                    // Store removed item info for backend deletion
-                    removedItems.push({
-                        product_code: item.product_code,
-                        product_name: item.product_name,
-                        order_type: item.order_type,
-                        qty: 0, // Mark for deletion
-                        originalQty: originalQty // Keep track of what was removed
-                    });
-                }
                 cartItems.splice(index, 1);
                 showToast(`✅ ${item.product_name} removed from cart`, 3000);
             } else {
@@ -2690,9 +2532,7 @@
             saveCart();
             updateSubmitButtonText(); // Update button state when items change
         }
-        
-        // Expose to global scope for inline onclick handlers (backup)
-        window.updateExistingItemQty = updateExistingItemQty;
+        window.updateItemQty = updateItemQty; // Expose to global scope
 
         // Auto-lookup returning customers
         let customerLookupTimeout = null;
@@ -2710,13 +2550,12 @@
             // Check if there's a pending order
             const pendingOrder = existingCustomerOrders.find(o => o.status !== 'Cancelled' && !o.locked);
             
-            // Check if there are any changes (new items, updates, or removals)
+            // Check if there are any changes (new items, updated quantities, or removed items)
             const hasNewItems = cartItems.some(item => item.isExisting !== true);
             const hasUpdatedItems = cartItems.some(item => item.isUpdated === true);
-            const hasRemovals = removedItems.length > 0;
-            const hasChanges = hasNewItems || hasUpdatedItems || hasRemovals;
+            const hasChanges = hasNewItems || hasUpdatedItems || cartItems.length === 0;
             
-            if (pendingOrder && (cartItems.length > 0 || hasRemovals)) {
+            if (pendingOrder && cartItems.length > 0) {
                 // Show existing order buttons, hide submit button
                 submitBtn.style.display = 'none';
                 if (existingButtons) existingButtons.style.display = 'flex';
@@ -2771,7 +2610,7 @@
                 if (!telegram || !fullName) {
                     currentOrderId = null;
                     cartItems = [];
-                    removedItems = []; // Clear removed items tracking
+                    // Removed items tracking no longer needed
                     updateCart();
                     saveCart();
                     updateSubmitButtonText();
@@ -2868,7 +2707,7 @@
                             // No pending order, clear cart and reset order ID
                             currentOrderId = null;
                             cartItems = [];
-                            removedItems = []; // Clear removed items tracking
+                            // Removed items tracking no longer needed
                             updateCart();
                             saveCart();
                         }
@@ -2882,7 +2721,7 @@
                         console.log('No orders found for', telegram);
                         currentOrderId = null;
                         cartItems = [];
-                        removedItems = []; // Clear removed items tracking
+                        // Removed items tracking no longer needed
                         updateCart();
                         saveCart();
                         updateSubmitButtonText();
@@ -3107,23 +2946,43 @@
                 const pendingOrder = existingCustomerOrders.find(o => o.status !== 'Cancelled' && !o.locked);
                 
                 if (pendingOrder) {
-                    // Update existing order - add items to it (no notification yet)
+                    // Update existing order - send ALL items (backend will handle updates/deletions)
                     btn.textContent = 'Updating...';
                     
-                    // Collect all items to send:
-                    // 1. NEW/UPDATED items (items that are new OR have been updated with qty > 0)
-                    // 2. REMOVED items (original items that were reduced to 0 - send with qty 0 for deletion)
-                    const newItems = cartItems.filter(item => {
-                        // Include if: not existing, or is updated (quantity changed from original)
-                        return (item.isExisting !== true || item.isUpdated === true) && item.qty > 0;
+                    // Check if there are any changes
+                    const hasChanges = cartItems.some(item => {
+                        // New item (not from existing order)
+                        if (item.isExisting !== true) return true;
+                        // Updated item (quantity changed from original)
+                        if (item.originalQty !== undefined && item.qty !== item.originalQty) return true;
+                        return false;
                     });
                     
-                    // Combine new/updated items with removed items (for backend deletion)
-                    const itemsToSend = [...newItems, ...removedItems];
+                    if (!hasChanges && cartItems.length === 0) {
+                        showToast('❌ Please add items, update quantities, or remove items before submitting', 3000);
+                        btn.disabled = false;
+                        btn.textContent = 'Confirm & Submit Order';
+                        return;
+                    }
                     
-                    // Allow submission if there are changes (new items, updates, or removals)
-                    if (itemsToSend.length === 0 && removedItems.length === 0) {
-                        showToast('❌ Please add new items, update quantities, or remove items before submitting', 3000);
+                    // Send ALL items from cart (backend will update/delete as needed)
+                    // Filter out items with qty 0 (they should be removed, not sent)
+                    const itemsToSend = cartItems
+                        .filter(item => item.qty > 0) // Only send items with qty > 0
+                        .map(item => ({
+                            product_code: item.product_code,
+                            product_name: item.product_name,
+                            order_type: item.order_type,
+                            qty: parseFloat(item.qty) || 0, // Ensure qty is a number
+                            unit_price_usd: parseFloat(item.unit_price_usd) || 0,
+                            line_total_usd: parseFloat(item.line_total_usd) || 0,
+                            line_total_php: parseFloat(item.line_total_php) || 0
+                        }));
+                    
+                    // Validate all items have valid quantities
+                    const invalidItems = itemsToSend.filter(item => !item.qty || item.qty <= 0);
+                    if (invalidItems.length > 0) {
+                        showToast('❌ Error: Some items have invalid quantities. Please check your order.', 3000);
                         btn.disabled = false;
                         btn.textContent = 'Confirm & Submit Order';
                         return;
@@ -3133,7 +2992,7 @@
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ 
-                            items: itemsToSend,  // Send new items + removed items (qty 0)
+                            items: itemsToSend,  // Send all items with qty > 0
                             telegram_username: telegram
                         })
                     });
@@ -3143,7 +3002,7 @@
                     if (result.success) {
                         currentOrderId = pendingOrder.order_id;
                         
-                        // Clear removed items tracking after successful submission
+                        // Clear removed items tracking (no longer needed since we send all items)
                         removedItems = [];
                         
                         // Close confirmation modal

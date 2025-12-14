@@ -766,69 +766,27 @@ def add_items_to_order(order_id, new_items, exchange_rate, telegram_username=Non
             print(f"Order {order_id} not found in sheet")
             return False
         
-        # Find existing items for this order
-        existing_items = {}  # key: (product_code, order_type) -> row_number
+        # Find all existing item rows for this order (except the first row with totals)
+        existing_item_rows = []  # List of row numbers to delete
         for row_num, row in enumerate(all_values[1:], start=2):  # Skip header, 1-indexed for sheets
             if len(row) > col_indices['order_id'] and row[col_indices['order_id']] == order_id:
-                product_code = row[col_indices['product_code']] if len(row) > col_indices['product_code'] else ''
-                order_type = row[col_indices['order_type']] if len(row) > col_indices['order_type'] else ''
-                if product_code:
-                    existing_items[(product_code, order_type)] = row_num
+                # Don't delete the first row (contains order totals)
+                if row_num != first_order_row:
+                    product_code = row[col_indices['product_code']] if len(row) > col_indices['product_code'] else ''
+                    # Only delete rows that have product codes (item rows, not summary row)
+                    if product_code:
+                        existing_item_rows.append(row_num)
         
-        items_to_add = []
-        rows_to_delete = []  # Track rows with 0 quantity to delete
+        # Delete all existing item rows (in reverse order to maintain row numbers)
+        if existing_item_rows:
+            existing_item_rows.sort(reverse=True)
+            for row_num in existing_item_rows:
+                worksheet.delete_rows(row_num)
         
         # Filter out 0 quantity items from new_items
-        new_items = [item for item in new_items if item.get('qty', 0) > 0]
+        items_to_add = [item for item in new_items if item.get('qty', 0) > 0]
         
-        for item in new_items:
-            key = (item['product_code'], item['order_type'])
-            
-            if key in existing_items:
-                # Consolidate: Update existing row by adding quantity
-                row_num = existing_items[key]
-                current_row = all_values[row_num - 1]  # 0-indexed for array
-                current_qty = int(current_row[col_indices['qty']] or 0)
-                new_qty = current_qty + item['qty']
-                
-                # If resulting quantity is 0 or less, mark for deletion
-                if new_qty <= 0:
-                    rows_to_delete.append(row_num)
-                else:
-                    unit_price = float(item.get('unit_price_usd', 0))
-                    new_line_total_usd = unit_price * new_qty
-                    new_line_total_php = new_line_total_usd * exchange_rate
-                    
-                    # Update qty and totals
-                    worksheet.update_cell(row_num, col_indices['qty'] + 1, new_qty)
-                    worksheet.update_cell(row_num, col_indices['line_total_usd'] + 1, new_line_total_usd)
-                    worksheet.update_cell(row_num, col_indices['line_total_php'] + 1, new_line_total_php)
-            else:
-                # New item - add to list (already filtered for qty > 0)
-                items_to_add.append(item)
-        
-        # Delete rows with 0 quantity (delete in reverse order to maintain row numbers)
-        if rows_to_delete:
-            rows_to_delete.sort(reverse=True)
-            for row_num in rows_to_delete:
-                worksheet.delete_rows(row_num)
-        
-        # Also check and delete any existing rows with 0 quantity for this order
-        all_values_updated = worksheet.get_all_values()
-        zero_qty_rows = []
-        for row_num, row in enumerate(all_values_updated[1:], start=2):
-            if len(row) > col_indices['order_id'] and row[col_indices['order_id']] == order_id:
-                qty = int(row[col_indices['qty']] or 0) if len(row) > col_indices['qty'] else 0
-                # Don't delete the first row (header row for order totals)
-                if qty <= 0 and row_num != first_order_row:
-                    zero_qty_rows.append(row_num)
-        
-        if zero_qty_rows:
-            zero_qty_rows.sort(reverse=True)
-            for row_num in zero_qty_rows:
-                worksheet.delete_rows(row_num)
-        
-        # Add any truly new items - insert right below the first row
+        # Add all new items - insert right below the first row
         if items_to_add:
             # Insert rows right after the first order row (row 2 if first_order_row is 2)
             insert_row = first_order_row + 1
