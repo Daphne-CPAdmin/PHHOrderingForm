@@ -1576,7 +1576,14 @@
                     {% if order_form_locked %}
                     <button type="button" class="btn btn-full" style="margin-top: 1.5rem; background: #9ca3af; cursor: not-allowed;" disabled>🔒 Orders Closed</button>
                     {% else %}
-                    <button type="button" class="btn btn-violet btn-full" style="margin-top: 1.5rem;" id="submit-order" disabled>Submit Order</button>
+                    <!-- Button container for dynamic buttons -->
+                    <div id="order-action-buttons" style="margin-top: 1.5rem; display: flex; flex-direction: column; gap: 0.75rem;">
+                        <button type="button" class="btn btn-violet btn-full" id="submit-order" disabled>Submit Order</button>
+                        <div id="existing-order-buttons" style="display: none; display: flex; gap: 0.75rem;">
+                            <button type="button" class="btn btn-secondary btn-full" id="view-total-order-btn" style="flex: 1;">View Total Order</button>
+                            <button type="button" class="btn btn-violet btn-full" id="update-order-btn" style="flex: 1;">Update Order</button>
+                        </div>
+                    </div>
                     {% endif %}
 
                 </div>
@@ -2552,15 +2559,47 @@
         // Function to update submit button text based on existing order
         function updateSubmitButtonText() {
             const submitBtn = document.getElementById('submit-order');
-            if (!submitBtn || submitBtn.disabled) return;
+            const existingButtons = document.getElementById('existing-order-buttons');
+            const viewTotalBtn = document.getElementById('view-total-order-btn');
+            const updateOrderBtn = document.getElementById('update-order-btn');
+            
+            if (!submitBtn) return;
             
             // Check if there's a pending order
             const pendingOrder = existingCustomerOrders.find(o => o.status !== 'Cancelled' && !o.locked);
             
             if (pendingOrder && cartItems.length > 0) {
-                submitBtn.textContent = 'Update Order';
+                // Show existing order buttons, hide submit button
+                submitBtn.style.display = 'none';
+                if (existingButtons) existingButtons.style.display = 'flex';
+                
+                // Set up view total order button
+                if (viewTotalBtn) {
+                    viewTotalBtn.onclick = () => {
+                        if (typeof viewOrder === 'function') {
+                            viewOrder(pendingOrder.order_id);
+                        }
+                    };
+                }
+                
+                // Set up update order button (same as submit)
+                if (updateOrderBtn) {
+                    updateOrderBtn.onclick = () => {
+                        // Trigger the submit order click handler
+                        const submitBtnClick = document.getElementById('submit-order');
+                        if (submitBtnClick && submitBtnClick.onclick) {
+                            submitBtnClick.onclick();
+                        } else {
+                            // Fallback: trigger click event
+                            submitBtnClick?.click();
+                        }
+                    };
+                }
             } else {
+                // Show submit button, hide existing order buttons
+                submitBtn.style.display = 'block';
                 submitBtn.textContent = 'Submit Order';
+                if (existingButtons) existingButtons.style.display = 'none';
             }
         }
         
