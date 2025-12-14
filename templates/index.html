@@ -1684,6 +1684,9 @@
                 <!-- Cart -->
                 <div class="card">
                     <h2 class="card-title"><span class="icon">🛒</span> Order Summary</h2>
+                    
+                    <!-- Status Tags Container -->
+                    <div id="order-summary-status-tags" style="margin-bottom: 1rem;"></div>
 
                     <div id="cart-empty" class="cart-empty">
                         <p>No items yet</p>
@@ -2510,6 +2513,8 @@
                 if (grandTotal) grandTotal.textContent = `₱${ADMIN_FEE.toFixed(2)}`;
                 
                 updateSubmitButtonText();
+                updateOrderSummaryStatusTags();
+                updateEditingControls();
                 return;
             }
             
@@ -2518,14 +2523,27 @@
             if (summary) summary.style.display = 'block';
             if (submit) submit.disabled = false;
             
+            // Check if order is editable
+            const pendingOrder = existingCustomerOrders.find(o => o.status !== 'Cancelled');
+            const isEditable = !pendingOrder || (!pendingOrder.locked && pendingOrder.payment_status !== 'Paid' && pendingOrder.payment_status !== 'Waiting for Confirmation');
+            
             // Display all items together with + - X buttons
             if (items) {
                 items.innerHTML = cartItems.map((item, i) => {
                     const isExisting = item.isExisting === true;
                     const hasChanged = item.originalQty !== undefined && item.qty !== item.originalQty;
+                    const removeBtnStyle = isEditable ? 
+                        'position: absolute; top: 0.5rem; right: 0.5rem; width: 24px; height: 24px; border: none; background: var(--accent-rose); color: white; border-radius: 50%; cursor: pointer; font-size: 1.2rem; font-weight: 600; display: flex; align-items: center; justify-content: center; line-height: 1; z-index: 10;' :
+                        'position: absolute; top: 0.5rem; right: 0.5rem; width: 24px; height: 24px; border: none; background: var(--accent-rose); color: white; border-radius: 50%; cursor: not-allowed; font-size: 1.2rem; font-weight: 600; display: flex; align-items: center; justify-content: center; line-height: 1; z-index: 10; opacity: 0.5; pointer-events: none;';
+                    const qtyBtnStyle = isEditable ?
+                        'width: 28px; height: 28px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--accent-rose); font-size: 1.2rem; font-weight: 600; line-height: 1; pointer-events: auto; z-index: 10; position: relative;' :
+                        'width: 28px; height: 28px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: not-allowed; display: flex; align-items: center; justify-content: center; color: var(--accent-rose); font-size: 1.2rem; font-weight: 600; line-height: 1; pointer-events: none; z-index: 10; position: relative; opacity: 0.5;';
+                    const qtyBtnPlusStyle = isEditable ?
+                        'width: 28px; height: 28px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--accent-teal); font-size: 1.2rem; font-weight: 600; line-height: 1; pointer-events: auto; z-index: 10; position: relative;' :
+                        'width: 28px; height: 28px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: not-allowed; display: flex; align-items: center; justify-content: center; color: var(--accent-teal); font-size: 1.2rem; font-weight: 600; line-height: 1; pointer-events: none; z-index: 10; position: relative; opacity: 0.5;';
                     return `
                         <div class="cart-item" style="${isExisting ? 'border-left: 3px solid var(--accent-amber);' : ''}">
-                            <button class="cart-item-remove" onclick="removeItem(${i})" style="position: absolute; top: 0.5rem; right: 0.5rem; width: 24px; height: 24px; border: none; background: var(--accent-rose); color: white; border-radius: 50%; cursor: pointer; font-size: 1.2rem; font-weight: 600; display: flex; align-items: center; justify-content: center; line-height: 1; z-index: 10;">×</button>
+                            <button class="cart-item-remove" onclick="removeItem(${i})" ${!isEditable ? 'disabled' : ''} style="${removeBtnStyle}">×</button>
                             <div class="cart-item-header">
                                 <span class="cart-item-name">${item.product_name}${hasChanged ? ' <span style="font-size: 0.75rem; color: var(--accent-teal);">(Updated)</span>' : ''}</span>
                                 <span class="cart-item-code">${item.product_code}</span>
@@ -2533,9 +2551,9 @@
                             <div class="cart-item-details" style="display: flex; align-items: center; gap: 0.75rem;">
                                 <span style="flex: 1;">${item.order_type} × <span id="qty-${i}">${item.qty}</span></span>
                                 <div style="display: flex; align-items: center; gap: 0.5rem; background: var(--bg-input); border-radius: 8px; padding: 0.25rem;">
-                                    <button type="button" class="qty-btn-minus" data-index="${i}" data-action="decrease" style="width: 28px; height: 28px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--accent-rose); font-size: 1.2rem; font-weight: 600; line-height: 1; pointer-events: auto; z-index: 10; position: relative;">−</button>
+                                    <button type="button" class="qty-btn-minus" data-index="${i}" data-action="decrease" ${!isEditable ? 'disabled' : ''} style="${qtyBtnStyle}">−</button>
                                     <span id="qty-display-${i}" style="min-width: 30px; text-align: center; font-weight: 600; color: var(--text-primary);">${item.qty}</span>
-                                    <button type="button" class="qty-btn-plus" data-index="${i}" data-action="increase" style="width: 28px; height: 28px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--accent-teal); font-size: 1.2rem; font-weight: 600; line-height: 1; pointer-events: auto; z-index: 10; position: relative;">+</button>
+                                    <button type="button" class="qty-btn-plus" data-index="${i}" data-action="increase" ${!isEditable ? 'disabled' : ''} style="${qtyBtnPlusStyle}">+</button>
                                 </div>
                                 <span class="cart-item-price">₱<span id="price-${i}">${(item.line_total_php || 0).toFixed(2)}</span></span>
                             </div>
@@ -2566,6 +2584,10 @@
                     }
                 });
             }
+            
+            // Update status tags and editing controls
+            updateOrderSummaryStatusTags();
+            updateEditingControls();
             
             // Calculate totals with proper NaN handling - ensure all items have valid prices
             cartItems.forEach(item => {
@@ -2714,6 +2736,70 @@
         let existingCustomerOrders = [];
         let originalOrderItems = []; // Track original order items for change detection
         
+        // Function to update status tags in Order Summary
+        function updateOrderSummaryStatusTags() {
+            const tagsContainer = document.getElementById('order-summary-status-tags');
+            if (!tagsContainer) return;
+            
+            // Find the pending order (including locked ones for tag display)
+            // First try to find non-cancelled, non-locked order (for editing)
+            // If not found, find any non-cancelled order (for tag display)
+            let pendingOrder = existingCustomerOrders.find(o => o.status !== 'Cancelled' && !o.locked);
+            if (!pendingOrder) {
+                pendingOrder = existingCustomerOrders.find(o => o.status !== 'Cancelled');
+            }
+            
+            if (!pendingOrder || cartItems.length === 0) {
+                tagsContainer.innerHTML = '';
+                return;
+            }
+            
+            // Determine status tag to show (priority: locked > paid > awaiting confirmation)
+            let statusTagHtml = '';
+            if (pendingOrder.locked) {
+                statusTagHtml = '<div class="order-status-tag locked">LOCKED 🔐</div>';
+            } else if (pendingOrder.payment_status === 'Paid') {
+                statusTagHtml = '<div class="order-status-tag paid">PAID 🤑</div>';
+            } else if (pendingOrder.payment_status === 'Waiting for Confirmation') {
+                statusTagHtml = '<div class="order-status-tag pending-payment">AWAITING ADMIN TO CONFIRM PAYMENT 🤑</div>';
+            }
+            
+            tagsContainer.innerHTML = statusTagHtml;
+        }
+        
+        // Function to disable/enable editing controls based on order status
+        function updateEditingControls() {
+            // Find any non-cancelled order (including locked ones)
+            const pendingOrder = existingCustomerOrders.find(o => o.status !== 'Cancelled');
+            const isEditable = !pendingOrder || (!pendingOrder.locked && pendingOrder.payment_status !== 'Paid' && pendingOrder.payment_status !== 'Waiting for Confirmation');
+            
+            // Disable quantity buttons
+            document.querySelectorAll('.qty-btn-minus, .qty-btn-plus').forEach(btn => {
+                if (isEditable) {
+                    btn.disabled = false;
+                    btn.style.opacity = '1';
+                    btn.style.cursor = 'pointer';
+                } else {
+                    btn.disabled = true;
+                    btn.style.opacity = '0.5';
+                    btn.style.cursor = 'not-allowed';
+                }
+            });
+            
+            // Disable remove buttons
+            document.querySelectorAll('.cart-item-remove').forEach(btn => {
+                if (isEditable) {
+                    btn.disabled = false;
+                    btn.style.opacity = '1';
+                    btn.style.cursor = 'pointer';
+                } else {
+                    btn.disabled = true;
+                    btn.style.opacity = '0.5';
+                    btn.style.cursor = 'not-allowed';
+                }
+            });
+        }
+        
         // Function to update submit button text and state based on existing order
         function updateSubmitButtonText() {
             const submitBtn = document.getElementById('submit-order');
@@ -2844,6 +2930,9 @@
                             // Store pending order ID for button text
                             currentOrderId = pendingOrder.order_id;
                             
+                            // Update status tags
+                            updateOrderSummaryStatusTags();
+                            
                             // Clear removed items tracking when loading fresh order
                             // Removed items tracking no longer needed
                             
@@ -2938,6 +3027,8 @@
                             updateCart();
                             saveCart();
                             updateSubmitButtonText(); // Update buttons after loading existing items
+                            updateOrderSummaryStatusTags();
+                            updateEditingControls();
                             showToast(`✅ Loaded ${cartItems.length} item(s) from your existing order`, 3000);
                         } else {
                             // No pending order, clear cart and reset order ID
@@ -2951,6 +3042,8 @@
                         
                         // Update button text
                         updateSubmitButtonText();
+                        updateOrderSummaryStatusTags();
+                        updateEditingControls();
                         
                         hideMyOrdersSection();
                         hideReturningCustomerBanner();
