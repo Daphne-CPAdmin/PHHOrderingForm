@@ -37,6 +37,47 @@ _cache = {}
 _cache_timestamps = {}
 CACHE_DURATION = 60  # seconds - default fallback cache duration
 
+def _normalize_order_sheet_headers(headers):
+    """
+    Normalize PepHaul Entry headers so lookups are stable even if the sheet header row is malformed.
+    - Strips whitespace
+    - If first header cell is blank, treat it as 'Order ID' (common real-world issue)
+    - Any other blank headers become 'Unnamed_{idx}'
+    """
+    normalized = []
+    for idx, h in enumerate(headers or []):
+        hs = str(h).strip()
+        if not hs:
+            if idx == 0:
+                hs = 'Order ID'
+            else:
+                hs = f'Unnamed_{idx}'
+        normalized.append(hs)
+    return normalized
+
+def _normalize_order_record_keys(record):
+    """
+    Normalize keys on a single order record:
+    - strip whitespace from keys
+    - map blank key (often from blank A1 header) to 'Order ID'
+    - prefer non-empty values when collisions happen
+    """
+    if not isinstance(record, dict):
+        return record
+    out = {}
+    for k, v in record.items():
+        ks = str(k).strip()
+        if not ks:
+            ks = 'Order ID'
+        # Prefer existing non-empty values if we collide
+        if ks in out:
+            existing = out.get(ks, '')
+            if (not str(existing).strip()) and str(v).strip():
+                out[ks] = v
+        else:
+            out[ks] = v
+    return out
+
 def get_cached(key, fetch_func, cache_duration=CACHE_DURATION):
     """Get cached data or fetch if expired - with rate limit protection"""
     now = time.time()
@@ -542,9 +583,11 @@ def _fetch_orders_from_sheets():
             print(f"⚠️ Worksheet appears empty or only has headers: {len(all_values) if all_values else 0} rows")
             return []
         
-        # Log headers for debugging
-        headers = all_values[0] if all_values else []
-        print(f"📋 Sheet headers ({len(headers)}): {headers[:15]}")
+        # Log headers for debugging (and normalize them for reliable lookups)
+        raw_headers = all_values[0] if all_values else []
+        headers = _normalize_order_sheet_headers(raw_headers)
+        print(f"📋 Sheet headers (raw, {len(raw_headers)}): {raw_headers[:15]}")
+        print(f"📋 Sheet headers (normalized, {len(headers)}): {headers[:15]}")
         print(f"📋 Total rows in sheet (including header): {len(all_values)}")
         
         telegram_col_index = None
@@ -566,13 +609,17 @@ def _fetch_orders_from_sheets():
                 if order_id_col_index is not None and len(row) > order_id_col_index:
                     print(f"  Row {i+1}: Order ID='{row[order_id_col_index] if len(row) > order_id_col_index else 'N/A'}', Telegram='{row[telegram_col_index] if telegram_col_index is not None and len(row) > telegram_col_index else 'N/A'}'")
         
-        # Try get_all_records first (faster, but might skip empty rows)
+        # Try get_all_records first (faster, but might preserve bad/blank header keys)
         records = worksheet.get_all_records()
         # Ensure we return a list
         if not isinstance(records, list):
             print(f"⚠️ get_all_records() did not return a list, got: {type(records)}")
             records = []
         
+        # Normalize keys so blank/whitespace headers don't break lookups (e.g., blank A1 header)
+        if records:
+            records = [_normalize_order_record_keys(r) for r in records]
+
         print(f"📋 get_all_records() returned {len(records)} records")
         
         # Verify records match expected count (should be all_values - 1 for header)
@@ -665,7 +712,9 @@ def get_orders_from_sheets():
 def get_order_by_id(order_id):
     """Get a specific order by ID"""
     orders = get_orders_from_sheets()
-    order_items = [o for o in orders if o.get('Order ID') == order_id]
+    # Normalize record keys defensively (covers cases where records were cached pre-normalization)
+    orders = [_normalize_order_record_keys(o) for o in orders] if isinstance(orders, list) else orders
+    order_items = [o for o in orders if str(o.get('Order ID', '')).strip() == str(order_id).strip()]
     
     if not order_items:
         return None
