@@ -1566,6 +1566,7 @@
                     <div id="order-action-buttons" style="margin-top: 1.5rem; display: flex; flex-direction: column; gap: 0.75rem;">
                         <button type="button" class="btn btn-violet btn-full" id="submit-order" disabled>Submit Order</button>
                         <button type="button" class="btn btn-violet btn-full" id="update-order-btn" style="display: none;">Update Order</button>
+                        <button type="button" class="btn btn-emerald btn-full" id="pay-order-btn" style="display: none;">💳 Pay Order</button>
                     </div>
                     {% endif %}
 
@@ -1797,38 +1798,13 @@
                     </div>
                 </div>
 
-                <!-- Payment Section -->
-                <div class="payment-section" style="margin-top: 1rem; padding: 1.5rem; background: linear-gradient(135deg, #fdf4ff 0%, #fce7f3 100%); border-radius: 16px; border: 2px solid var(--accent-primary);">
-                    <h4 style="margin-bottom: 1rem; color: var(--accent-primary); text-align: center;">💳 Pay Now</h4>
-                    
-                    <!-- Payment QR Options -->
-                    <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 0.75rem; text-align: center;">Choose your payment method:</p>
-                    <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center; margin-bottom: 1rem;">
-                        <a href="https://drive.google.com/file/d/1-Fbib327N9RXsGH4rtHGTtitag5-UbLl/view?usp=drive_link" target="_blank" class="payment-qr-btn">GCash</a>
-                        <a href="https://drive.google.com/file/d/1RF4q3tZhzohS_Ic3-WdA83xpWgYLU1WY/view?usp=drive_link" target="_blank" class="payment-qr-btn">Maya</a>
-                        <a href="https://drive.google.com/file/d/1k2aR2xHxLWaAY4T0JMzo0i7dHXUZ5V_b/view?usp=drive_link" target="_blank" class="payment-qr-btn">BPI</a>
-                        <a href="https://drive.google.com/file/d/1jhlG1vlTarnNxvji__QtzwrtIGhlNa6f/view?usp=drive_link" target="_blank" class="payment-qr-btn">UnionBank</a>
-                        <a href="https://drive.google.com/file/d/1P7KvA5Sgk0yl4L-Kn_W2OV4ek3HSueFU/view?usp=drive_link" target="_blank" class="payment-qr-btn">CIMB</a>
-                        <a href="https://drive.google.com/file/d/1kuBfTepRzzNfvuXh9-kgz29-Dccvhjuh/view?usp=drive_link" target="_blank" class="payment-qr-btn">MariBank</a>
-                        <a href="https://drive.google.com/file/d/12dqI1EVUNCI_V3Ht4zYaFHLLzEhvysfT/view?usp=sharing" target="_blank" class="payment-qr-btn">GoTyme</a>
-                    </div>
-                    
-                    <!-- Friendly Reminder -->
-                    <div style="background: rgba(255,255,255,0.8); border-radius: 12px; padding: 1rem; margin-bottom: 1rem; border: 1px dashed var(--accent-purple);">
-                        <p style="font-size: 0.95rem; font-weight: 600; color: var(--accent-purple); margin-bottom: 0.5rem; text-align: center;">✨ Friendly Pep_Haul Reminder! ✨</p>
-                        <p style="font-size: 0.85rem; color: var(--text-secondary);">Please leave the <strong>Notes section blank</strong>, pretty please! 🧬💫 If you must write something, just your <strong>telegram username</strong> is perfect.</p>
-                        <p style="font-size: 0.85rem; color: #ef4444; margin-top: 0.5rem;">❌ No "peptide payment," "payment," or anything super serious like that.</p>
-                        <p style="font-size: 0.85rem; color: var(--accent-primary); text-align: center; margin-top: 0.5rem;">Thank you! 💕🥰</p>
-                    </div>
-                    
-                    <!-- Payment Instructions -->
-                    <div style="text-align: center; padding: 1.5rem; background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(20, 184, 166, 0.1)); border-radius: 12px;">
-                        <p style="font-size: 1rem; font-weight: 600; color: var(--accent-emerald); margin-bottom: 0.5rem;">📱 Order submitted successfully!</p>
-                        <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 0.75rem;">Enter your Telegram username in the form to view and update your orders</p>
-                        <button class="btn btn-primary" onclick="closeModal('order-modal');">
-                            Got it!
-                        </button>
-                    </div>
+                <!-- Payment Instructions -->
+                <div style="text-align: center; padding: 1.5rem; background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(20, 184, 166, 0.1)); border-radius: 12px;">
+                    <p style="font-size: 1rem; font-weight: 600; color: var(--accent-emerald); margin-bottom: 0.5rem;">📱 Order submitted successfully!</p>
+                    <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 0.75rem;">Enter your Telegram username in the form to view and update your orders</p>
+                    <button class="btn btn-primary" onclick="closeModal('order-modal');">
+                        Got it!
+                    </button>
                 </div>
             </div>
             <div class="modal-footer">
@@ -1877,6 +1853,47 @@
         </div>
     </div>
 
+
+    <!-- Payment Modal -->
+    <div class="modal" id="payment-modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3 class="modal-title">💳 Make Payment</h3>
+                <button class="modal-close" onclick="closeModal('payment-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="payment-section" style="padding: 1.5rem; background: linear-gradient(135deg, #fdf4ff 0%, #fce7f3 100%); border-radius: 16px; border: 2px solid var(--accent-primary);">
+                    <!-- Payment QR Options -->
+                    <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 0.75rem; text-align: center;">Choose your payment method:</p>
+                    <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center; margin-bottom: 1rem;">
+                        <a href="https://drive.google.com/file/d/1-Fbib327N9RXsGH4rtHGTtitag5-UbLl/view?usp=drive_link" target="_blank" class="payment-qr-btn">GCash</a>
+                        <a href="https://drive.google.com/file/d/1RF4q3tZhzohS_Ic3-WdA83xpWgYLU1WY/view?usp=drive_link" target="_blank" class="payment-qr-btn">Maya</a>
+                        <a href="https://drive.google.com/file/d/1k2aR2xHxLWaAY4T0JMzo0i7dHXUZ5V_b/view?usp=drive_link" target="_blank" class="payment-qr-btn">BPI</a>
+                        <a href="https://drive.google.com/file/d/1jhlG1vlTarnNxvji__QtzwrtIGhlNa6f/view?usp=drive_link" target="_blank" class="payment-qr-btn">UnionBank</a>
+                        <a href="https://drive.google.com/file/d/1P7KvA5Sgk0yl4L-Kn_W2OV4ek3HSueFU/view?usp=drive_link" target="_blank" class="payment-qr-btn">CIMB</a>
+                        <a href="https://drive.google.com/file/d/1kuBfTepRzzNfvuXh9-kgz29-Dccvhjuh/view?usp=drive_link" target="_blank" class="payment-qr-btn">MariBank</a>
+                        <a href="https://drive.google.com/file/d/12dqI1EVUNCI_V3Ht4zYaFHLLzEhvysfT/view?usp=sharing" target="_blank" class="payment-qr-btn">GoTyme</a>
+                    </div>
+                    
+                    <!-- Friendly Reminder -->
+                    <div style="background: rgba(255,255,255,0.8); border-radius: 12px; padding: 1rem; margin-bottom: 1rem; border: 1px dashed var(--accent-purple);">
+                        <p style="font-size: 0.95rem; font-weight: 600; color: var(--accent-purple); margin-bottom: 0.5rem; text-align: center;">✨ Friendly Pep_Haul Reminder! ✨</p>
+                        <p style="font-size: 0.85rem; color: var(--text-secondary);">Please leave the <strong>Notes section blank</strong>, pretty please! 🧬💫 If you must write something, just your <strong>telegram username</strong> is perfect.</p>
+                        <p style="font-size: 0.85rem; color: #ef4444; margin-top: 0.5rem;">❌ No "peptide payment," "payment," or anything super serious like that.</p>
+                        <p style="font-size: 0.85rem; color: var(--accent-primary); text-align: center; margin-top: 0.5rem;">Thank you! 💕🥰</p>
+                    </div>
+                    
+                    <!-- Order Summary in Payment Modal -->
+                    <div id="payment-order-summary" style="margin-top: 1rem; padding: 1rem; background: rgba(255,255,255,0.9); border-radius: 12px;">
+                        <!-- Will be populated by JavaScript -->
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('payment-modal')">Close</button>
+            </div>
+        </div>
+    </div>
 
     <!-- Mailing Address Modal -->
     <div class="modal" id="mailing-address-modal">
@@ -2949,6 +2966,58 @@
             });
         }
         
+        // Pay Order - Show payment modal
+        const payOrderBtn = document.getElementById('pay-order-btn');
+        if (payOrderBtn) {
+            payOrderBtn.addEventListener('click', () => {
+                const pendingOrder = existingCustomerOrders.find(o => o.status !== 'Cancelled' && !o.locked);
+                if (pendingOrder) {
+                    showPaymentModal(pendingOrder);
+                } else {
+                    showToast('No active order found', 3000);
+                }
+            });
+        }
+        
+        function showPaymentModal(order) {
+            const modal = document.getElementById('payment-modal');
+            const summaryEl = document.getElementById('payment-order-summary');
+            
+            if (!modal || !summaryEl) {
+                showToast('Payment modal not found', 3000);
+                return;
+            }
+            
+            // Calculate totals
+            const items = order.items || [];
+            const subtotalPhp = items.reduce((sum, item) => sum + (parseFloat(item.line_total_php) || 0), 0);
+            const grandTotalPhp = order.grand_total_php || (subtotalPhp + ADMIN_FEE);
+            
+            // Populate order summary
+            summaryEl.innerHTML = `
+                <div style="margin-bottom: 1rem;">
+                    <div style="font-family: 'JetBrains Mono', monospace; color: var(--accent-primary); font-size: 1rem; font-weight: 700; margin-bottom: 0.25rem;">${order.order_id}</div>
+                    <div style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 0.75rem;">${order.order_date}</div>
+                </div>
+                <div style="border-top: 1px solid var(--border); padding-top: 0.75rem; margin-top: 0.75rem;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                        <span style="color: var(--text-secondary); font-size: 0.9rem;">Subtotal:</span>
+                        <span style="font-weight: 600;">₱${subtotalPhp.toFixed(2)}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                        <span style="color: var(--text-secondary); font-size: 0.9rem;">Admin Fee:</span>
+                        <span style="font-weight: 600;">₱${ADMIN_FEE.toFixed(2)}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; font-size: 1.1rem; font-weight: 700; color: var(--accent-primary); margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--border);">
+                        <span>Grand Total:</span>
+                        <span>₱${grandTotalPhp.toFixed(2)}</span>
+                    </div>
+                </div>
+            `;
+            
+            modal.classList.add('show');
+        }
+        
         // Show order confirmation modal
         function showOrderConfirmationModal() {
             const modal = document.getElementById('order-confirmation-modal');
@@ -3096,6 +3165,26 @@
                         })
                     });
                     
+                    // Check response status before parsing JSON to handle 502 errors
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        let errorMessage = `Server error (${response.status})`;
+                        if (response.status === 502) {
+                            errorMessage = 'Server temporarily unavailable. Please try again in a moment.';
+                        } else if (errorText) {
+                            try {
+                                const errorJson = JSON.parse(errorText);
+                                errorMessage = errorJson.error || errorMessage;
+                            } catch (e) {
+                                errorMessage = `Server error: ${errorText.substring(0, 100)}`;
+                            }
+                        }
+                        showToast(`❌ ${errorMessage}`, 7000);
+                        btn.disabled = false;
+                        btn.textContent = 'Confirm & Submit Order';
+                        return;
+                    }
+                    
                     result = await response.json();
                     
                     if (result.success) {
@@ -3105,21 +3194,28 @@
                         removedItems = [];
                         
                         // Finalize order immediately (send Telegram notification)
-                        const finalizeResponse = await fetch(`/api/orders/${pendingOrder.order_id}/finalize`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' }
-                        });
-                        
-                        const finalizeResult = await finalizeResponse.json();
+                        try {
+                            const finalizeResponse = await fetch(`/api/orders/${pendingOrder.order_id}/finalize`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' }
+                            });
+                            
+                            if (!finalizeResponse.ok) {
+                                // If finalize fails, still show success for update
+                                console.warn('Finalize failed but order was updated:', finalizeResponse.status);
+                            } else {
+                                const finalizeResult = await finalizeResponse.json();
+                                if (!finalizeResult.success) {
+                                    console.warn('Finalize returned error but order was updated:', finalizeResult.error);
+                                }
+                            }
+                        } catch (finalizeError) {
+                            console.warn('Error finalizing order (non-critical):', finalizeError);
+                        }
                         
                         // Close confirmation modal
                         closeModal('order-confirmation-modal');
-                        
-                        if (finalizeResult.success) {
-                            showToast('✅ Order updated and GB Admin notified!', 5000);
-                        } else {
-                            showToast('✅ Order updated! (Note: Could not notify GB Admin)', 5000);
-                        }
+                        showToast('✅ Order updated and GB Admin notified!', 5000);
                         
                         // Refresh order lookup immediately to get updated totals
                         if (typeof checkReturningCustomer === 'function') {
@@ -3136,6 +3232,8 @@
                         const errorMsg = result.error || 'Failed to update order';
                         showToast(`❌ ${errorMsg}`, 5000);
                         console.error('Order update error:', result);
+                        btn.disabled = false;
+                        btn.textContent = 'Confirm & Submit Order';
                     }
                 } else {
                     // Create new order
