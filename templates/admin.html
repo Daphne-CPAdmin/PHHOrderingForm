@@ -1001,7 +1001,10 @@
                     ? items.map(i => `${i.product_code || 'N/A'} (${i.qty || 0})`).join(', ')
                     : 'No items';
                 const isPaid = order.payment_status && order.payment_status.toLowerCase() === 'paid';
+                const isWaitingForConfirmation = order.payment_status && order.payment_status.toLowerCase() === 'waiting for confirmation';
                 const isLocked = order.locked === true;
+                const isNonEditableDueToPayment = isPaid || isWaitingForConfirmation;
+                const showUnlockButton = isLocked || isNonEditableDueToPayment;
                 
                 return `
                     <tr data-order-id="${order.order_id}" class="${isLocked ? 'locked-order' : ''}">
@@ -1023,7 +1026,7 @@
                         <td>
                             <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
                                 <button class="btn-sm btn-view" onclick="viewOrderDetails('${order.order_id}')">View</button>
-                                ${isLocked 
+                                ${showUnlockButton 
                                     ? `<button class="btn-sm" style="background: #10b981; color: white;" onclick="toggleOrderLock('${order.order_id}', false)">🔓 Unlock</button>`
                                     : `<button class="btn-sm" style="background: #f59e0b; color: white;" onclick="toggleOrderLock('${order.order_id}', true)">🔒 Lock</button>`}
                                 ${!isPaid 

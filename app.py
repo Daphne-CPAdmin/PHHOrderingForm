@@ -3930,9 +3930,22 @@ def api_admin_lock_order(order_id):
     data = request.json or {}
     is_locked = data.get('locked', True)
     
-    if update_order_status(order_id, locked=is_locked):
+    # If unlocking, check if order has payment status that makes it non-editable
+    # If so, reset payment status to 'Unpaid' to make it editable again
+    payment_status_to_reset = None
+    if not is_locked:
+        order = get_order_by_id(order_id)
+        if order:
+            current_payment_status = order.get('payment_status', '').lower()
+            if current_payment_status in ['paid', 'waiting for confirmation']:
+                payment_status_to_reset = 'Unpaid'
+    
+    if update_order_status(order_id, locked=is_locked, payment_status=payment_status_to_reset):
         action = 'locked' if is_locked else 'unlocked'
-        print(f"✅ Order {order_id} {action}")
+        if payment_status_to_reset:
+            print(f"✅ Order {order_id} {action} and payment status reset to Unpaid")
+        else:
+            print(f"✅ Order {order_id} {action}")
         return jsonify({'success': True, 'message': f'Order {action} successfully'})
     
     return jsonify({'error': 'Failed to update order lock status'}), 500
