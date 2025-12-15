@@ -1,35 +1,38 @@
-# Environment variables (NEVER commit!)
+# Environment variables
 .env
-
-# Google credentials
-credentials.json
-pephaul-order-form-credentials.json
-token.json
-service_account.json
-*credentials*.json
+*.env
 
 # Python
 __pycache__/
 *.py[cod]
 *$py.class
+*.so
+.Python
 venv/
-.venv/
+env/
+ENV/
+
+# Data files
+data/temp/
+data/output/*.csv
+!data/output/.gitkeep
+
+# Logs
+logs/*.txt
+!logs/.gitkeep
 
 # IDE
 .vscode/
 .idea/
-
-# Logs
-logs/
-*.log
-
-# Temp files
-data/temp/
-*.csv
+*.swp
+*.swo
 
 # OS
 .DS_Store
 Thumbs.db
 
-credentials_single_line.txt
-convert_credentials.py
+# Credentials
+credentials.json
+pephaul-order-form-credentials.json
+*.pem
+*.key
