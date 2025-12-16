@@ -1689,29 +1689,34 @@ def _fetch_consolidated_order_stats():
         products = get_products()
         product_prices = {p['code']: {'kit_price': p['kit_price'], 'vial_price': p['vial_price']} for p in products}
         
+        # Get inventory stats to calculate actual kits_generated (includes kits formed from vials)
+        inventory = get_inventory_stats()
+        
+        # Calculate total kits based on kits_generated (actual kits that can be formed)
         total_kits_usd = 0.0
-        total_vials_usd = 0.0
         total_kits_count = 0
+        
+        for product in products:
+            product_code = product['code']
+            if product_code in inventory:
+                kits_generated = inventory[product_code].get('kits_generated', 0)
+                if kits_generated > 0:
+                    kit_price = product.get('kit_price', 0)
+                    total_kits_usd += kit_price * kits_generated
+                    total_kits_count += kits_generated
+        
+        # Calculate total vials value (only for remaining vials that don't form complete kits)
+        total_vials_usd = 0.0
         total_vials_count = 0
         
-        for order in orders:
-            if order.get('Order Status') == 'Cancelled':
-                continue
-            
-            product_code = order.get('Product Code', '')
-            order_type = order.get('Order Type', 'Vial')
-            qty = int(order.get('QTY', 0) or 0)
-            # Skip items with 0 quantity for revenue calculations
-            if qty <= 0:
-                continue
-            
-            if product_code in product_prices:
-                if order_type == 'Kit':
-                    total_kits_usd += product_prices[product_code]['kit_price'] * qty
-                    total_kits_count += qty
-                else:
-                    total_vials_usd += product_prices[product_code]['vial_price'] * qty
-                    total_vials_count += qty
+        for product in products:
+            product_code = product['code']
+            if product_code in inventory:
+                remaining_vials = inventory[product_code].get('remaining_vials', 0)
+                if remaining_vials > 0:
+                    vial_price = product.get('vial_price', 0)
+                    total_vials_usd += vial_price * remaining_vials
+                    total_vials_count += remaining_vials
         
         return {
             'total_kits_usd': total_kits_usd,
