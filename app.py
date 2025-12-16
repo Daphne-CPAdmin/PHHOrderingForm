@@ -1760,6 +1760,26 @@ def index():
             if stats.get('total_vials', 0) > 0:
                 products_with_orders.append(product)
         
+        # Sort products: Complete kits first (by # of kits, descending), then others by proximity
+        def sort_key(product):
+            stats = product['inventory']
+            total_vials = stats.get('total_vials', 0)
+            kits_generated = stats.get('kits_generated', 0)
+            slots = stats.get('slots_to_next_kit', VIALS_PER_KIT)
+            
+            # Complete kits: >10 vials OR at least 1 kit ordered
+            is_complete_kit = total_vials > 10 or kits_generated >= 1
+            
+            # Return tuple: (0 for complete kits, 1 for others), then sort value
+            # Complete kits: sort by kits_generated descending (negative for descending)
+            # Others: sort by slots ascending (closer to completion first)
+            if is_complete_kit:
+                return (0, -kits_generated)  # Negative for descending order
+            else:
+                return (1, slots)  # Ascending by slots
+        
+        products_with_orders.sort(key=sort_key)
+        
         order_goal = get_order_goal()
         
         return render_template('index.html', 
