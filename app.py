@@ -4091,7 +4091,6 @@ def api_admin_mark_unpaid(order_id):
         return jsonify({'success': True})
     return jsonify({'error': 'Failed to update payment status'}), 500
 
-<<<<<<< HEAD
 @app.route('/api/admin/customer-summary')
 def api_admin_customer_summary():
     """Get customer summary - unique customers with order counts, total vials, and grand totals"""
