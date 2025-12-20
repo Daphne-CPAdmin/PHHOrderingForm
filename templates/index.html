@@ -1864,29 +1864,40 @@
                 </div>
             </div>
             {% if incomplete_kits and incomplete_kits|length > 0 %}
-            <div class="orders-product-grid">
-                {% for product in incomplete_kits %}
-                {% set total_vials = product.inventory.total_vials %}
-                {% set vials_per_kit = product.vials_per_kit or 10 %}
-                {% set kits_generated = product.inventory.kits_generated %}
-                {% set remaining_vials = total_vials % vials_per_kit %}
-                {% set pending_vials = vials_per_kit - remaining_vials %}
-                <div class="order-product-card" style="border: 2px solid #f472b6; background: rgba(249, 168, 212, 0.15);">
-                    <div class="order-product-info">
-                        <div class="order-product-name">{{ product.name }}</div>
-                        <div class="order-product-code">{{ product.code }}</div>
-                    </div>
-                    <div class="order-product-stats">
-                        <span class="order-vials-count">{{ total_vials }} vials total</span>
-                        {% if kits_generated > 0 %}
-                        <span class="order-kits-count">{{ kits_generated }} kit{{ 's' if kits_generated != 1 else '' }} complete</span>
-                        {% endif %}
-                        <span style="display: inline-block; padding: 0.35rem 0.75rem; border-radius: 20px; font-size: 0.8rem; font-weight: 600; background: rgba(244, 114, 182, 0.25); color: #ec4899; margin-top: 0.5rem;">
-                            {{ remaining_vials }} remaining • {{ pending_vials }} vial{{ 's' if pending_vials != 1 else '' }} needed
-                        </span>
-                    </div>
-                </div>
-                {% endfor %}
+            <div class="table-container" style="margin-top: 1rem;">
+                <table class="products-table" style="width: 100%;">
+                    <thead>
+                        <tr>
+                            <th>Product Name</th>
+                            <th>Code</th>
+                            <th>Total Vials</th>
+                            <th>Kits Generated</th>
+                            <th>Remaining Vials</th>
+                            <th>Vials Needed to Complete Kit</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for product in incomplete_kits %}
+                        {% set total_vials = product.inventory.total_vials %}
+                        {% set vials_per_kit = product.vials_per_kit or 10 %}
+                        {% set kits_generated = product.inventory.kits_generated %}
+                        {% set remaining_vials = total_vials % vials_per_kit %}
+                        {% set pending_vials = vials_per_kit - remaining_vials %}
+                        <tr style="background: rgba(249, 168, 212, 0.1);">
+                            <td style="font-weight: 500;">{{ product.name }}</td>
+                            <td><span class="product-code">{{ product.code }}</span></td>
+                            <td style="font-family: 'JetBrains Mono', monospace; font-weight: 600;">{{ total_vials }}</td>
+                            <td><span class="kits-badge normal">{{ kits_generated }}</span></td>
+                            <td style="font-family: 'JetBrains Mono', monospace; color: #ec4899; font-weight: 600;">{{ remaining_vials }}</td>
+                            <td>
+                                <span style="display: inline-block; padding: 0.35rem 0.75rem; border-radius: 20px; font-size: 0.85rem; font-weight: 600; background: rgba(244, 114, 182, 0.25); color: #ec4899;">
+                                    {{ pending_vials }} vial{{ 's' if pending_vials != 1 else '' }}
+                                </span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             </div>
             {% else %}
             <div style="text-align: center; padding: 2rem; color: var(--text-muted);">
