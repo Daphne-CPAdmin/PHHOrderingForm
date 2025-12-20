@@ -1917,7 +1917,10 @@
                                 {% if pep_haulers and pep_haulers|length > 0 %}
                                     <div style="display: flex; flex-wrap: wrap; gap: 0.25rem; justify-content: center;">
                                         {% for username in pep_haulers %}
-                                            {% set color_index = (loop.index0 + username|length) % 10 %}
+                                            {% set first_char = username[0] if username else 'a' %}
+                                            {% set last_char = username[-1] if username else 'z' %}
+                                            {% set char_code_sum = (first_char|length * 7 + last_char|length * 3 + username|length) %}
+                                            {% set color_index = char_code_sum % 10 %}
                                             {% if color_index == 0 %}
                                                 {% set badge_bg = 'rgba(192, 132, 252, 0.2)' %}
                                                 {% set badge_text = '#7c3aed' %}
