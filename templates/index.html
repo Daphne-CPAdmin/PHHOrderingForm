@@ -1917,7 +1917,39 @@
                                 {% if pep_haulers and pep_haulers|length > 0 %}
                                     <div style="display: flex; flex-wrap: wrap; gap: 0.25rem; justify-content: center;">
                                         {% for username in pep_haulers %}
-                                            <span style="display: inline-block; padding: 0.25rem 0.5rem; border-radius: 12px; font-size: 0.75rem; font-weight: 500; background: rgba(192, 132, 252, 0.2); color: #7c3aed;">
+                                            {% set color_index = (username|length + username|hash) % 10 %}
+                                            {% if color_index == 0 %}
+                                                {% set badge_bg = 'rgba(192, 132, 252, 0.2)' %}
+                                                {% set badge_text = '#7c3aed' %}
+                                            {% elif color_index == 1 %}
+                                                {% set badge_bg = 'rgba(249, 168, 212, 0.2)' %}
+                                                {% set badge_text = '#ec4899' %}
+                                            {% elif color_index == 2 %}
+                                                {% set badge_bg = 'rgba(167, 139, 250, 0.2)' %}
+                                                {% set badge_text = '#8b5cf6' %}
+                                            {% elif color_index == 3 %}
+                                                {% set badge_bg = 'rgba(244, 114, 182, 0.2)' %}
+                                                {% set badge_text = '#db2777' %}
+                                            {% elif color_index == 4 %}
+                                                {% set badge_bg = 'rgba(221, 214, 254, 0.25)' %}
+                                                {% set badge_text = '#a78bfa' %}
+                                            {% elif color_index == 5 %}
+                                                {% set badge_bg = 'rgba(240, 171, 252, 0.2)' %}
+                                                {% set badge_text = '#c084fc' %}
+                                            {% elif color_index == 6 %}
+                                                {% set badge_bg = 'rgba(251, 191, 216, 0.2)' %}
+                                                {% set badge_text = '#f472b6' %}
+                                            {% elif color_index == 7 %}
+                                                {% set badge_bg = 'rgba(196, 181, 253, 0.2)' %}
+                                                {% set badge_text = '#a855f7' %}
+                                            {% elif color_index == 8 %}
+                                                {% set badge_bg = 'rgba(252, 211, 77, 0.2)' %}
+                                                {% set badge_text = '#eab308' %}
+                                            {% else %}
+                                                {% set badge_bg = 'rgba(147, 197, 253, 0.2)' %}
+                                                {% set badge_text = '#3b82f6' %}
+                                            {% endif %}
+                                            <span style="display: inline-block; padding: 0.25rem 0.5rem; border-radius: 12px; font-size: 0.75rem; font-weight: 500; background: {{ badge_bg }}; color: {{ badge_text }};">
                                                 @{{ username }}
                                             </span>
                                         {% endfor %}

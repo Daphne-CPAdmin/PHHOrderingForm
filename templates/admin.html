@@ -1079,11 +1079,36 @@
                     badgeTextColor = '#be185d';
                 }
                 
-                // Format pep haulers as badges
+                // Color palette for username badges (pastel lilac/pink shades)
+                const colorPalette = [
+                    { bg: 'rgba(192, 132, 252, 0.2)', text: '#7c3aed' }, // Lilac
+                    { bg: 'rgba(249, 168, 212, 0.2)', text: '#ec4899' }, // Pink
+                    { bg: 'rgba(167, 139, 250, 0.2)', text: '#8b5cf6' }, // Purple
+                    { bg: 'rgba(244, 114, 182, 0.2)', text: '#db2777' }, // Rose
+                    { bg: 'rgba(221, 214, 254, 0.25)', text: '#a78bfa' }, // Lavender
+                    { bg: 'rgba(240, 171, 252, 0.2)', text: '#c084fc' }, // Light purple
+                    { bg: 'rgba(251, 191, 216, 0.2)', text: '#f472b6' }, // Blush pink
+                    { bg: 'rgba(196, 181, 253, 0.2)', text: '#a855f7' }, // Deep purple
+                    { bg: 'rgba(252, 211, 77, 0.2)', text: '#eab308' }, // Yellow accent
+                    { bg: 'rgba(147, 197, 253, 0.2)', text: '#3b82f6' }, // Blue accent
+                ];
+                
+                // Assign color based on username hash for consistency
+                const getColorForUsername = (username) => {
+                    let hash = 0;
+                    for (let i = 0; i < username.length; i++) {
+                        hash = username.charCodeAt(i) + ((hash << 5) - hash);
+                    }
+                    const index = Math.abs(hash) % colorPalette.length;
+                    return colorPalette[index];
+                };
+                
+                // Format pep haulers as badges with unique colors
                 const pepHaulersHtml = pepHaulers.length > 0 
-                    ? pepHaulers.map(username => 
-                        `<span style="display: inline-block; padding: 0.25rem 0.5rem; border-radius: 12px; font-size: 0.75rem; font-weight: 500; background: rgba(192, 132, 252, 0.2); color: #7c3aed; margin: 0.125rem;">@${username}</span>`
-                    ).join('')
+                    ? pepHaulers.map(username => {
+                        const color = getColorForUsername(username);
+                        return `<span style="display: inline-block; padding: 0.25rem 0.5rem; border-radius: 12px; font-size: 0.75rem; font-weight: 500; background: ${color.bg}; color: ${color.text}; margin: 0.125rem;">@${username}</span>`;
+                    }).join('')
                     : '<span style="color: var(--text-muted); font-size: 0.85rem;">—</span>';
                 
                 return `
