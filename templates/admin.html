@@ -652,8 +652,8 @@
                                 <th style="text-align: center;">Code</th>
                                 <th style="text-align: center;">Total Vials</th>
                                 <th style="text-align: center;">Kits Generated</th>
-                                <th style="text-align: center;">Remaining Vials</th>
                                 <th style="text-align: center;">Pending Vials to Complete Kit</th>
+                                <th style="text-align: center;">Pep Hauler/s</th>
                             </tr>
                         </thead>
                         <tbody id="incomplete-kits-tbody">
@@ -1048,7 +1048,8 @@
             incompleteKitsWithPending.sort((a, b) => a.pendingVials - b.pendingVials);
 
             tbody.innerHTML = incompleteKitsWithPending.map(product => {
-                const { totalVials, kitsGenerated, remainingVials, pendingVials } = product;
+                const { totalVials, kitsGenerated, pendingVials } = product;
+                const pepHaulers = product.pep_haulers || [];
                 
                 // Color coding based on vials needed
                 let rowBgColor = '';
@@ -1077,17 +1078,28 @@
                     badgeTextColor = '#be185d';
                 }
                 
+                // Format pep haulers as badges
+                const pepHaulersHtml = pepHaulers.length > 0 
+                    ? pepHaulers.map(username => 
+                        `<span style="display: inline-block; padding: 0.25rem 0.5rem; border-radius: 12px; font-size: 0.75rem; font-weight: 500; background: rgba(192, 132, 252, 0.2); color: #7c3aed; margin: 0.125rem;">@${username}</span>`
+                    ).join('')
+                    : '<span style="color: var(--text-muted); font-size: 0.85rem;">—</span>';
+                
                 return `
                     <tr class="incomplete-kit" style="${rowBgColor}">
                         <td style="font-weight: 500; text-align: center;">${product.name}</td>
                         <td style="text-align: center;"><span class="product-code">${product.code}</span></td>
                         <td style="font-family: 'JetBrains Mono', monospace; font-weight: 600; text-align: center;">${totalVials}</td>
                         <td style="text-align: center;"><span class="kits-badge normal">${kitsGenerated}</span></td>
-                        <td style="font-family: 'JetBrains Mono', monospace; color: #ec4899; font-weight: 600; text-align: center;">${remainingVials}</td>
                         <td style="text-align: center;">
                             <span class="kits-badge incomplete" style="font-size: 0.9rem; background: ${badgeBgColor}; color: ${badgeTextColor}; font-weight: 600;">
                                 ${pendingVials} vial${pendingVials !== 1 ? 's' : ''} needed
                             </span>
+                        </td>
+                        <td style="text-align: center;">
+                            <div style="display: flex; flex-wrap: wrap; gap: 0.25rem; justify-content: center;">
+                                ${pepHaulersHtml}
+                            </div>
                         </td>
                     </tr>
                 `;

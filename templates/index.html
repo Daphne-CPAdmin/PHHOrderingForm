@@ -1872,8 +1872,8 @@
                             <th style="text-align: center;">Code</th>
                             <th style="text-align: center;">Total Vials</th>
                             <th style="text-align: center;">Kits Generated</th>
-                            <th style="text-align: center;">Remaining Vials</th>
                             <th style="text-align: center;">Vials Needed to Complete Kit</th>
+                            <th style="text-align: center;">Pep Hauler/s</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -1883,6 +1883,7 @@
                         {% set kits_generated = product.inventory.kits_generated %}
                         {% set remaining_vials = total_vials % vials_per_kit %}
                         {% set pending_vials = vials_per_kit - remaining_vials %}
+                        {% set pep_haulers = product.pep_haulers or [] %}
                         {% if pending_vials <= 2 %}
                             {% set row_bg = 'rgba(167, 139, 250, 0.15)' %}
                             {% set badge_bg = 'rgba(167, 139, 250, 0.3)' %}
@@ -1910,6 +1911,15 @@
                                 <span style="display: inline-block; padding: 0.35rem 0.75rem; border-radius: 20px; font-size: 0.85rem; font-weight: 600; background: {{ badge_bg }}; color: {{ badge_color }};">
                                     {{ pending_vials }} vial{{ 's' if pending_vials != 1 else '' }}
                                 </span>
+                            </td>
+                            <td style="text-align: center; font-size: 0.85rem; color: var(--text-secondary);">
+                                {% if pep_haulers|length > 0 %}
+                                    {% for username in pep_haulers %}
+                                        @{{ username }}{% if not loop.last %}, {% endif %}
+                                    {% endfor %}
+                                {% else %}
+                                    <span style="color: var(--text-muted); font-style: italic;">None</span>
+                                {% endif %}
                             </td>
                         </tr>
                         {% endfor %}

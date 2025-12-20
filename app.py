@@ -1787,6 +1787,41 @@ def index():
         
         # Filter incomplete kits (products with remaining vials that don't form complete kits)
         incomplete_kits = []
+        orders = get_orders_from_sheets()
+        
+        # Build a map of product code to telegram usernames
+        product_telegram_map = {}
+        for order in orders:
+            product_code = order.get('Product Code', '')
+            if not product_code:
+                continue
+            
+            # Get telegram username
+            telegram_value = None
+            for key in order.keys():
+                if 'telegram' in key.lower():
+                    value = order.get(key, None)
+                    if value is not None:
+                        value_str = str(value).strip()
+                        if value_str:
+                            telegram_value = value_str.replace('@', '')
+                            break
+            
+            # Fallback to common variations
+            if telegram_value is None:
+                for fallback_key in ['Telegram Username', 'telegram username', 'Telegram Username ', 'TelegramUsername']:
+                    value = order.get(fallback_key, None)
+                    if value is not None:
+                        value_str = str(value).strip()
+                        if value_str:
+                            telegram_value = value_str.replace('@', '')
+                            break
+            
+            if telegram_value:
+                if product_code not in product_telegram_map:
+                    product_telegram_map[product_code] = set()
+                product_telegram_map[product_code].add(telegram_value)
+        
         for product in products_with_orders:
             stats = product['inventory']
             total_vials = stats.get('total_vials', 0)
@@ -1796,6 +1831,10 @@ def index():
                 if remaining_vials > 0:  # Has incomplete kit
                     pending_vials = vials_per_kit - remaining_vials
                     product['pending_vials'] = pending_vials
+                    # Add telegram usernames for this product
+                    product_code = product.get('code', '')
+                    telegram_usernames = sorted(list(product_telegram_map.get(product_code, set())))
+                    product['pep_haulers'] = telegram_usernames
                     incomplete_kits.append(product)
         
         # Sort incomplete kits by pending vials (ascending - least needed first)
@@ -1951,6 +1990,40 @@ def api_admin_products():
     products = get_products()
     inventory = get_inventory_stats()
     locks = get_product_locks()
+    orders = get_orders_from_sheets()
+    
+    # Build a map of product code to telegram usernames
+    product_telegram_map = {}
+    for order in orders:
+        product_code = order.get('Product Code', '')
+        if not product_code:
+            continue
+        
+        # Get telegram username
+        telegram_value = None
+        for key in order.keys():
+            if 'telegram' in key.lower():
+                value = order.get(key, None)
+                if value is not None:
+                    value_str = str(value).strip()
+                    if value_str:
+                        telegram_value = value_str.replace('@', '')
+                        break
+        
+        # Fallback to common variations
+        if telegram_value is None:
+            for fallback_key in ['Telegram Username', 'telegram username', 'Telegram Username ', 'TelegramUsername']:
+                value = order.get(fallback_key, None)
+                if value is not None:
+                    value_str = str(value).strip()
+                    if value_str:
+                        telegram_value = value_str.replace('@', '')
+                        break
+        
+        if telegram_value:
+            if product_code not in product_telegram_map:
+                product_telegram_map[product_code] = set()
+            product_telegram_map[product_code].add(telegram_value)
     
     for product in products:
         code = product['code']
@@ -1961,6 +2034,18 @@ def api_admin_products():
         product['total_vials'] = inv.get('total_vials', 0)
         product['max_kits'] = lock.get('max_kits', MAX_KITS_DEFAULT)
         product['is_locked'] = lock.get('is_locked', False) or inv.get('kits_generated', 0) >= lock.get('max_kits', MAX_KITS_DEFAULT)
+        
+        # Add pep_haulers for incomplete kits
+        vials_per_kit = product.get('vials_per_kit', VIALS_PER_KIT)
+        total_vials = inv.get('total_vials', 0)
+        remaining_vials = total_vials % vials_per_kit
+        if remaining_vials > 0:  # Has incomplete kit
+            product_code = product.get('code', '')
+            telegram_usernames = sorted(list(product_telegram_map.get(product_code, set())))
+            product['pep_haulers'] = telegram_usernames
+        # Add telegram usernames for this product
+        telegram_usernames = sorted(list(product_telegram_map.get(code, set())))
+        product['pep_haulers'] = telegram_usernames
     
     return jsonify(products)
 
