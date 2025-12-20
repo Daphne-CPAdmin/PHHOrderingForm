@@ -213,6 +213,16 @@
             font-weight: 600;
         }
 
+        /* Completed Kits Gradient Styles */
+        .completed-kit-row {
+            transition: all 0.2s ease;
+        }
+
+        .completed-kit-row:hover {
+            transform: scale(1.01);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
         .lock-toggle {
             display: flex;
             align-items: center;
@@ -664,6 +674,30 @@
                 </div>
             </div>
 
+            <!-- Completed Kits Section -->
+            <div class="card" style="margin-bottom: 2rem; border: 2px solid #a78bfa;">
+                <h2 class="card-title" style="text-align: left; margin-bottom: 1rem;">✅ Completed Kits</h2>
+                <p style="color: var(--text-muted); margin-bottom: 1.5rem;">
+                    Products with completed kits, sorted by number of kits (most first). BAC Water products grouped at bottom. Easy to copy to table.
+                </p>
+
+                <div class="table-container" style="background: rgba(221, 214, 254, 0.2); padding: 1rem; border-radius: 12px;">
+                    <table class="products-table" id="completed-kits-table">
+                        <thead>
+                            <tr>
+                                <th style="text-align: center;">Product Name</th>
+                                <th style="text-align: center;">Code</th>
+                                <th style="text-align: center;">Kits Generated</th>
+                                <th style="text-align: center;">Total Vials</th>
+                            </tr>
+                        </thead>
+                        <tbody id="completed-kits-tbody">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
             <!-- Products Management -->
             <div class="card">
                 <h2 class="card-title" style="text-align: left; margin-bottom: 1rem;">Product Management</h2>
@@ -940,6 +974,9 @@
                 // Load incomplete kits
                 loadIncompleteKits(products);
                 
+                // Load completed kits
+                loadCompletedKits(products);
+                
                 // Render table
                 const tbody = document.getElementById('products-tbody');
                 tbody.innerHTML = products.map(product => {
@@ -1131,6 +1168,102 @@
                     </tr>
                 `;
             }).join('');
+        }
+
+        // Load Completed Kits
+        function loadCompletedKits(products) {
+            // Filter products with completed kits (kits_generated > 0)
+            const completedKits = products.filter(product => {
+                const kitsGenerated = product.kits_generated || 0;
+                return kitsGenerated > 0;
+            });
+
+            if (completedKits.length === 0) {
+                const tbody = document.getElementById('completed-kits-tbody');
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 2rem; color: var(--text-muted);">No completed kits yet</td></tr>';
+                return;
+            }
+
+            // Separate BAC Water products (BA03, BA05, BA10) from others
+            const bacWaterCodes = ['BA03', 'BA05', 'BA10'];
+            const regularProducts = [];
+            const bacWaterProducts = [];
+
+            completedKits.forEach(product => {
+                if (bacWaterCodes.includes(product.code)) {
+                    bacWaterProducts.push(product);
+                } else {
+                    regularProducts.push(product);
+                }
+            });
+
+            // Sort regular products by kits_generated descending (most kits first)
+            regularProducts.sort((a, b) => (b.kits_generated || 0) - (a.kits_generated || 0));
+            
+            // Sort BAC Water products by kits_generated descending
+            bacWaterProducts.sort((a, b) => (b.kits_generated || 0) - (a.kits_generated || 0));
+
+            // Combine: regular products first, then BAC Water products at bottom
+            const sortedProducts = [...regularProducts, ...bacWaterProducts];
+
+            // Find max kits for gradient calculation
+            const maxKits = Math.max(...sortedProducts.map(p => p.kits_generated || 0), 1);
+
+            const tbody = document.getElementById('completed-kits-tbody');
+            tbody.innerHTML = sortedProducts.map((product, index) => {
+                const kitsGenerated = product.kits_generated || 0;
+                const totalVials = product.total_vials || 0;
+                
+                // Calculate gradient intensity (0 to 1) based on kits_generated
+                // Darker gradient for more kits
+                const intensity = Math.min(kitsGenerated / maxKits, 1);
+                
+                // Create gradient from light purple to dark purple/pink
+                // More kits = darker color
+                const r = Math.floor(167 - (intensity * 50)); // Start at 167 (light purple), go darker
+                const g = Math.floor(139 - (intensity * 30)); // Start at 139, go darker
+                const b = Math.floor(250 - (intensity * 80)); // Start at 250, go darker
+                
+                // Background gradient - darker for more kits
+                const bgColor = `rgba(${r}, ${g}, ${b}, ${0.3 + intensity * 0.3})`; // 0.3 to 0.6 opacity
+                const textColor = intensity > 0.6 ? '#ffffff' : '#7c3aed'; // White text for dark backgrounds
+                
+                // Check if this is a BAC Water product (for visual separation)
+                const isBacWater = bacWaterCodes.includes(product.code);
+                const separatorStyle = isBacWater && index === regularProducts.length 
+                    ? 'border-top: 3px solid rgba(167, 139, 250, 0.5);' 
+                    : '';
+
+                return `
+                    <tr class="completed-kit-row" style="background: ${bgColor}; ${separatorStyle}" data-kits="${kitsGenerated}" data-code="${product.code}">
+                        <td style="font-weight: 500; text-align: center; color: ${textColor};">
+                            ${product.name}
+                            ${isBacWater ? '<span style="font-size: 0.75rem; opacity: 0.8;"> (BAC Water)</span>' : ''}
+                        </td>
+                        <td style="text-align: center;">
+                            <span class="product-code" style="color: ${textColor};">${product.code}</span>
+                        </td>
+                        <td style="text-align: center;">
+                            <span style="font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 1.1rem; color: ${textColor};">
+                                ${kitsGenerated}
+                            </span>
+                        </td>
+                        <td style="text-align: center;">
+                            <span style="font-family: 'JetBrains Mono', monospace; font-weight: 600; color: ${textColor};">
+                                ${totalVials}
+                            </span>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            // Make table easy to copy (add copy functionality hint)
+            const table = document.getElementById('completed-kits-table');
+            if (table) {
+                table.style.cursor = 'default';
+                // Add title attribute for copy hint
+                table.title = 'Click and drag to select rows, then copy (Ctrl+C / Cmd+C) to paste into spreadsheet';
+            }
         }
 
         // Toggle Lock
