@@ -1922,37 +1922,47 @@
                                             {% set char_code_sum = (first_char|length * 7 + last_char|length * 3 + username|length) %}
                                             {% set color_index = char_code_sum % 10 %}
                                             {% if color_index == 0 %}
-                                                {% set badge_bg = 'rgba(192, 132, 252, 0.2)' %}
-                                                {% set badge_text = '#7c3aed' %}
+                                                {% set badge_bg = 'rgba(124, 58, 237, 0.4)' %}
+                                                {% set badge_text = '#ffffff' %}
+                                                {% set badge_shadow = '0 0 8px rgba(124, 58, 237, 0.5)' %}
                                             {% elif color_index == 1 %}
-                                                {% set badge_bg = 'rgba(249, 168, 212, 0.2)' %}
-                                                {% set badge_text = '#ec4899' %}
+                                                {% set badge_bg = 'rgba(139, 92, 246, 0.4)' %}
+                                                {% set badge_text = '#ffffff' %}
+                                                {% set badge_shadow = '0 0 8px rgba(139, 92, 246, 0.5)' %}
                                             {% elif color_index == 2 %}
-                                                {% set badge_bg = 'rgba(167, 139, 250, 0.2)' %}
-                                                {% set badge_text = '#8b5cf6' %}
+                                                {% set badge_bg = 'rgba(168, 85, 247, 0.4)' %}
+                                                {% set badge_text = '#ffffff' %}
+                                                {% set badge_shadow = '0 0 8px rgba(168, 85, 247, 0.5)' %}
                                             {% elif color_index == 3 %}
-                                                {% set badge_bg = 'rgba(244, 114, 182, 0.2)' %}
-                                                {% set badge_text = '#db2777' %}
+                                                {% set badge_bg = 'rgba(219, 39, 119, 0.4)' %}
+                                                {% set badge_text = '#ffffff' %}
+                                                {% set badge_shadow = '0 0 8px rgba(219, 39, 119, 0.5)' %}
                                             {% elif color_index == 4 %}
-                                                {% set badge_bg = 'rgba(221, 214, 254, 0.25)' %}
-                                                {% set badge_text = '#a78bfa' %}
+                                                {% set badge_bg = 'rgba(236, 72, 153, 0.4)' %}
+                                                {% set badge_text = '#ffffff' %}
+                                                {% set badge_shadow = '0 0 8px rgba(236, 72, 153, 0.5)' %}
                                             {% elif color_index == 5 %}
-                                                {% set badge_bg = 'rgba(240, 171, 252, 0.2)' %}
-                                                {% set badge_text = '#c084fc' %}
+                                                {% set badge_bg = 'rgba(190, 24, 93, 0.4)' %}
+                                                {% set badge_text = '#ffffff' %}
+                                                {% set badge_shadow = '0 0 8px rgba(190, 24, 93, 0.5)' %}
                                             {% elif color_index == 6 %}
-                                                {% set badge_bg = 'rgba(251, 191, 216, 0.2)' %}
-                                                {% set badge_text = '#f472b6' %}
+                                                {% set badge_bg = 'rgba(147, 51, 234, 0.4)' %}
+                                                {% set badge_text = '#ffffff' %}
+                                                {% set badge_shadow = '0 0 8px rgba(147, 51, 234, 0.5)' %}
                                             {% elif color_index == 7 %}
-                                                {% set badge_bg = 'rgba(196, 181, 253, 0.2)' %}
-                                                {% set badge_text = '#a855f7' %}
+                                                {% set badge_bg = 'rgba(107, 33, 168, 0.4)' %}
+                                                {% set badge_text = '#ffffff' %}
+                                                {% set badge_shadow = '0 0 8px rgba(107, 33, 168, 0.5)' %}
                                             {% elif color_index == 8 %}
-                                                {% set badge_bg = 'rgba(252, 211, 77, 0.2)' %}
-                                                {% set badge_text = '#eab308' %}
+                                                {% set badge_bg = 'rgba(79, 70, 229, 0.4)' %}
+                                                {% set badge_text = '#ffffff' %}
+                                                {% set badge_shadow = '0 0 8px rgba(79, 70, 229, 0.5)' %}
                                             {% else %}
-                                                {% set badge_bg = 'rgba(147, 197, 253, 0.2)' %}
-                                                {% set badge_text = '#3b82f6' %}
+                                                {% set badge_bg = 'rgba(99, 102, 241, 0.4)' %}
+                                                {% set badge_text = '#ffffff' %}
+                                                {% set badge_shadow = '0 0 8px rgba(99, 102, 241, 0.5)' %}
                                             {% endif %}
-                                            <span style="display: inline-block; padding: 0.25rem 0.5rem; border-radius: 12px; font-size: 0.75rem; font-weight: 500; background: {{ badge_bg }}; color: {{ badge_text }};">
+                                            <span style="display: inline-block; padding: 0.25rem 0.5rem; border-radius: 12px; font-size: 0.75rem; font-weight: 600; background: {{ badge_bg }}; color: {{ badge_text }}; text-shadow: {{ badge_shadow }}; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);">
                                                 @{{ username }}
                                             </span>
                                         {% endfor %}

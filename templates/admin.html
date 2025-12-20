@@ -1079,18 +1079,18 @@
                     badgeTextColor = '#be185d';
                 }
                 
-                // Color palette for username badges (pastel lilac/pink shades)
+                // Color palette for username badges (darker, more contrasting colors with glow effect)
                 const colorPalette = [
-                    { bg: 'rgba(192, 132, 252, 0.2)', text: '#7c3aed' }, // Lilac
-                    { bg: 'rgba(249, 168, 212, 0.2)', text: '#ec4899' }, // Pink
-                    { bg: 'rgba(167, 139, 250, 0.2)', text: '#8b5cf6' }, // Purple
-                    { bg: 'rgba(244, 114, 182, 0.2)', text: '#db2777' }, // Rose
-                    { bg: 'rgba(221, 214, 254, 0.25)', text: '#a78bfa' }, // Lavender
-                    { bg: 'rgba(240, 171, 252, 0.2)', text: '#c084fc' }, // Light purple
-                    { bg: 'rgba(251, 191, 216, 0.2)', text: '#f472b6' }, // Blush pink
-                    { bg: 'rgba(196, 181, 253, 0.2)', text: '#a855f7' }, // Deep purple
-                    { bg: 'rgba(252, 211, 77, 0.2)', text: '#eab308' }, // Yellow accent
-                    { bg: 'rgba(147, 197, 253, 0.2)', text: '#3b82f6' }, // Blue accent
+                    { bg: 'rgba(124, 58, 237, 0.4)', text: '#ffffff', shadow: '0 0 8px rgba(124, 58, 237, 0.5)' }, // Dark purple with glow
+                    { bg: 'rgba(139, 92, 246, 0.4)', text: '#ffffff', shadow: '0 0 8px rgba(139, 92, 246, 0.5)' }, // Deep purple with glow
+                    { bg: 'rgba(168, 85, 247, 0.4)', text: '#ffffff', shadow: '0 0 8px rgba(168, 85, 247, 0.5)' }, // Rich purple with glow
+                    { bg: 'rgba(219, 39, 119, 0.4)', text: '#ffffff', shadow: '0 0 8px rgba(219, 39, 119, 0.5)' }, // Dark rose with glow
+                    { bg: 'rgba(236, 72, 153, 0.4)', text: '#ffffff', shadow: '0 0 8px rgba(236, 72, 153, 0.5)' }, // Deep pink with glow
+                    { bg: 'rgba(190, 24, 93, 0.4)', text: '#ffffff', shadow: '0 0 8px rgba(190, 24, 93, 0.5)' }, // Dark pink with glow
+                    { bg: 'rgba(147, 51, 234, 0.4)', text: '#ffffff', shadow: '0 0 8px rgba(147, 51, 234, 0.5)' }, // Violet with glow
+                    { bg: 'rgba(107, 33, 168, 0.4)', text: '#ffffff', shadow: '0 0 8px rgba(107, 33, 168, 0.5)' }, // Dark violet with glow
+                    { bg: 'rgba(79, 70, 229, 0.4)', text: '#ffffff', shadow: '0 0 8px rgba(79, 70, 229, 0.5)' }, // Indigo with glow
+                    { bg: 'rgba(99, 102, 241, 0.4)', text: '#ffffff', shadow: '0 0 8px rgba(99, 102, 241, 0.5)' }, // Blue-purple with glow
                 ];
                 
                 // Assign color based on username hash for consistency
@@ -1107,7 +1107,7 @@
                 const pepHaulersHtml = pepHaulers.length > 0 
                     ? pepHaulers.map(username => {
                         const color = getColorForUsername(username);
-                        return `<span style="display: inline-block; padding: 0.25rem 0.5rem; border-radius: 12px; font-size: 0.75rem; font-weight: 500; background: ${color.bg}; color: ${color.text}; margin: 0.125rem;">@${username}</span>`;
+                        return `<span style="display: inline-block; padding: 0.25rem 0.5rem; border-radius: 12px; font-size: 0.75rem; font-weight: 600; background: ${color.bg}; color: ${color.text}; margin: 0.125rem; text-shadow: ${color.shadow}; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);">@${username}</span>`;
                     }).join('')
                     : '<span style="color: var(--text-muted); font-size: 0.85rem;">—</span>';
                 
