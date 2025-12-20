@@ -1917,7 +1917,7 @@
                                 {% if pep_haulers and pep_haulers|length > 0 %}
                                     <div style="display: flex; flex-wrap: wrap; gap: 0.25rem; justify-content: center;">
                                         {% for username in pep_haulers %}
-                                            {% set color_index = (username|length + username|hash) % 10 %}
+                                            {% set color_index = (loop.index0 + username|length) % 10 %}
                                             {% if color_index == 0 %}
                                                 {% set badge_bg = 'rgba(192, 132, 252, 0.2)' %}
                                                 {% set badge_text = '#7c3aed' %}
