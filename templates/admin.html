@@ -641,22 +641,14 @@
             <div class="card" style="margin-bottom: 2rem; border: 2px solid #f472b6;">
                 <h2 class="card-title" style="text-align: left; margin-bottom: 1rem;">⚠️ Incomplete Kits</h2>
                 <p style="color: var(--text-muted); margin-bottom: 1.5rem;">
-<<<<<<< HEAD
                     Products with incomplete kits (not divisible by 10 vials). Sorted by vials needed (fewest first). Shows pending vials needed to complete the next kit.
-=======
-                    Products with incomplete kits (not divisible by 10 vials). Shows pending vials needed to complete the next kit.
->>>>>>> b2f2df5fac2507b7dd4827061dfec15824726fc5
                 </p>
 
                 <div class="table-container">
                     <table class="products-table">
                         <thead>
                             <tr>
-<<<<<<< HEAD
                                 <th>Product Name</th>
-=======
-                                <th>Product</th>
->>>>>>> b2f2df5fac2507b7dd4827061dfec15824726fc5
                                 <th>Code</th>
                                 <th>Total Vials</th>
                                 <th>Kits Generated</th>
@@ -1020,8 +1012,6 @@
             }
         }
 
-=======
->>>>>>> b2f2df5fac2507b7dd4827061dfec15824726fc5
         // Load Incomplete Kits
         function loadIncompleteKits(products) {
             const incompleteKits = products.filter(product => {
@@ -1065,18 +1055,6 @@
                 return `
                     <tr class="incomplete-kit">
                         <td style="font-weight: 500;">${product.name}</td>
-=======
-            tbody.innerHTML = incompleteKits.map(product => {
-                const totalVials = product.total_vials || 0;
-                const vialsPerKit = product.vials_per_kit || 10; // Use product's vials_per_kit, default to 10
-                const kitsGenerated = Math.floor(totalVials / vialsPerKit);
-                const remainingVials = totalVials % vialsPerKit;
-                const pendingVials = vialsPerKit - remainingVials;
-                
-                return `
-                    <tr class="incomplete-kit">
-                        <td>${product.name}</td>
->>>>>>> b2f2df5fac2507b7dd4827061dfec15824726fc5
                         <td><span class="product-code">${product.code}</span></td>
                         <td style="font-family: 'JetBrains Mono', monospace; font-weight: 600;">${totalVials}</td>
                         <td><span class="kits-badge normal">${kitsGenerated}</span></td>
@@ -1344,10 +1322,7 @@
                 ${!isPaid && !isLocked ? `<button class="btn" style="padding: 0.75rem 1.5rem; background: #c084fc; color: white;" onclick="editOrder('${order.order_id}'); closeOrderModal();">✏️ Edit Order</button>` : ''}
                 ${!isPaid ? `<button class="btn btn-violet" style="padding: 0.75rem 1.5rem;" onclick="confirmPayment('${order.order_id}'); closeOrderModal();">✓ Confirm Payment</button>` : 
                            `<button class="btn" style="padding: 0.75rem 1.5rem; background: #a78bfa; color: white;" onclick="notifyCustomer('${order.order_id}')">📱 Notify Customer</button>`}
-<<<<<<< HEAD
                 <button class="btn" style="padding: 0.75rem 1.5rem; background: #f472b6; color: white;" onclick="showInvoice('${order.full_name}', '${order.telegram || ''}')">🧾 Invoice</button>
-=======
->>>>>>> b2f2df5fac2507b7dd4827061dfec15824726fc5
                 <button class="btn" style="padding: 0.75rem 1.5rem; background: var(--bg-input); border: 1px solid var(--border); color: var(--text-primary);" onclick="closeOrderModal()">Close</button>
             `;
 
