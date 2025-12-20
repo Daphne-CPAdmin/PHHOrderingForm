@@ -1794,6 +1794,7 @@ def index():
                 vials_per_kit = product.get('vials_per_kit', VIALS_PER_KIT)
                 remaining_vials = total_vials % vials_per_kit
                 if remaining_vials > 0:  # Has incomplete kit
+<<<<<<< HEAD
                     pending_vials = vials_per_kit - remaining_vials
                     product['pending_vials'] = pending_vials
                     incomplete_kits.append(product)
@@ -1801,6 +1802,10 @@ def index():
         # Sort incomplete kits by pending vials (ascending - least needed first)
         incomplete_kits.sort(key=lambda p: p.get('pending_vials', 10))
         
+=======
+                    incomplete_kits.append(product)
+        
+>>>>>>> b2f2df5fac2507b7dd4827061dfec15824726fc5
         order_goal = get_order_goal()
         
         return render_template('index.html', 
@@ -4091,6 +4096,7 @@ def api_admin_mark_unpaid(order_id):
         return jsonify({'success': True})
     return jsonify({'error': 'Failed to update payment status'}), 500
 
+<<<<<<< HEAD
 @app.route('/api/admin/customer-summary')
 def api_admin_customer_summary():
     """Get customer summary - unique customers with order counts, total vials, and grand totals"""
@@ -4170,6 +4176,8 @@ def api_admin_customer_summary():
     
     return jsonify(result)
 
+=======
+>>>>>>> b2f2df5fac2507b7dd4827061dfec15824726fc5
 @app.route('/api/admin/orders/<order_id>/update-item', methods=['POST'])
 def api_admin_update_item(order_id):
     """Admin: Update quantity of an item in an existing order"""
