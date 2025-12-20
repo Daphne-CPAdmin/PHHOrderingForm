@@ -652,6 +652,7 @@
                                 <th style="text-align: center;">Code</th>
                                 <th style="text-align: center;">Total Vials</th>
                                 <th style="text-align: center;">Kits Generated</th>
+                                <th style="text-align: center;">Extra Vials</th>
                                 <th style="text-align: center;">Pending Vials to Complete Kit</th>
                                 <th style="text-align: center;">Pep Hauler/s</th>
                             </tr>
@@ -1024,7 +1025,7 @@
             const tbody = document.getElementById('incomplete-kits-tbody');
             
             if (incompleteKits.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-muted);">🎉 All kits are complete! No incomplete kits found.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 2rem; color: var(--text-muted);">🎉 All kits are complete! No incomplete kits found.</td></tr>';
                 return;
             }
 
@@ -1048,7 +1049,7 @@
             incompleteKitsWithPending.sort((a, b) => a.pendingVials - b.pendingVials);
 
             tbody.innerHTML = incompleteKitsWithPending.map(product => {
-                const { totalVials, kitsGenerated, pendingVials } = product;
+                const { totalVials, kitsGenerated, remainingVials, pendingVials } = product;
                 const pepHaulers = product.pep_haulers || [];
                 
                 // Color coding based on vials needed
@@ -1091,6 +1092,7 @@
                         <td style="text-align: center;"><span class="product-code">${product.code}</span></td>
                         <td style="font-family: 'JetBrains Mono', monospace; font-weight: 600; text-align: center;">${totalVials}</td>
                         <td style="text-align: center;"><span class="kits-badge normal">${kitsGenerated}</span></td>
+                        <td style="font-family: 'JetBrains Mono', monospace; color: #ec4899; font-weight: 600; text-align: center;">${remainingVials}</td>
                         <td style="text-align: center;">
                             <span class="kits-badge incomplete" style="font-size: 0.9rem; background: ${badgeBgColor}; color: ${badgeTextColor}; font-weight: 600;">
                                 ${pendingVials} vial${pendingVials !== 1 ? 's' : ''} needed
