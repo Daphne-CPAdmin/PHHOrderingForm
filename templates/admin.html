@@ -7,18 +7,18 @@
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-primary: #0a0f1a;
-            --bg-card: #1a2332;
-            --bg-input: #0d1422;
-            --accent-teal: #14b8a6;
-            --accent-amber: #f59e0b;
-            --accent-rose: #f43f5e;
-            --accent-violet: #8b5cf6;
-            --accent-emerald: #10b981;
-            --text-primary: #f1f5f9;
-            --text-secondary: #94a3b8;
-            --text-muted: #64748b;
-            --border: #1e293b;
+            --bg-primary: #faf5ff;
+            --bg-card: #fef7ff;
+            --bg-input: #ffffff;
+            --accent-teal: #a78bfa;
+            --accent-amber: #f9a8d4;
+            --accent-rose: #f472b6;
+            --accent-violet: #c084fc;
+            --accent-emerald: #a78bfa;
+            --text-primary: #4c1d95;
+            --text-secondary: #7c3aed;
+            --text-muted: #a78bfa;
+            --border: #e9d5ff;
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -29,8 +29,8 @@
             color: var(--text-primary);
             min-height: 100vh;
             background-image: 
-                radial-gradient(ellipse at 20% 0%, rgba(139, 92, 246, 0.08) 0%, transparent 50%),
-                radial-gradient(ellipse at 80% 100%, rgba(244, 63, 94, 0.06) 0%, transparent 50%);
+                radial-gradient(ellipse at 20% 0%, rgba(192, 132, 252, 0.15) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 100%, rgba(249, 168, 212, 0.12) 0%, transparent 50%);
         }
 
         .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
@@ -46,7 +46,7 @@
 
         .header h1 {
             font-size: 2rem;
-            background: linear-gradient(135deg, var(--accent-violet) 0%, var(--accent-rose) 100%);
+            background: linear-gradient(135deg, #c084fc 0%, #f472b6 100%);
             -webkit-background-clip: text;
             background-clip: text;
             -webkit-text-fill-color: transparent;
@@ -92,7 +92,7 @@
             font-family: 'Outfit', sans-serif;
             font-size: 1rem;
         }
-        .form-input:focus { outline: none; border-color: var(--accent-violet); }
+        .form-input:focus { outline: none; border-color: #c084fc; }
 
         .btn {
             width: 100%;
@@ -104,7 +104,7 @@
             font-weight: 600;
             cursor: pointer;
         }
-        .btn-violet { background: linear-gradient(135deg, var(--accent-violet) 0%, #7c3aed 100%); color: white; }
+        .btn-violet { background: linear-gradient(135deg, #c084fc 0%, #a855f7 100%); color: white; }
         .btn:hover { transform: translateY(-2px); }
 
         /* Admin Content */
@@ -130,7 +130,7 @@
             font-family: 'JetBrains Mono', monospace;
             font-size: 2rem;
             font-weight: 700;
-            color: var(--accent-violet);
+            color: #c084fc;
         }
 
         .stat-label {
@@ -161,20 +161,28 @@
         }
 
         .products-table tr:hover {
-            background: rgba(139, 92, 246, 0.05);
+            background: rgba(192, 132, 252, 0.1);
         }
         
         .products-table tr.locked-order {
-            background: rgba(245, 158, 11, 0.05);
+            background: rgba(249, 168, 212, 0.1);
         }
         
         .products-table tr.locked-order:hover {
-            background: rgba(245, 158, 11, 0.1);
+            background: rgba(249, 168, 212, 0.15);
+        }
+        
+        .products-table tr.incomplete-kit {
+            background: rgba(249, 168, 212, 0.12);
+        }
+        
+        .products-table tr.incomplete-kit:hover {
+            background: rgba(249, 168, 212, 0.18);
         }
 
         .product-code {
             font-family: 'JetBrains Mono', monospace;
-            color: var(--accent-teal);
+            color: #a78bfa;
         }
 
         .kits-badge {
@@ -185,18 +193,24 @@
         }
 
         .kits-badge.normal {
-            background: rgba(16, 185, 129, 0.15);
-            color: var(--accent-emerald);
+            background: rgba(167, 139, 250, 0.2);
+            color: #7c3aed;
         }
 
         .kits-badge.warning {
-            background: rgba(245, 158, 11, 0.15);
-            color: var(--accent-amber);
+            background: rgba(249, 168, 212, 0.2);
+            color: #ec4899;
         }
 
         .kits-badge.danger {
-            background: rgba(244, 63, 94, 0.15);
-            color: var(--accent-rose);
+            background: rgba(244, 114, 182, 0.25);
+            color: #db2777;
+        }
+        
+        .kits-badge.incomplete {
+            background: rgba(249, 168, 212, 0.25);
+            color: #ec4899;
+            font-weight: 600;
         }
 
         .lock-toggle {
@@ -243,8 +257,8 @@
         }
 
         .toggle-switch input:checked + .toggle-slider {
-            background: var(--accent-rose);
-            border-color: var(--accent-rose);
+            background: #f472b6;
+            border-color: #f472b6;
         }
 
         .toggle-switch input:checked + .toggle-slider:before {
@@ -265,7 +279,7 @@
 
         .max-kits-input:focus {
             outline: none;
-            border-color: var(--accent-violet);
+            border-color: #c084fc;
         }
 
         /* Toast */
@@ -274,13 +288,14 @@
             bottom: 2rem;
             right: 2rem;
             background: var(--bg-card);
-            border: 1px solid var(--accent-emerald);
+            border: 1px solid #c084fc;
             border-radius: 12px;
             padding: 1rem 1.5rem;
             transform: translateY(100px);
             opacity: 0;
             transition: all 0.3s ease;
             z-index: 1000;
+            color: var(--text-primary);
         }
         .toast.show { transform: translateY(0); opacity: 1; }
 
@@ -320,18 +335,18 @@
         }
 
         .payment-badge.unpaid {
-            background: rgba(245, 158, 11, 0.15);
-            color: var(--accent-amber);
+            background: rgba(249, 168, 212, 0.2);
+            color: #ec4899;
         }
 
         .payment-badge.waiting {
-            background: rgba(59, 130, 246, 0.15);
-            color: #3b82f6;
+            background: rgba(192, 132, 252, 0.2);
+            color: #a855f7;
         }
 
         .payment-badge.paid {
-            background: rgba(16, 185, 129, 0.15);
-            color: var(--accent-emerald);
+            background: rgba(167, 139, 250, 0.2);
+            color: #7c3aed;
         }
 
         .btn-sm {
@@ -344,7 +359,7 @@
         }
 
         .btn-confirm {
-            background: var(--accent-emerald);
+            background: #a78bfa;
             color: white;
         }
 
@@ -353,12 +368,12 @@
         }
 
         .btn-view {
-            background: var(--accent-teal);
+            background: #a78bfa;
             color: white;
         }
 
         .screenshot-link {
-            color: var(--accent-violet);
+            color: #c084fc;
             text-decoration: none;
             font-size: 0.85rem;
         }
@@ -476,7 +491,7 @@
             </div>
 
             <!-- Order Form Lock Control -->
-            <div class="card" style="margin-bottom: 2rem; border: 2px solid var(--accent-rose);">
+            <div class="card" style="margin-bottom: 2rem; border: 2px solid #f472b6;">
                 <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
                     <div>
                         <h2 style="font-size: 1.25rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
@@ -502,7 +517,7 @@
             </div>
 
             <!-- Order Goal Settings -->
-            <div class="card" style="margin-bottom: 2rem; border: 2px solid var(--accent-amber);">
+            <div class="card" style="margin-bottom: 2rem; border: 2px solid #f9a8d4;">
                 <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
                     <div>
                         <h2 style="font-size: 1.25rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
@@ -521,11 +536,11 @@
                             <input type="number" id="order-goal-amount" class="form-input" style="border-radius: 0 10px 10px 0; flex: 1;" value="1000" min="1" step="100" placeholder="1000">
                         </div>
                     </div>
-                    <button id="save-goal-btn" class="btn" style="padding: 0.75rem 1.5rem; background: var(--accent-amber); margin-top: 1.5rem;">
+                    <button id="save-goal-btn" class="btn" style="padding: 0.75rem 1.5rem; background: #f9a8d4; margin-top: 1.5rem;">
                         💾 Save Goal
                     </button>
                 </div>
-                <div id="goal-save-status" style="margin-top: 0.75rem; font-size: 0.85rem; color: var(--accent-emerald); display: none;">
+                <div id="goal-save-status" style="margin-top: 0.75rem; font-size: 0.85rem; color: #7c3aed; display: none;">
                     ✓ Goal saved successfully!
                 </div>
             </div>
@@ -550,6 +565,30 @@
                 </div>
             </div>
 
+            <!-- Customer Summary Section -->
+            <div class="card" style="margin-bottom: 2rem; border: 2px solid #c084fc;">
+                <h2 class="card-title" style="text-align: left; margin-bottom: 1rem;">👥 Customer Summary</h2>
+                <p style="color: var(--text-muted); margin-bottom: 1.5rem;">
+                    Overview of all customers showing unique orders, total vials, and grand totals (including GB Admin fee).
+                </p>
+
+                <div class="table-container">
+                    <table class="products-table">
+                        <thead>
+                            <tr>
+                                <th>Customer Name</th>
+                                <th>Unique Orders</th>
+                                <th>Total Vials</th>
+                                <th>Grand Total (PHP)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="customer-summary-tbody">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
             <!-- Orders Management -->
             <div class="card" style="margin-bottom: 2rem;">
                 <h2 class="card-title" style="text-align: left; margin-bottom: 1rem;">📦 Orders Management</h2>
@@ -567,12 +606,12 @@
                 </div>
                 
                 <!-- Bulk Actions -->
-                <div id="bulk-actions" style="display: none; margin-bottom: 1rem; padding: 1rem; background: linear-gradient(135deg, #fdf4ff 0%, #fce7f3 100%); border-radius: 12px; border: 2px solid var(--accent-primary);">
+                <div id="bulk-actions" style="display: none; margin-bottom: 1rem; padding: 1rem; background: linear-gradient(135deg, #fdf4ff 0%, #fce7f3 100%); border-radius: 12px; border: 2px solid #c084fc;">
                     <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
                         <span style="font-weight: 600; color: var(--text-primary);"><span id="selected-count">0</span> orders selected</span>
-                        <button class="btn-sm" style="background: #f59e0b; color: white;" onclick="bulkLockOrders(true)">🔒 Lock Selected</button>
-                        <button class="btn-sm" style="background: #10b981; color: white;" onclick="bulkLockOrders(false)">🔓 Unlock Selected</button>
-                        <button class="btn-sm" style="background: var(--bg-input); border: 1px solid var(--border);" onclick="clearSelection()">Clear Selection</button>
+                        <button class="btn-sm" style="background: #f472b6; color: white;" onclick="bulkLockOrders(true)">🔒 Lock Selected</button>
+                        <button class="btn-sm" style="background: #a78bfa; color: white;" onclick="bulkLockOrders(false)">🔓 Unlock Selected</button>
+                        <button class="btn-sm" style="background: var(--bg-input); border: 1px solid var(--border); color: var(--text-primary);" onclick="clearSelection()">Clear Selection</button>
                     </div>
                 </div>
 
@@ -592,6 +631,32 @@
                             </tr>
                         </thead>
                         <tbody id="orders-tbody">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Incomplete Kits Section -->
+            <div class="card" style="margin-bottom: 2rem; border: 2px solid #f472b6;">
+                <h2 class="card-title" style="text-align: left; margin-bottom: 1rem;">⚠️ Incomplete Kits</h2>
+                <p style="color: var(--text-muted); margin-bottom: 1.5rem;">
+                    Products with incomplete kits (not divisible by 10 vials). Sorted by vials needed (fewest first). Shows pending vials needed to complete the next kit.
+                </p>
+
+                <div class="table-container">
+                    <table class="products-table">
+                        <thead>
+                            <tr>
+                                <th>Product Name</th>
+                                <th>Code</th>
+                                <th>Total Vials</th>
+                                <th>Kits Generated</th>
+                                <th>Remaining Vials</th>
+                                <th>Pending Vials to Complete Kit</th>
+                            </tr>
+                        </thead>
+                        <tbody id="incomplete-kits-tbody">
                             <!-- Populated by JS -->
                         </tbody>
                     </table>
@@ -651,6 +716,22 @@
         </div>
     </div>
 
+    <!-- Invoice Modal -->
+    <div class="modal" id="invoice-modal">
+        <div class="modal-content" style="max-width: 800px;">
+            <div class="modal-header">
+                <h3 class="modal-title">📄 Customer Invoice</h3>
+                <button class="modal-close" onclick="closeInvoiceModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="invoice-modal-body">
+                <!-- Populated by JS -->
+            </div>
+            <div class="modal-footer">
+                <button class="btn" style="padding: 0.75rem 1.5rem; background: var(--bg-input); border: 1px solid var(--border); color: var(--text-primary);" onclick="closeInvoiceModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         let isLoggedIn = false;
 
@@ -674,6 +755,7 @@
                     document.getElementById('admin-content').classList.add('show');
                     loadProducts();
                     loadOrders();
+                    loadCustomerSummary();
                     loadOrderFormStatus();
                     loadOrderGoal();
                 } else {
@@ -697,6 +779,7 @@
                     document.getElementById('admin-content').classList.add('show');
                     loadProducts();
                     loadOrders();
+                    loadCustomerSummary();
                     loadOrderFormStatus();
                     loadOrderGoal();
                 }
@@ -785,19 +868,19 @@
 
             if (isLocked) {
                 statusEl.textContent = 'LOCKED';
-                statusEl.style.background = 'rgba(239, 68, 68, 0.2)';
-                statusEl.style.color = '#ef4444';
+                statusEl.style.background = 'rgba(244, 114, 182, 0.2)';
+                statusEl.style.color = '#db2777';
                 iconEl.textContent = '🔒';
                 toggleBtn.textContent = 'Unlock Form';
-                toggleBtn.style.background = 'var(--accent-emerald)';
+                toggleBtn.style.background = '#a78bfa';
                 messageContainer.style.display = 'block';
             } else {
                 statusEl.textContent = 'OPEN';
-                statusEl.style.background = 'rgba(16, 185, 129, 0.2)';
-                statusEl.style.color = '#10b981';
+                statusEl.style.background = 'rgba(167, 139, 250, 0.2)';
+                statusEl.style.color = '#7c3aed';
                 iconEl.textContent = '🔓';
                 toggleBtn.textContent = 'Lock Form';
-                toggleBtn.style.background = 'var(--accent-rose)';
+                toggleBtn.style.background = '#f472b6';
                 messageContainer.style.display = 'none';
             }
 
@@ -853,6 +936,9 @@
                 document.getElementById('total-kits').textContent = totalKits;
                 document.getElementById('total-vials').textContent = totalVials;
                 
+                // Load incomplete kits
+                loadIncompleteKits(products);
+                
                 // Render table
                 const tbody = document.getElementById('products-tbody');
                 tbody.innerHTML = products.map(product => {
@@ -861,8 +947,13 @@
                     if (kitsPercent >= 90) badgeClass = 'danger';
                     else if (kitsPercent >= 70) badgeClass = 'warning';
                     
+                    // Check if incomplete kit
+                    const vialsPerKit = product.vials_per_kit || 10;
+                    const remainingVials = (product.total_vials || 0) % vialsPerKit;
+                    const isIncomplete = remainingVials > 0 && product.total_vials > 0;
+                    
                     return `
-                        <tr data-code="${product.code}">
+                        <tr data-code="${product.code}" class="${isIncomplete ? 'incomplete-kit' : ''}">
                             <td>${product.name}</td>
                             <td><span class="product-code">${product.code}</span></td>
                             <td><span class="kits-badge ${badgeClass}">${product.kits_generated} / ${product.max_kits}</span></td>
@@ -888,6 +979,92 @@
             } catch (error) {
                 console.error('Error loading products:', error);
             }
+        }
+
+        // Load Customer Summary
+        async function loadCustomerSummary() {
+            try {
+                const response = await fetch('/api/admin/customer-summary', { credentials: 'same-origin' });
+                const customers = await response.json();
+                
+                const tbody = document.getElementById('customer-summary-tbody');
+                
+                if (customers.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 2rem; color: var(--text-muted);">No customers found</td></tr>';
+                    return;
+                }
+                
+                tbody.innerHTML = customers.map(customer => {
+                    return `
+                        <tr>
+                            <td style="font-weight: 500;">${customer.customer_name}</td>
+                            <td style="font-family: 'JetBrains Mono', monospace; color: #c084fc; font-weight: 600;">${customer.order_count}</td>
+                            <td style="font-family: 'JetBrains Mono', monospace; color: #a78bfa; font-weight: 600;">${customer.total_vials}</td>
+                            <td style="font-family: 'JetBrains Mono', monospace; color: #7c3aed; font-weight: 700; font-size: 1.1rem;">₱${customer.total_grand_total_php.toLocaleString('en-PH', {minimumFractionDigits: 2})}</td>
+                        </tr>
+                    `;
+                }).join('');
+                
+            } catch (error) {
+                console.error('Error loading customer summary:', error);
+                document.getElementById('customer-summary-tbody').innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 2rem; color: var(--accent-rose);">Error loading customer summary</td></tr>';
+            }
+        }
+
+        // Load Incomplete Kits
+        function loadIncompleteKits(products) {
+            const incompleteKits = products.filter(product => {
+                const totalVials = product.total_vials || 0;
+                if (totalVials === 0) return false; // Skip products with no orders
+                const vialsPerKit = product.vials_per_kit || 10; // Use product's vials_per_kit, default to 10
+                const remainingVials = totalVials % vialsPerKit;
+                return remainingVials > 0; // Incomplete if remainder > 0
+            });
+
+            const tbody = document.getElementById('incomplete-kits-tbody');
+            
+            if (incompleteKits.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-muted);">🎉 All kits are complete! No incomplete kits found.</td></tr>';
+                return;
+            }
+
+            // Calculate pending vials and sort by pending vials (ascending - least needed first)
+            const incompleteKitsWithPending = incompleteKits.map(product => {
+                const totalVials = product.total_vials || 0;
+                const vialsPerKit = product.vials_per_kit || 10;
+                const kitsGenerated = Math.floor(totalVials / vialsPerKit);
+                const remainingVials = totalVials % vialsPerKit;
+                const pendingVials = vialsPerKit - remainingVials;
+                return {
+                    ...product,
+                    totalVials,
+                    kitsGenerated,
+                    remainingVials,
+                    pendingVials
+                };
+            });
+
+            // Sort by pending vials (ascending - least needed first)
+            incompleteKitsWithPending.sort((a, b) => a.pendingVials - b.pendingVials);
+
+            tbody.innerHTML = incompleteKitsWithPending.map(product => {
+                const { totalVials, kitsGenerated, remainingVials, pendingVials } = product;
+                
+                return `
+                    <tr class="incomplete-kit">
+                        <td style="font-weight: 500;">${product.name}</td>
+                        <td><span class="product-code">${product.code}</span></td>
+                        <td style="font-family: 'JetBrains Mono', monospace; font-weight: 600;">${totalVials}</td>
+                        <td><span class="kits-badge normal">${kitsGenerated}</span></td>
+                        <td style="font-family: 'JetBrains Mono', monospace; color: #ec4899; font-weight: 600;">${remainingVials}</td>
+                        <td>
+                            <span class="kits-badge incomplete" style="font-size: 0.9rem;">
+                                ${pendingVials} vial${pendingVials !== 1 ? 's' : ''} needed
+                            </span>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
         }
 
         // Toggle Lock
@@ -1013,27 +1190,30 @@
                         <td style="font-size: 0.85rem;">${order.order_date}</td>
                         <td>
                             <div style="font-weight: 500;">${order.full_name}</div>
-                            <div style="font-size: 0.8rem; color: var(--accent-violet); font-family: 'JetBrains Mono', monospace;">${order.telegram ? '@' + order.telegram.replace('@', '') : '—'}</div>
+                            <div style="font-size: 0.8rem; color: #c084fc; font-family: 'JetBrains Mono', monospace;">${order.telegram ? '@' + order.telegram.replace('@', '') : '—'}</div>
                         </td>
                         <td><div class="order-items-preview">${itemsPreview.length > 30 ? itemsPreview.substring(0, 30) + '...' : itemsPreview}</div></td>
                         <td style="font-family: 'JetBrains Mono', monospace; font-weight: 600;">₱${order.grand_total_php.toLocaleString('en-PH', {minimumFractionDigits: 2})}</td>
                         <td><span class="payment-badge ${order.payment_status.toLowerCase().replace(/\s+/g, '-').replace('waiting-for-confirmation', 'waiting')}">${order.payment_status}</span></td>
                         <td>
                             ${isLocked 
-                                ? '<span style="color: #f59e0b; font-weight: 600;">🔒 Locked</span>'
-                                : '<span style="color: #10b981; font-weight: 600;">🔓 Open</span>'}
+                                ? '<span style="color: #ec4899; font-weight: 600;">🔒 Locked</span>'
+                                : '<span style="color: #7c3aed; font-weight: 600;">🔓 Open</span>'}
                         </td>
                         <td>
                             <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
                                 <button class="btn-sm btn-view" onclick="viewOrderDetails('${order.order_id}')">View</button>
+                                ${!isPaid && !isLocked 
+                                    ? `<button class="btn-sm" style="background: #c084fc; color: white;" onclick="editOrder('${order.order_id}')" title="Edit order items">✏️ Edit</button>` 
+                                    : ''}
                                 ${showUnlockButton 
-                                    ? `<button class="btn-sm" style="background: #10b981; color: white;" onclick="toggleOrderLock('${order.order_id}', false)">🔓 Unlock</button>`
-                                    : `<button class="btn-sm" style="background: #f59e0b; color: white;" onclick="toggleOrderLock('${order.order_id}', true)">🔒 Lock</button>`}
+                                    ? `<button class="btn-sm" style="background: #a78bfa; color: white;" onclick="toggleOrderLock('${order.order_id}', false)">🔓 Unlock</button>`
+                                    : `<button class="btn-sm" style="background: #f472b6; color: white;" onclick="toggleOrderLock('${order.order_id}', true)">🔒 Lock</button>`}
                                 ${!isPaid 
                                     ? `<button class="btn-sm btn-confirm" onclick="confirmPayment('${order.order_id}')">✓ Confirm</button>
-                                       <button class="btn-sm" style="background: var(--accent-violet); color: white;" onclick="sendReminder('${order.order_id}')">📲 Remind</button>` 
-                                    : `<button class="btn-sm" style="background: #0ea5e9; color: white;" onclick="notifyCustomer('${order.order_id}')">📱 Notify</button>`}
-                                <button class="btn-sm" style="background: #ef4444; color: white;" onclick="cancelOrder('${order.order_id}', '${order.telegram || ''}')" title="Cancel order and delete all rows">🗑️ Cancel</button>
+                                       <button class="btn-sm" style="background: #c084fc; color: white;" onclick="sendReminder('${order.order_id}')">📲 Remind</button>` 
+                                    : `<button class="btn-sm" style="background: #a78bfa; color: white;" onclick="notifyCustomer('${order.order_id}')">📱 Notify</button>`}
+                                <button class="btn-sm" style="background: #f472b6; color: white;" onclick="cancelOrder('${order.order_id}', '${order.telegram || ''}')" title="Cancel order and delete all rows">🗑️ Cancel</button>
                             </div>
                         </td>
                     </tr>
@@ -1093,7 +1273,7 @@
             body.innerHTML = `
                 <div style="margin-bottom: 1.5rem;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                        <span style="font-family: 'JetBrains Mono', monospace; color: var(--accent-teal); font-size: 1.25rem;">${order.order_id}</span>
+                        <span style="font-family: 'JetBrains Mono', monospace; color: #a78bfa; font-size: 1.25rem;">${order.order_id}</span>
                         <span class="payment-badge ${order.payment_status.toLowerCase().replace(/\s+/g, '-').replace('waiting-for-confirmation', 'waiting')}">${order.payment_status}</span>
                     </div>
                     <div style="color: var(--text-muted); font-size: 0.85rem;">${order.order_date}</div>
@@ -1112,14 +1292,14 @@
                                 <div style="font-weight: 500;">${item.product_name || item.product_code}</div>
                                 <div style="font-size: 0.8rem; color: var(--text-muted);">${item.order_type} × ${item.qty}</div>
                             </div>
-                            <div style="font-family: 'JetBrains Mono', monospace; color: var(--accent-teal);">
+                            <div style="font-family: 'JetBrains Mono', monospace; color: #a78bfa;">
                                 ₱${item.line_total_php.toLocaleString('en-PH', {minimumFractionDigits: 2})}
                             </div>
                         </div>
                     `).join('')}
                 </div>
                 
-                <div style="background: linear-gradient(135deg, var(--accent-violet), var(--accent-rose)); padding: 1rem; border-radius: 10px; display: flex; justify-content: space-between; align-items: center;">
+                <div style="background: linear-gradient(135deg, #c084fc, #f472b6); padding: 1rem; border-radius: 10px; display: flex; justify-content: space-between; align-items: center;">
                     <span style="color: white; font-weight: 600;">Grand Total</span>
                     <span style="font-family: 'JetBrains Mono', monospace; color: white; font-size: 1.5rem; font-weight: 700;">₱${order.grand_total_php.toLocaleString('en-PH', {minimumFractionDigits: 2})}</span>
                 </div>
@@ -1135,13 +1315,122 @@
             `;
 
             const footer = document.getElementById('order-modal-footer');
+            const isLocked = order.locked === true;
             footer.innerHTML = `
+                ${!isPaid && !isLocked ? `<button class="btn" style="padding: 0.75rem 1.5rem; background: #c084fc; color: white;" onclick="editOrder('${order.order_id}'); closeOrderModal();">✏️ Edit Order</button>` : ''}
                 ${!isPaid ? `<button class="btn btn-violet" style="padding: 0.75rem 1.5rem;" onclick="confirmPayment('${order.order_id}'); closeOrderModal();">✓ Confirm Payment</button>` : 
-                           `<button class="btn" style="padding: 0.75rem 1.5rem; background: #0ea5e9; color: white;" onclick="notifyCustomer('${order.order_id}')">📱 Notify Customer</button>`}
-                <button class="btn" style="padding: 0.75rem 1.5rem; background: var(--bg-input); border: 1px solid var(--border);" onclick="closeOrderModal()">Close</button>
+                           `<button class="btn" style="padding: 0.75rem 1.5rem; background: #a78bfa; color: white;" onclick="notifyCustomer('${order.order_id}')">📱 Notify Customer</button>`}
+                <button class="btn" style="padding: 0.75rem 1.5rem; background: #f472b6; color: white;" onclick="showInvoice('${order.full_name}', '${order.telegram || ''}')">🧾 Invoice</button>
+                <button class="btn" style="padding: 0.75rem 1.5rem; background: var(--bg-input); border: 1px solid var(--border); color: var(--text-primary);" onclick="closeOrderModal()">Close</button>
             `;
 
             document.getElementById('order-modal').classList.add('show');
+        }
+
+        // Edit Order
+        function editOrder(orderId) {
+            const order = allOrders.find(o => o.order_id === orderId);
+            if (!order) {
+                showToast('Order not found');
+                return;
+            }
+
+            const isPaid = order.payment_status && order.payment_status.toLowerCase() === 'paid';
+            const isLocked = order.locked === true;
+            
+            if (isPaid || isLocked) {
+                showToast(isPaid ? 'Cannot edit paid orders' : 'Cannot edit locked orders. Unlock first.');
+                return;
+            }
+
+            const body = document.getElementById('order-modal-body');
+            body.innerHTML = `
+                <div style="margin-bottom: 1.5rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <span style="font-family: 'JetBrains Mono', monospace; color: #a78bfa; font-size: 1.25rem;">${order.order_id}</span>
+                        <span class="payment-badge ${order.payment_status.toLowerCase().replace(/\s+/g, '-').replace('waiting-for-confirmation', 'waiting')}">${order.payment_status}</span>
+                    </div>
+                    <div style="color: var(--text-muted); font-size: 0.85rem;">${order.order_date}</div>
+                </div>
+                
+                <div style="background: var(--bg-input); padding: 1rem; border-radius: 10px; margin-bottom: 1.5rem;">
+                    <div style="font-weight: 600;">${order.full_name}</div>
+                    ${order.telegram ? `<div style="color: var(--text-muted); font-size: 0.9rem;">@${order.telegram.replace('@', '')}</div>` : ''}
+                </div>
+                
+                <h4 style="margin-bottom: 0.75rem; color: var(--text-secondary);">Edit Order Items</h4>
+                <div style="background: var(--bg-input); border-radius: 10px; padding: 0.5rem 1rem; margin-bottom: 1.5rem;">
+                    ${order.items.map((item, idx) => `
+                        <div class="order-item-row" style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 0; border-bottom: 1px solid var(--border);">
+                            <div style="flex: 1;">
+                                <div style="font-weight: 500;">${item.product_name || item.product_code}</div>
+                                <div style="font-size: 0.8rem; color: var(--text-muted);">${item.order_type}</div>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 1rem;">
+                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <button class="btn-sm" style="background: var(--bg-card); border: 1px solid var(--border); color: var(--text-primary); padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="updateItemQty('${order.order_id}', '${item.product_code}', '${item.order_type}', ${item.qty - 1})">−</button>
+                                    <input type="number" id="qty-${order.order_id}-${idx}" value="${item.qty}" min="0" style="width: 60px; padding: 0.25rem; background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; color: var(--text-primary); text-align: center; font-family: 'JetBrains Mono', monospace;" onchange="updateItemQty('${order.order_id}', '${item.product_code}', '${item.order_type}', parseInt(this.value) || 0)">
+                                    <button class="btn-sm" style="background: var(--bg-card); border: 1px solid var(--border); color: var(--text-primary); padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="updateItemQty('${order.order_id}', '${item.product_code}', '${item.order_type}', ${item.qty + 1})">+</button>
+                                </div>
+                                <div style="font-family: 'JetBrains Mono', monospace; color: #a78bfa; min-width: 100px; text-align: right;">
+                                    ₱${item.line_total_php.toLocaleString('en-PH', {minimumFractionDigits: 2})}
+                                </div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+                
+                <div style="background: linear-gradient(135deg, #c084fc, #f472b6); padding: 1rem; border-radius: 10px; display: flex; justify-content: space-between; align-items: center;">
+                    <span style="color: white; font-weight: 600;">Grand Total</span>
+                    <span style="font-family: 'JetBrains Mono', monospace; color: white; font-size: 1.5rem; font-weight: 700;">₱${order.grand_total_php.toLocaleString('en-PH', {minimumFractionDigits: 2})}</span>
+                </div>
+                <div style="margin-top: 1rem; padding: 0.75rem; background: rgba(192, 132, 252, 0.1); border-radius: 8px; font-size: 0.85rem; color: var(--text-secondary);">
+                    💡 Changes will be saved automatically. The order total will be recalculated after updates.
+                </div>
+            `;
+
+            const footer = document.getElementById('order-modal-footer');
+            footer.innerHTML = `
+                <button class="btn" style="padding: 0.75rem 1.5rem; background: var(--bg-input); border: 1px solid var(--border); color: var(--text-primary);" onclick="closeOrderModal(); loadOrders(); loadProducts();">Close</button>
+            `;
+
+            document.getElementById('order-modal').classList.add('show');
+        }
+
+        // Update item quantity in order
+        async function updateItemQty(orderId, productCode, orderType, newQty) {
+            if (newQty < 0) newQty = 0;
+            
+            try {
+                const response = await fetch(`/api/admin/orders/${orderId}/update-item`, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        product_code: productCode,
+                        order_type: orderType,
+                        qty: newQty
+                    })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    showToast(`✅ Updated ${productCode} (${orderType}) to ${newQty}`);
+                    // Reload orders and products to reflect changes
+                    await loadOrders();
+                    await loadProducts();
+                    // Refresh the edit modal if it's open
+                    const order = allOrders.find(o => o.order_id === orderId);
+                    if (order && document.getElementById('order-modal').classList.contains('show')) {
+                        editOrder(orderId);
+                    }
+                } else {
+                    showToast(result.error || 'Failed to update item');
+                }
+            } catch (error) {
+                console.error('Error updating item:', error);
+                showToast('Error updating item');
+            }
         }
 
         function closeOrderModal() {
@@ -1335,12 +1624,18 @@
             }
         });
 
+        document.getElementById('invoice-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'invoice-modal') {
+                closeInvoiceModal();
+            }
+        });
+
         // Cancel order function
         async function cancelOrder(orderId, telegramUsername) {
             const telegram = telegramUsername || '';
             const telegramDisplay = telegram ? ` (@${telegram.replace('@', '')})` : '';
             
-            if (!confirm(`⚠️ Are you sure you want to CANCEL order ${orderId}${telegramDisplay}?\n\nThis will:\n- Delete ALL rows matching this order ID\n- Delete ALL rows matching the telegram username\n- This action CANNOT be undone!`)) {
+            if (!confirm(`⚠️ Are you sure you want to CANCEL order ${orderId}${telegramDisplay}?\n\nThis will:\n- Delete ALL rows matching this order ID\n- Delete ALL rows matching the telegram username\n- Recalculate inventory automatically\n- This action CANNOT be undone!`)) {
                 return;
             }
             
@@ -1357,8 +1652,10 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    showToast(`✅ Order ${orderId} cancelled and all rows deleted!`);
-                    loadOrders(); // Reload orders list
+                    showToast(`✅ Order ${orderId} cancelled and all rows deleted! Inventory recalculated.`);
+                    // Reload orders and products to reflect changes
+                    await loadOrders();
+                    await loadProducts();
                     if (document.getElementById('order-modal').classList.contains('show')) {
                         closeOrderModal(); // Close modal if open
                     }
