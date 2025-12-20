@@ -1906,19 +1906,22 @@
                             <td style="text-align: center;"><span class="product-code">{{ product.code }}</span></td>
                             <td style="font-family: 'JetBrains Mono', monospace; font-weight: 600; text-align: center;">{{ total_vials }}</td>
                             <td style="text-align: center;"><span class="kits-badge normal">{{ kits_generated }}</span></td>
-                            <td style="font-family: 'JetBrains Mono', monospace; color: #ec4899; font-weight: 600; text-align: center;">{{ remaining_vials }}</td>
                             <td style="text-align: center;">
                                 <span style="display: inline-block; padding: 0.35rem 0.75rem; border-radius: 20px; font-size: 0.85rem; font-weight: 600; background: {{ badge_bg }}; color: {{ badge_color }};">
                                     {{ pending_vials }} vial{{ 's' if pending_vials != 1 else '' }}
                                 </span>
                             </td>
-                            <td style="text-align: center; font-size: 0.85rem; color: var(--text-secondary);">
-                                {% if pep_haulers|length > 0 %}
-                                    {% for username in pep_haulers %}
-                                        @{{ username }}{% if not loop.last %}, {% endif %}
-                                    {% endfor %}
+                            <td style="text-align: center;">
+                                {% if pep_haulers and pep_haulers|length > 0 %}
+                                    <div style="display: flex; flex-wrap: wrap; gap: 0.25rem; justify-content: center;">
+                                        {% for username in pep_haulers %}
+                                            <span style="display: inline-block; padding: 0.25rem 0.5rem; border-radius: 12px; font-size: 0.75rem; font-weight: 500; background: rgba(192, 132, 252, 0.2); color: #7c3aed;">
+                                                @{{ username }}
+                                            </span>
+                                        {% endfor %}
+                                    </div>
                                 {% else %}
-                                    <span style="color: var(--text-muted); font-style: italic;">None</span>
+                                    <span style="color: var(--text-muted); font-size: 0.85rem;">—</span>
                                 {% endif %}
                             </td>
                         </tr>
