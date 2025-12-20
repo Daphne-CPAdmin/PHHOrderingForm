@@ -1864,16 +1864,16 @@
                 </div>
             </div>
             {% if incomplete_kits and incomplete_kits|length > 0 %}
-            <div class="table-container" style="margin-top: 1rem;">
+            <div class="table-container" style="margin-top: 1rem; background: rgba(221, 214, 254, 0.3); padding: 1rem; border-radius: 12px;">
                 <table class="products-table" style="width: 100%;">
                     <thead>
                         <tr>
-                            <th>Product Name</th>
-                            <th>Code</th>
-                            <th>Total Vials</th>
-                            <th>Kits Generated</th>
-                            <th>Remaining Vials</th>
-                            <th>Vials Needed to Complete Kit</th>
+                            <th style="text-align: center;">Product Name</th>
+                            <th style="text-align: center;">Code</th>
+                            <th style="text-align: center;">Total Vials</th>
+                            <th style="text-align: center;">Kits Generated</th>
+                            <th style="text-align: center;">Remaining Vials</th>
+                            <th style="text-align: center;">Vials Needed to Complete Kit</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -1883,14 +1883,31 @@
                         {% set kits_generated = product.inventory.kits_generated %}
                         {% set remaining_vials = total_vials % vials_per_kit %}
                         {% set pending_vials = vials_per_kit - remaining_vials %}
-                        <tr style="background: rgba(249, 168, 212, 0.1);">
-                            <td style="font-weight: 500;">{{ product.name }}</td>
-                            <td><span class="product-code">{{ product.code }}</span></td>
-                            <td style="font-family: 'JetBrains Mono', monospace; font-weight: 600;">{{ total_vials }}</td>
-                            <td><span class="kits-badge normal">{{ kits_generated }}</span></td>
-                            <td style="font-family: 'JetBrains Mono', monospace; color: #ec4899; font-weight: 600;">{{ remaining_vials }}</td>
-                            <td>
-                                <span style="display: inline-block; padding: 0.35rem 0.75rem; border-radius: 20px; font-size: 0.85rem; font-weight: 600; background: rgba(244, 114, 182, 0.25); color: #ec4899;">
+                        {% if pending_vials <= 2 %}
+                            {% set row_bg = 'rgba(167, 139, 250, 0.15)' %}
+                            {% set badge_bg = 'rgba(167, 139, 250, 0.3)' %}
+                            {% set badge_color = '#7c3aed' %}
+                        {% elif pending_vials <= 5 %}
+                            {% set row_bg = 'rgba(249, 168, 212, 0.15)' %}
+                            {% set badge_bg = 'rgba(249, 168, 212, 0.3)' %}
+                            {% set badge_color = '#ec4899' %}
+                        {% elif pending_vials <= 8 %}
+                            {% set row_bg = 'rgba(244, 114, 182, 0.2)' %}
+                            {% set badge_bg = 'rgba(244, 114, 182, 0.35)' %}
+                            {% set badge_color = '#db2777' %}
+                        {% else %}
+                            {% set row_bg = 'rgba(244, 114, 182, 0.25)' %}
+                            {% set badge_bg = 'rgba(244, 114, 182, 0.4)' %}
+                            {% set badge_color = '#be185d' %}
+                        {% endif %}
+                        <tr style="background: {{ row_bg }};">
+                            <td style="font-weight: 500; text-align: center;">{{ product.name }}</td>
+                            <td style="text-align: center;"><span class="product-code">{{ product.code }}</span></td>
+                            <td style="font-family: 'JetBrains Mono', monospace; font-weight: 600; text-align: center;">{{ total_vials }}</td>
+                            <td style="text-align: center;"><span class="kits-badge normal">{{ kits_generated }}</span></td>
+                            <td style="font-family: 'JetBrains Mono', monospace; color: #ec4899; font-weight: 600; text-align: center;">{{ remaining_vials }}</td>
+                            <td style="text-align: center;">
+                                <span style="display: inline-block; padding: 0.35rem 0.75rem; border-radius: 20px; font-size: 0.85rem; font-weight: 600; background: {{ badge_bg }}; color: {{ badge_color }};">
                                     {{ pending_vials }} vial{{ 's' if pending_vials != 1 else '' }}
                                 </span>
                             </td>

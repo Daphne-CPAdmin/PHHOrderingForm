@@ -1050,15 +1050,42 @@
             tbody.innerHTML = incompleteKitsWithPending.map(product => {
                 const { totalVials, kitsGenerated, remainingVials, pendingVials } = product;
                 
+                // Color coding based on vials needed
+                let rowBgColor = '';
+                let badgeBgColor = '';
+                let badgeTextColor = '';
+                
+                if (pendingVials <= 2) {
+                    // Almost complete (1-2 vials) - light green/lilac
+                    rowBgColor = 'background: rgba(167, 139, 250, 0.15);';
+                    badgeBgColor = 'rgba(167, 139, 250, 0.3)';
+                    badgeTextColor = '#7c3aed';
+                } else if (pendingVials <= 5) {
+                    // Moderate (3-5 vials) - light pink/lilac
+                    rowBgColor = 'background: rgba(249, 168, 212, 0.15);';
+                    badgeBgColor = 'rgba(249, 168, 212, 0.3)';
+                    badgeTextColor = '#ec4899';
+                } else if (pendingVials <= 8) {
+                    // More needed (6-8 vials) - medium pink
+                    rowBgColor = 'background: rgba(244, 114, 182, 0.2);';
+                    badgeBgColor = 'rgba(244, 114, 182, 0.35)';
+                    badgeTextColor = '#db2777';
+                } else {
+                    // Far from complete (9 vials) - darker pink
+                    rowBgColor = 'background: rgba(244, 114, 182, 0.25);';
+                    badgeBgColor = 'rgba(244, 114, 182, 0.4)';
+                    badgeTextColor = '#be185d';
+                }
+                
                 return `
-                    <tr class="incomplete-kit">
-                        <td style="font-weight: 500;">${product.name}</td>
-                        <td><span class="product-code">${product.code}</span></td>
-                        <td style="font-family: 'JetBrains Mono', monospace; font-weight: 600;">${totalVials}</td>
-                        <td><span class="kits-badge normal">${kitsGenerated}</span></td>
-                        <td style="font-family: 'JetBrains Mono', monospace; color: #ec4899; font-weight: 600;">${remainingVials}</td>
-                        <td>
-                            <span class="kits-badge incomplete" style="font-size: 0.9rem;">
+                    <tr class="incomplete-kit" style="${rowBgColor}">
+                        <td style="font-weight: 500; text-align: center;">${product.name}</td>
+                        <td style="text-align: center;"><span class="product-code">${product.code}</span></td>
+                        <td style="font-family: 'JetBrains Mono', monospace; font-weight: 600; text-align: center;">${totalVials}</td>
+                        <td style="text-align: center;"><span class="kits-badge normal">${kitsGenerated}</span></td>
+                        <td style="font-family: 'JetBrains Mono', monospace; color: #ec4899; font-weight: 600; text-align: center;">${remainingVials}</td>
+                        <td style="text-align: center;">
+                            <span class="kits-badge incomplete" style="font-size: 0.9rem; background: ${badgeBgColor}; color: ${badgeTextColor}; font-weight: 600;">
                                 ${pendingVials} vial${pendingVials !== 1 ? 's' : ''} needed
                             </span>
                         </td>
