@@ -1785,11 +1785,23 @@ def index():
         
         products_with_orders.sort(key=sort_key)
         
+        # Filter incomplete kits (products with remaining vials that don't form complete kits)
+        incomplete_kits = []
+        for product in products_with_orders:
+            stats = product['inventory']
+            total_vials = stats.get('total_vials', 0)
+            if total_vials > 0:
+                vials_per_kit = product.get('vials_per_kit', VIALS_PER_KIT)
+                remaining_vials = total_vials % vials_per_kit
+                if remaining_vials > 0:  # Has incomplete kit
+                    incomplete_kits.append(product)
+        
         order_goal = get_order_goal()
         
         return render_template('index.html', 
                              products=products, 
                              products_with_orders=products_with_orders,
+                             incomplete_kits=incomplete_kits,
                              exchange_rate=exchange_rate,
                              admin_fee=ADMIN_FEE_PHP,
                              vials_per_kit=VIALS_PER_KIT,
@@ -3235,10 +3247,18 @@ def delete_order_rows(order_id, telegram_username=None):
         
         print(f"✅ Successfully deleted all rows for order {order_id}" + (f" (Telegram: @{telegram_username})" if telegram_username else ""))
         
-        # Clear cache since orders changed
+        # Clear cache since orders changed - this triggers automatic recalculation
         clear_cache('orders')
         clear_cache('inventory')
         clear_cache('order_stats')
+        
+        # Force recalculation by getting fresh inventory stats
+        # This ensures inventory is immediately updated after cancellation
+        try:
+            get_inventory_stats()
+            print(f"✅ Inventory recalculated after cancelling order {order_id}")
+        except Exception as e:
+            print(f"⚠️ Warning: Could not recalculate inventory after cancellation: {e}")
         
         return True
     except Exception as e:
@@ -4065,6 +4085,35 @@ def api_admin_mark_unpaid(order_id):
     if update_order_status(order_id, payment_status='Unpaid'):
         return jsonify({'success': True})
     return jsonify({'error': 'Failed to update payment status'}), 500
+
+@app.route('/api/admin/orders/<order_id>/update-item', methods=['POST'])
+def api_admin_update_item(order_id):
+    """Admin: Update quantity of an item in an existing order"""
+    if not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    order = get_order_by_id(order_id)
+    if not order:
+        return jsonify({'error': 'Order not found'}), 404
+    
+    data = request.json
+    product_code = data.get('product_code')
+    order_type = data.get('order_type')
+    new_qty = data.get('qty', 0)
+    
+    if not product_code or not order_type:
+        return jsonify({'error': 'Missing product_code or order_type'}), 400
+    
+    if update_item_quantity(order_id, product_code, order_type, new_qty):
+        # Clear cache and reload to ensure inventory is recalculated
+        clear_cache('orders')
+        clear_cache('inventory')
+        clear_cache('order_stats')
+        # Recalculate order total
+        recalculate_order_total(order_id)
+        return jsonify({'success': True, 'message': 'Item updated successfully'})
+    
+    return jsonify({'error': 'Failed to update item'}), 500
 
 @app.route('/api/admin/orders/<order_id>/send-reminder', methods=['POST'])
 def api_admin_send_reminder(order_id):
