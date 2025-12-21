@@ -762,21 +762,6 @@
         </div>
     </div>
 
-    <!-- Invoice Modal -->
-    <div class="modal" id="invoice-modal">
-        <div class="modal-content" style="max-width: 800px;">
-            <div class="modal-header">
-                <h3 class="modal-title">📄 Customer Invoice</h3>
-                <button class="modal-close" onclick="closeInvoiceModal()">&times;</button>
-            </div>
-            <div class="modal-body" id="invoice-modal-body">
-                <!-- Populated by JS -->
-            </div>
-            <div class="modal-footer">
-                <button class="btn" style="padding: 0.75rem 1.5rem; background: var(--bg-input); border: 1px solid var(--border); color: var(--text-primary);" onclick="closeInvoiceModal()">Close</button>
-            </div>
-        </div>
-    </div>
 
     <script>
         let isLoggedIn = false;
@@ -1346,14 +1331,21 @@
                             body: JSON.stringify({ product_code: product.code, is_locked: isLocked })
                         });
                         
+                        if (!lockResponse.ok) {
+                            errorCount++;
+                            continue;
+                        }
+                        
                         const result = await lockResponse.json();
                         if (result.success) {
                             successCount++;
                         } else {
                             errorCount++;
+                            console.error(`Failed to ${action} product ${product.code}:`, result.error);
                         }
                     } catch (error) {
                         errorCount++;
+                        console.error(`Error ${action}ing product ${product.code}:`, error);
                     }
                 }
                 
@@ -1605,7 +1597,6 @@
                 ${!isPaid && !isLocked ? `<button class="btn" style="padding: 0.75rem 1.5rem; background: #c084fc; color: white;" onclick="editOrder('${order.order_id}'); closeOrderModal();">✏️ Edit Order</button>` : ''}
                 ${!isPaid ? `<button class="btn btn-violet" style="padding: 0.75rem 1.5rem;" onclick="confirmPayment('${order.order_id}'); closeOrderModal();">✓ Confirm Payment</button>` : 
                            `<button class="btn" style="padding: 0.75rem 1.5rem; background: #a78bfa; color: white;" onclick="notifyCustomer('${order.order_id}')">📱 Notify Customer</button>`}
-                <button class="btn" style="padding: 0.75rem 1.5rem; background: #f472b6; color: white;" onclick="showInvoice('${order.full_name}', '${order.telegram || ''}')">🧾 Invoice</button>
                 <button class="btn" style="padding: 0.75rem 1.5rem; background: var(--bg-input); border: 1px solid var(--border); color: var(--text-primary);" onclick="closeOrderModal()">Close</button>
             `;
 
@@ -1734,18 +1725,33 @@
                     body: JSON.stringify({ order_id: orderId })
                 });
                 
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Payment confirmation failed:', response.status, errorText);
+                    showToast(`Failed to confirm payment (${response.status})`);
+                    return;
+                }
+                
                 const result = await response.json();
                 if (result.success) {
                     showToast('Payment confirmed! ✅');
                     loadOrders();
+                    // Close modal if open
+                    const orderModal = document.getElementById('order-modal');
+                    if (orderModal && orderModal.classList.contains('show')) {
+                        closeOrderModal();
+                    }
                 } else {
                     showToast(result.error || 'Failed to confirm payment');
                 }
             } catch (error) {
                 console.error('Error confirming payment:', error);
-                showToast('Error confirming payment');
+                showToast('Error confirming payment. Please try again.');
             }
         }
+        
+        // Expose confirmPayment to global scope
+        window.confirmPayment = confirmPayment;
 
         // ===== ORDER LOCKING FUNCTIONS =====
         
@@ -1909,11 +1915,6 @@
             }
         });
 
-        document.getElementById('invoice-modal').addEventListener('click', (e) => {
-            if (e.target.id === 'invoice-modal') {
-                closeInvoiceModal();
-            }
-        });
 
         // Cancel order function
         async function cancelOrder(orderId, telegramUsername) {
