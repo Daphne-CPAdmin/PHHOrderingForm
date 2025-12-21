@@ -712,8 +712,12 @@
                     Lock products when they reach maximum kits or manually lock/unlock products.
                 </p>
 
-                <div class="search-bar">
-                    <input type="text" class="search-input" id="product-search" placeholder="Search products...">
+                <div class="search-bar" style="display: flex; gap: 1rem; flex-wrap: wrap; align-items: center;">
+                    <input type="text" class="search-input" id="product-search" placeholder="Search products..." style="flex: 1;">
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button class="btn-sm" style="background: #f472b6; color: white;" onclick="lockAllProducts(true)">🔒 Lock All Products</button>
+                        <button class="btn-sm" style="background: #a78bfa; color: white;" onclick="lockAllProducts(false)">🔓 Unlock All Products</button>
+                    </div>
                 </div>
 
                 <div class="table-container">
@@ -1310,6 +1314,65 @@
                 showToast('Error updating lock status');
             }
         }
+
+        // Lock/Unlock All Products
+        async function lockAllProducts(isLocked) {
+            try {
+                // Get all products
+                const response = await fetch('/api/admin/products', { credentials: 'same-origin' });
+                const products = await response.json();
+                
+                if (products.length === 0) {
+                    showToast('No products found');
+                    return;
+                }
+                
+                // Confirm action
+                const action = isLocked ? 'lock' : 'unlock';
+                if (!confirm(`Are you sure you want to ${action} all ${products.length} products?`)) {
+                    return;
+                }
+                
+                // Lock/unlock all products
+                let successCount = 0;
+                let errorCount = 0;
+                
+                for (const product of products) {
+                    try {
+                        const lockResponse = await fetch('/api/admin/lock-product', {
+                            method: 'POST',
+                            credentials: 'same-origin',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ product_code: product.code, is_locked: isLocked })
+                        });
+                        
+                        const result = await lockResponse.json();
+                        if (result.success) {
+                            successCount++;
+                        } else {
+                            errorCount++;
+                        }
+                    } catch (error) {
+                        errorCount++;
+                    }
+                }
+                
+                // Reload products to reflect changes
+                loadProducts();
+                
+                if (errorCount === 0) {
+                    showToast(`✅ Successfully ${action}ed all ${successCount} products`);
+                } else {
+                    showToast(`⚠️ ${action}ed ${successCount} products, ${errorCount} failed`);
+                }
+            } catch (error) {
+                console.error('Error locking/unlocking all products:', error);
+                showToast('Error updating products');
+            }
+        }
+        
+        // Expose lockAllProducts to global scope
+        window.lockAllProducts = lockAllProducts;
 
         // Update Max Kits
         async function updateMaxKits(productCode, maxKits) {
