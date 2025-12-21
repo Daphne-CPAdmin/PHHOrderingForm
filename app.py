@@ -3574,38 +3574,26 @@ def api_save_mailing_address(order_id):
         if not cell:
             return jsonify({'error': 'Order not found'}), 404
         
-        # Get headers to find mailing address columns
+        # Ensure headers exist in columns U, V, W (21, 22, 23)
         headers = worksheet.row_values(1)
+        if len(headers) < 21:
+            # Extend headers if needed
+            while len(headers) < 23:
+                headers.append('')
+            worksheet.update('A1:W1', [headers])
         
-        # Find mailing columns (using correct column names)
-        mailing_name_col = None
-        mailing_phone_col = None
-        mailing_address_col = None
+        # Set headers for columns U, V, W if not already set
+        if len(headers) < 21 or headers[20] != 'Full Name':
+            worksheet.update_cell(1, 21, 'Full Name')
+        if len(headers) < 22 or headers[21] != 'Contact Number':
+            worksheet.update_cell(1, 22, 'Contact Number')
+        if len(headers) < 23 or headers[22] != 'Mailing Address':
+            worksheet.update_cell(1, 23, 'Mailing Address')
         
-        for i, header in enumerate(headers):
-            if header == 'Full Name':
-                mailing_name_col = i + 1
-            elif header == 'Contact Number':
-                mailing_phone_col = i + 1
-            elif header == 'Mailing Address':
-                mailing_address_col = i + 1
-        
-        # If columns don't exist, add them (shouldn't happen if headers are correct, but handle gracefully)
-        if mailing_name_col is None:
-            mailing_name_col = len(headers) + 1
-            worksheet.update_cell(1, mailing_name_col, 'Full Name')
-        if mailing_phone_col is None:
-            mailing_phone_col = len(headers) + 2 if mailing_name_col == len(headers) + 1 else len(headers) + 1
-            worksheet.update_cell(1, mailing_phone_col, 'Contact Number')
-        if mailing_address_col is None:
-            next_col = max(mailing_name_col, mailing_phone_col) + 1
-            worksheet.update_cell(1, next_col, 'Mailing Address')
-            mailing_address_col = next_col
-        
-        # Update the order row with mailing info
-        worksheet.update_cell(cell.row, mailing_name_col, mailing_name)
-        worksheet.update_cell(cell.row, mailing_phone_col, mailing_phone)
-        worksheet.update_cell(cell.row, mailing_address_col, mailing_address)
+        # Update the order row with mailing info in columns U (21), V (22), W (23)
+        worksheet.update_cell(cell.row, 21, mailing_name)  # Column U
+        worksheet.update_cell(cell.row, 22, mailing_phone)  # Column V
+        worksheet.update_cell(cell.row, 23, mailing_address)  # Column W
         
         # Clear cache since orders changed
         clear_cache('orders')
@@ -4191,6 +4179,7 @@ def api_admin_customer_summary():
     # Group orders by customer name
     customer_summary = {}
     order_grand_totals = {}  # Track grand totals per order_id to avoid double counting
+    order_payment_status = {}  # Track payment status per order_id
     
     for order in orders:
         order_id = order.get('Order ID', '')
@@ -4216,6 +4205,11 @@ def api_admin_customer_summary():
         grand_total = float(order.get('Grand Total PHP', 0) or 0)
         if order_id not in order_grand_totals and grand_total > 0:
             order_grand_totals[order_id] = grand_total
+        
+        # Track payment status for this order (store once per order_id)
+        payment_status = order.get('Payment Status', order.get('Confirmed Paid?', 'Unpaid'))
+        if order_id not in order_payment_status:
+            order_payment_status[order_id] = payment_status
         
         # Track unique orders (only count once per order_id)
         if order_id not in customer_summary[customer_name]['order_ids']:
@@ -4244,10 +4238,27 @@ def api_admin_customer_summary():
     # Convert to list and sort by total grand total (descending)
     result = []
     for name, data in customer_summary.items():
+        # Get order IDs as sorted list for display
+        order_ids_list = sorted(list(data['order_ids']))
+        order_numbers = ', '.join(order_ids_list)
+        
+        # Determine payment status: if all orders are paid, show "Paid", otherwise show "Unpaid" or mixed status
+        payment_statuses = [order_payment_status.get(order_id, 'Unpaid') for order_id in order_ids_list]
+        if all(status == 'Paid' for status in payment_statuses):
+            payment_status = 'Paid'
+        elif any(status == 'Paid' for status in payment_statuses):
+            payment_status = 'Partially Paid'
+        elif any(status == 'Waiting for Confirmation' for status in payment_statuses):
+            payment_status = 'Waiting for Confirmation'
+        else:
+            payment_status = 'Unpaid'
+        
         result.append({
             'customer_name': name,
             'order_count': data['order_count'],
+            'order_numbers': order_numbers,
             'total_vials': data['total_vials'],
+            'payment_status': payment_status,
             'total_grand_total_php': round(data['total_grand_total_php'], 2)
         })
     

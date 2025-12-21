@@ -1816,6 +1816,11 @@
                         </div>
                     </div>
 
+                    <!-- Shipping Details Button (shown for paid orders) -->
+                    <div id="shipping-details-button-container" style="margin-top: 1.5rem; display: none;">
+                        <button type="button" class="btn btn-primary btn-full" id="add-shipping-details-btn">📬 Add Shipping Details</button>
+                    </div>
+
                     {% if order_form_locked %}
                     <button type="button" class="btn btn-full" style="margin-top: 1.5rem; background: #9ca3af; cursor: not-allowed;" disabled>🔒 Orders Closed</button>
                     {% else %}
@@ -2300,7 +2305,7 @@
             <div class="modal-footer" style="display: flex; flex-direction: column; gap: 0.75rem;">
                 <button class="btn btn-primary" id="payment-sent-btn" onclick="markPaymentSentFromModal()" style="width: 100%; font-size: 1rem; padding: 1rem; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;">
                     <span style="font-size: 1.5rem;">💸</span>
-                    <span>Payment Sent to GB Admin</span>
+                    <span>Payment Sent to PepHaul Admin</span>
                 </button>
                 <p style="font-size: 0.8rem; color: var(--text-muted); text-align: center; margin: 0;">GB Admin will be notified via Telegram</p>
                 <button class="btn btn-secondary" onclick="closeModal('payment-modal')">Close</button>
@@ -2308,11 +2313,11 @@
         </div>
     </div>
 
-    <!-- Mailing Address Modal -->
+    <!-- Shipping Details Modal -->
     <div class="modal" id="mailing-address-modal">
         <div class="modal-content" style="max-width: 500px;">
             <div class="modal-header">
-                <h3 class="modal-title">📬 Add Mailing Address</h3>
+                <h3 class="modal-title">📬 Add Shipping Details</h3>
                 <button class="modal-close" onclick="closeModal('mailing-address-modal')">&times;</button>
             </div>
             <div class="modal-body">
@@ -2332,8 +2337,11 @@
                 </div>
                 <div class="form-group" style="margin-bottom: 1rem;">
                     <label class="form-label">Full Mailing Address</label>
-                    <textarea class="form-input" id="mailing-address-input" rows="3" style="resize: vertical;" placeholder="Street, Village, Barangay, City, Province, Zipcode"></textarea>
-                    <small style="color: var(--text-muted); font-size: 0.75rem;">Include: Street, Village/Subdivision, Barangay, City, Province, Zipcode</small>
+                    <textarea class="form-input" id="mailing-address-input" rows="3" style="resize: vertical;" placeholder="Street, Village, Barangay, City, Province, Zipcode" maxlength="500"></textarea>
+                    <small style="color: var(--text-muted); font-size: 0.75rem;">Include: Street, Village/Subdivision, Barangay, City, Province, Zipcode (max 500 characters)</small>
+                    <div style="text-align: right; margin-top: 0.25rem;">
+                        <span id="mailing-address-char-count" style="color: var(--text-muted); font-size: 0.75rem;">0/500</span>
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -2494,6 +2502,7 @@
                     }
                     
                     const productVialsPerKit = parseInt(option.dataset.vialsPerKit) || VIALS_PER_KIT;
+                    const isLocked = option.dataset.locked === 'true';
                     selectedProduct = {
                         code: option.dataset.code,
                         name: option.dataset.name,
@@ -2505,7 +2514,8 @@
                             kits_generated: parseInt(option.dataset.kits) || 0,
                             remaining_vials: parseInt(option.dataset.remaining) || 0,
                             slots_to_next_kit: parseInt(option.dataset.slots) || productVialsPerKit,
-                            vials_per_kit: productVialsPerKit
+                            vials_per_kit: productVialsPerKit,
+                            is_locked: isLocked
                         }
                     };
                     
@@ -2618,7 +2628,16 @@
         quantityInput.addEventListener('input', updatePricePreview);
 
         function updatePricePreview() {
-            if (!selectedProduct) return;
+            if (!selectedProduct) {
+                const addToCartBtn = document.getElementById('add-to-cart');
+                if (addToCartBtn) {
+                    addToCartBtn.disabled = true;
+                    addToCartBtn.style.opacity = '0.5';
+                    addToCartBtn.style.cursor = 'not-allowed';
+                }
+                return;
+            }
+            
             const qty = parseInt(quantityInput.value) || 1;
             const unitPrice = orderType === 'Kit' ? selectedProduct.kit_price : selectedProduct.vial_price;
             const lineTotalUsd = unitPrice * qty;
@@ -2627,6 +2646,23 @@
             document.getElementById('unit-price-usd').textContent = `$${unitPrice.toFixed(2)}`;
             document.getElementById('line-total-usd').textContent = `$${lineTotalUsd.toFixed(2)}`;
             document.getElementById('line-total-php').textContent = `₱${lineTotalPhp.toFixed(2)}`;
+            
+            // Disable add-to-cart button if product is locked
+            const addToCartBtn = document.getElementById('add-to-cart');
+            const isProductLocked = selectedProduct.inventory && selectedProduct.inventory.is_locked;
+            if (addToCartBtn) {
+                if (isProductLocked) {
+                    addToCartBtn.disabled = true;
+                    addToCartBtn.style.opacity = '0.5';
+                    addToCartBtn.style.cursor = 'not-allowed';
+                    addToCartBtn.title = 'This product is locked and cannot be added to your order';
+                } else {
+                    addToCartBtn.disabled = false;
+                    addToCartBtn.style.opacity = '1';
+                    addToCartBtn.style.cursor = 'pointer';
+                    addToCartBtn.title = '';
+                }
+            }
         }
 
         // Add to Cart
@@ -2636,6 +2672,12 @@
             
             if (!selectedProduct) {
                 showToast('Please select a product first');
+                return;
+            }
+            
+            // Check if product is locked
+            if (selectedProduct.inventory && selectedProduct.inventory.is_locked) {
+                showToast('❌ This product is locked and cannot be added to your order');
                 return;
             }
             
@@ -3094,38 +3136,51 @@
             
             const hasChanges = hasNewItems || hasUpdatedItems || hasRemovedItems || hasQuantityChanges;
             
+            // Handle shipping details button visibility
+            const shippingDetailsContainer = document.getElementById('shipping-details-button-container');
+            const addShippingDetailsBtn = document.getElementById('add-shipping-details-btn');
+            
+            // Check if order form is locked
+            const orderFormLocked = {{ order_form_locked|tojson }};
+            
             if (pendingOrder) {
                 // Existing order exists - show Update Order, Pay Order, and Cancel Order buttons
                 
                 // Hide Submit Order button (for new orders)
                 submitBtn.style.display = 'none';
                 
-                // Show Update Order button - only enable if there are changes
+                // Show Update Order button - disable if order form is locked or no changes
                 updateOrderBtn.style.display = 'block';
-                updateOrderBtn.disabled = !hasChanges || cartItems.length === 0;
-                if (!hasChanges) {
+                const shouldDisableUpdate = orderFormLocked || !hasChanges || cartItems.length === 0;
+                updateOrderBtn.disabled = shouldDisableUpdate;
+                if (orderFormLocked) {
+                    updateOrderBtn.title = 'Order form is locked - cannot update orders';
+                } else if (!hasChanges) {
                     updateOrderBtn.title = 'No changes detected. Make changes to enable this button.';
                 } else {
                     updateOrderBtn.title = 'Update your existing order with the changes';
                 }
                 
                 // Show Pay Order button - always show for existing orders (for paying submitted orders)
+                // Payment is allowed even when order form is locked
                 const isPaid = pendingOrder.payment_status && pendingOrder.payment_status.toLowerCase() === 'paid';
                 payOrderBtn.style.display = isPaid ? 'none' : 'block';
                 payOrderBtn.disabled = false;
                 payOrderBtn.title = isPaid ? 'Order already paid' : 'Pay for your submitted order';
                 
-                // Show Cancel Order button - disable when order is cancelled, locked, paid, or awaiting payment confirmation
+                // Show Cancel Order button - disable when order form is locked, cancelled, locked, paid, or awaiting payment confirmation
                 const isCancelled = pendingOrder.status === 'Cancelled';
                 const isLocked = pendingOrder.locked === true;
                 const isPaidStatus = pendingOrder.payment_status && (pendingOrder.payment_status === 'Paid' || pendingOrder.payment_status.toLowerCase() === 'paid');
                 const isAwaitingConfirmation = pendingOrder.payment_status === 'Waiting for Confirmation';
-                const shouldHideCancel = isCancelled || isLocked || isPaidStatus || isAwaitingConfirmation;
+                const shouldHideCancel = orderFormLocked || isCancelled || isLocked || isPaidStatus || isAwaitingConfirmation;
                 
                 cancelOrderBtn.style.display = shouldHideCancel ? 'none' : 'block';
                 cancelOrderBtn.disabled = shouldHideCancel;
                 if (shouldHideCancel) {
-                    if (isPaidStatus) {
+                    if (orderFormLocked) {
+                        cancelOrderBtn.title = 'Order form is locked - cannot cancel orders';
+                    } else if (isPaidStatus) {
                         cancelOrderBtn.title = 'Cannot cancel order - payment has been confirmed';
                     } else if (isAwaitingConfirmation) {
                         cancelOrderBtn.title = 'Cannot cancel order - payment confirmation pending';
@@ -3136,6 +3191,20 @@
                     }
                 } else {
                     cancelOrderBtn.title = 'Cancel this order (cannot be undone)';
+                }
+                
+                // Show "Add Shipping Details" button for paid orders without shipping details
+                const hasShippingDetails = pendingOrder.contact_number && pendingOrder.mailing_address && 
+                                         pendingOrder.contact_number.trim() !== '' && pendingOrder.mailing_address.trim() !== '';
+                if (isPaidStatus && !isCancelled && !hasShippingDetails) {
+                    if (shippingDetailsContainer) shippingDetailsContainer.style.display = 'block';
+                    if (addShippingDetailsBtn) {
+                        addShippingDetailsBtn.onclick = () => {
+                            openMailingAddressModal(pendingOrder.order_id, pendingOrder.full_name);
+                        };
+                    }
+                } else {
+                    if (shippingDetailsContainer) shippingDetailsContainer.style.display = 'none';
                 }
                 
             } else {
@@ -3155,6 +3224,9 @@
                 
                 // Hide Cancel Order button (no submitted order to cancel)
                 cancelOrderBtn.style.display = 'none';
+                
+                // Hide shipping details button (no paid order)
+                if (shippingDetailsContainer) shippingDetailsContainer.style.display = 'none';
             }
         }
         
@@ -4168,7 +4240,7 @@
 
                             <button class="btn btn-primary" onclick="markPaymentSent('${order.order_id}')" style="width: 100%; font-size: 1rem; padding: 1rem; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;">
                                 <span style="font-size: 1.5rem;">💸</span>
-                                <span>Payment Sent to GB Admin</span>
+                                <span>Payment Sent to PepHaul Admin</span>
                             </button>
 
                             <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.75rem;">GB Admin will be notified via Telegram</p>
@@ -4448,10 +4520,36 @@
             currentMailingOrderId = orderId;
             document.getElementById('mailing-name').value = fullName || '';
             document.getElementById('mailing-phone').value = '';
-            document.getElementById('mailing-address-input').value = '';
+            const addressInput = document.getElementById('mailing-address-input');
+            addressInput.value = '';
+            updateMailingAddressCharCount();
             closeModal('order-details-modal');
             document.getElementById('mailing-address-modal').classList.add('show');
         }
+        
+        function updateMailingAddressCharCount() {
+            const addressInput = document.getElementById('mailing-address-input');
+            const charCountEl = document.getElementById('mailing-address-char-count');
+            if (addressInput && charCountEl) {
+                const length = addressInput.value.length;
+                charCountEl.textContent = `${length}/500`;
+                if (length > 500) {
+                    charCountEl.style.color = 'var(--accent-rose)';
+                } else if (length > 450) {
+                    charCountEl.style.color = '#f59e0b';
+                } else {
+                    charCountEl.style.color = 'var(--text-muted)';
+                }
+            }
+        }
+        
+        // Add event listener for character count
+        document.addEventListener('DOMContentLoaded', function() {
+            const addressInput = document.getElementById('mailing-address-input');
+            if (addressInput) {
+                addressInput.addEventListener('input', updateMailingAddressCharCount);
+            }
+        });
         
         async function saveMailingAddress() {
             if (!currentMailingOrderId) return;
@@ -4470,6 +4568,10 @@
             }
             if (!mailingAddress) {
                 showToast('Please enter mailing address');
+                return;
+            }
+            if (mailingAddress.length > 500) {
+                showToast('Mailing address must be 500 characters or less');
                 return;
             }
             
@@ -4494,6 +4596,13 @@
                     showToast('Mailing address saved! 📬');
                     closeModal('mailing-address-modal');
                     loadOrders();
+                    // Refresh order summary to update button visibility
+                    if (typeof checkReturningCustomer === 'function') {
+                        checkReturningCustomer();
+                    }
+                    if (typeof updateSubmitButtonText === 'function') {
+                        updateSubmitButtonText();
+                    }
                 } else {
                     showToast(result.error || 'Failed to save address');
                 }
@@ -4623,6 +4732,12 @@
                 console.error('❌ Product not found:', productCode);
                 console.log('Available products:', allProducts.map(p => p.code));
                 showToast('⚠️ Product not found. Please refresh the page.');
+                return;
+            }
+            
+            // Check if product is locked
+            if (product.inventory && product.inventory.is_locked) {
+                showToast('❌ This product is locked and cannot be added to your order');
                 return;
             }
             

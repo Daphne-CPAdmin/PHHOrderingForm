@@ -359,6 +359,11 @@
             color: #7c3aed;
         }
 
+        .payment-badge.partial {
+            background: rgba(251, 191, 36, 0.2);
+            color: #f59e0b;
+        }
+
         .btn-sm {
             padding: 0.5rem 0.75rem;
             font-size: 0.8rem;
@@ -587,6 +592,8 @@
                         <thead>
                             <tr>
                                 <th>Customer Name</th>
+                                <th>Order Number/s</th>
+                                <th>Payment Status</th>
                                 <th>Unique Orders</th>
                                 <th>Total Vials</th>
                                 <th>Grand Total (PHP)</th>
@@ -1028,14 +1035,30 @@
                 const tbody = document.getElementById('customer-summary-tbody');
                 
                 if (customers.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 2rem; color: var(--text-muted);">No customers found</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-muted);">No customers found</td></tr>';
                     return;
                 }
                 
                 tbody.innerHTML = customers.map(customer => {
+                    // Determine payment status badge color
+                    let paymentStatusClass = 'unpaid';
+                    let paymentStatusIcon = '⏳';
+                    if (customer.payment_status === 'Paid') {
+                        paymentStatusClass = 'paid';
+                        paymentStatusIcon = '✅';
+                    } else if (customer.payment_status === 'Partially Paid') {
+                        paymentStatusClass = 'partial';
+                        paymentStatusIcon = '🔄';
+                    } else if (customer.payment_status === 'Waiting for Confirmation') {
+                        paymentStatusClass = 'waiting';
+                        paymentStatusIcon = '⏳';
+                    }
+                    
                     return `
                         <tr>
                             <td style="font-weight: 500;">${customer.customer_name}</td>
+                            <td style="font-family: 'JetBrains Mono', monospace; color: #c084fc; font-weight: 600; cursor: pointer; user-select: all; position: relative;" onclick="navigator.clipboard.writeText('${customer.order_numbers}').then(() => { const el = event.target; const original = el.textContent; el.textContent = 'Copied!'; el.style.color = '#10b981'; setTimeout(() => { el.textContent = original; el.style.color = '#c084fc'; }, 1000); })" title="Click to copy order numbers">${customer.order_numbers}</td>
+                            <td><span class="payment-badge ${paymentStatusClass}" style="font-size: 0.85rem;">${paymentStatusIcon} ${customer.payment_status}</span></td>
                             <td style="font-family: 'JetBrains Mono', monospace; color: #c084fc; font-weight: 600;">${customer.order_count}</td>
                             <td style="font-family: 'JetBrains Mono', monospace; color: #a78bfa; font-weight: 600;">${customer.total_vials}</td>
                             <td style="font-family: 'JetBrains Mono', monospace; color: #7c3aed; font-weight: 700; font-size: 1.1rem;">₱${customer.total_grand_total_php.toLocaleString('en-PH', {minimumFractionDigits: 2})}</td>
@@ -1045,7 +1068,7 @@
                 
             } catch (error) {
                 console.error('Error loading customer summary:', error);
-                document.getElementById('customer-summary-tbody').innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 2rem; color: var(--accent-rose);">Error loading customer summary</td></tr>';
+                document.getElementById('customer-summary-tbody').innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: var(--accent-rose);">Error loading customer summary</td></tr>';
             }
         }
 
