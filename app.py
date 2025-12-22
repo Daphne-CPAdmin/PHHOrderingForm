@@ -2297,6 +2297,81 @@ def api_lock_product():
         traceback.print_exc()
         return jsonify({'error': f'Server error: {str(e)}'}), 500
 
+@app.route('/api/admin/products/bulk-lock', methods=['POST'])
+def api_bulk_lock_products():
+    """Bulk lock/unlock multiple products at once - optimized for large batches"""
+    if not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    try:
+        data = request.json or {}
+        product_codes = data.get('product_codes', [])
+        is_locked = data.get('is_locked', True)
+        max_kits = data.get('max_kits')  # Optional: can set max_kits for all products
+        
+        if not product_codes or not isinstance(product_codes, list):
+            return jsonify({'error': 'product_codes array is required'}), 400
+        
+        if len(product_codes) == 0:
+            return jsonify({'error': 'No product codes provided'}), 400
+        
+        admin_name = session.get('admin_name', 'Admin')
+        success_count = 0
+        failed_count = 0
+        failed_products = []
+        
+        print(f"🔄 Starting bulk {'lock' if is_locked else 'unlock'} for {len(product_codes)} products...")
+        
+        # Process products in smaller batches with delays to avoid Google Sheets API rate limits
+        # Google Sheets API allows ~60 requests per minute per user, so we batch conservatively
+        batch_size = 5  # Smaller batches to be safe
+        import time
+        
+        for i in range(0, len(product_codes), batch_size):
+            batch = product_codes[i:i + batch_size]
+            batch_num = (i // batch_size) + 1
+            total_batches = (len(product_codes) + batch_size - 1) // batch_size
+            
+            print(f"  Processing batch {batch_num}/{total_batches} ({len(batch)} products)...")
+            
+            for product_code in batch:
+                try:
+                    if set_product_lock(product_code, is_locked, max_kits, admin_name):
+                        success_count += 1
+                    else:
+                        failed_count += 1
+                        failed_products.append(product_code)
+                        print(f"    ❌ Failed: {product_code}")
+                except Exception as e:
+                    failed_count += 1
+                    failed_products.append(product_code)
+                    print(f"    ❌ Error locking product {product_code}: {e}")
+            
+            # Delay between batches to respect rate limits (except for last batch)
+            if i + batch_size < len(product_codes):
+                time.sleep(0.2)  # 200ms delay between batches
+        
+        action = 'locked' if is_locked else 'unlocked'
+        print(f"✅ Bulk {action} complete: {success_count} succeeded, {failed_count} failed")
+        
+        result = {
+            'success': True,
+            'message': f'{success_count} products {action} successfully',
+            'success_count': success_count,
+            'failed_count': failed_count
+        }
+        
+        if failed_products:
+            result['failed_products'] = failed_products[:20]  # Limit to first 20 for response size
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        print(f"❌ Error in api_bulk_lock_products: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Server error: {str(e)}'}), 500
+
 @app.route('/api/admin/lock-order-form', methods=['POST'])
 def api_lock_order_form():
     """Lock/unlock the entire order form"""

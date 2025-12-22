@@ -1318,44 +1318,43 @@
                     return;
                 }
                 
-                // Lock/unlock all products
-                let successCount = 0;
-                let errorCount = 0;
+                // Show loading message
+                showToast(`⏳ ${action.charAt(0).toUpperCase() + action.slice(1)}ing ${products.length} products...`);
                 
-                for (const product of products) {
-                    try {
-                        const lockResponse = await fetch('/api/admin/lock-product', {
-                            method: 'POST',
-                            credentials: 'same-origin',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ product_code: product.code, is_locked: isLocked })
-                        });
-                        
-                        if (!lockResponse.ok) {
-                            errorCount++;
-                            continue;
-                        }
-                        
-                        const result = await lockResponse.json();
-                        if (result.success) {
-                            successCount++;
-                        } else {
-                            errorCount++;
-                            console.error(`Failed to ${action} product ${product.code}:`, result.error);
-                        }
-                    } catch (error) {
-                        errorCount++;
-                        console.error(`Error ${action}ing product ${product.code}:`, error);
+                // Extract product codes
+                const productCodes = products.map(p => p.code);
+                
+                // Use bulk endpoint instead of individual calls
+                try {
+                    const bulkResponse = await fetch('/api/admin/products/bulk-lock', {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                            product_codes: productCodes,
+                            is_locked: isLocked
+                        })
+                    });
+                    
+                    if (!bulkResponse.ok) {
+                        const errorData = await bulkResponse.json();
+                        throw new Error(errorData.error || 'Failed to update products');
                     }
-                }
-                
-                // Reload products to reflect changes
-                loadProducts();
-                
-                if (errorCount === 0) {
-                    showToast(`✅ Successfully ${action}ed all ${successCount} products`);
-                } else {
-                    showToast(`⚠️ ${action}ed ${successCount} products, ${errorCount} failed`);
+                    
+                    const result = await bulkResponse.json();
+                    
+                    // Reload products to reflect changes
+                    loadProducts();
+                    
+                    if (result.failed_count === 0) {
+                        showToast(`✅ Successfully ${action}ed all ${result.success_count} products`);
+                    } else {
+                        const failedMsg = result.failed_products ? ` (Failed: ${result.failed_products.join(', ')})` : '';
+                        showToast(`⚠️ ${action}ed ${result.success_count} products, ${result.failed_count} failed${failedMsg}`);
+                    }
+                } catch (error) {
+                    console.error(`Error bulk ${action}ing products:`, error);
+                    showToast(`Error ${action}ing products: ${error.message}`);
                 }
             } catch (error) {
                 console.error('Error locking/unlocking all products:', error);
