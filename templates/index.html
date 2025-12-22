@@ -1784,6 +1784,20 @@
                     </div>
                 </div>
 
+                <!-- Customer Summary Section (shown when order form is closed) -->
+                {% if order_form_locked %}
+                <div class="card" style="margin-top: 1rem;" id="customer-summary-section">
+                    <h2 class="card-title"><span class="icon">📊</span> Customer Summary</h2>
+                    <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: -0.5rem; margin-bottom: 1.5rem;">Your order overview</p>
+                    
+                    <div id="customer-summary-content" style="min-height: 100px;">
+                        <div style="text-align: center; padding: 2rem; color: var(--text-muted);">
+                            <p>Enter your Name and Telegram username to view your order summary</p>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
                 <!-- Cart -->
                 <div class="card">
                     <h2 class="card-title"><span class="icon">🛒</span> Order Summary</h2>
@@ -1836,20 +1850,6 @@
 
                 </div>
             </div>
-            
-            <!-- Customer Summary Section (shown when order form is closed) -->
-            {% if order_form_locked %}
-            <div class="card" style="margin-top: 1.5rem;" id="customer-summary-section">
-                <h2 class="card-title"><span class="icon">📊</span> Customer Summary</h2>
-                <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: -0.5rem; margin-bottom: 1.5rem;">Your order overview</p>
-                
-                <div id="customer-summary-content" style="min-height: 100px;">
-                    <div style="text-align: center; padding: 2rem; color: var(--text-muted);">
-                        <p>Enter your Name and Telegram username to view your order summary</p>
-                    </div>
-                </div>
-            </div>
-            {% endif %}
         </div>
 
         <!-- View My Orders Section -->
@@ -1873,7 +1873,7 @@
         </div>
 
         <!-- Incomplete Kits Section -->
-        <div class="orders-summary-section" style="border: 2px solid #f472b6; background: linear-gradient(135deg, rgba(249, 168, 212, 0.1), rgba(192, 132, 252, 0.1));">
+        <div class="orders-summary-section" style="border: 2px solid #f472b6;">
             <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
                 <div style="background: linear-gradient(135deg, #f472b6, #c084fc); padding: 0.75rem; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
                     <span style="font-size: 1.5rem;">⚠️</span>
@@ -1884,7 +1884,7 @@
                 </div>
             </div>
             {% if incomplete_kits and incomplete_kits|length > 0 %}
-            <div class="table-container" style="margin-top: 1rem; background: rgba(221, 214, 254, 0.3); padding: 1rem; border-radius: 12px;">
+            <div class="table-container" style="margin-top: 1rem; background: rgba(255, 255, 255, 0.4); padding: 1rem; border-radius: 12px;">
                 <table class="products-table" style="width: 100%;">
                     <thead>
                         <tr>
