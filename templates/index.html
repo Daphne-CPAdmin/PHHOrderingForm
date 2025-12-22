@@ -425,7 +425,7 @@
             border: 1px solid rgba(192, 132, 252, 0.3);
             border-radius: 20px;
             padding: 1.5rem;
-            margin-top: 1.5rem;
+            margin-top: 0.75rem;
             position: relative;
             z-index: 1;
         }
@@ -3077,22 +3077,24 @@
             } else if (pendingOrder.payment_status === 'Paid') {
                 statusTagHtml = '<div class="order-status-tag paid">PAID 🤑</div>';
                 
-                // Check if shipping details exist
-                const hasShippingDetails = pendingOrder.contact_number && pendingOrder.mailing_address && 
-                                         pendingOrder.contact_number.trim() !== '' && pendingOrder.mailing_address.trim() !== '';
+                // Check if column W (mailing_address) is not empty
+                const hasMailingAddress = pendingOrder.mailing_address && pendingOrder.mailing_address.trim() !== '';
                 
-                if (hasShippingDetails) {
+                if (hasMailingAddress) {
+                    // Display shipping details: Full Name (column U), Contact Number (column V), Mailing Address (column W)
                     statusTagHtml += '<div style="margin-top: 0.75rem; padding: 0.75rem; background: rgba(16, 185, 129, 0.1); border-left: 3px solid #10b981; border-radius: 6px;">';
-                    statusTagHtml += '<div style="color: #065f46; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.5rem;">📬 Shipping Details Added</div>';
+                    statusTagHtml += '<div style="color: #065f46; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.5rem;">📬 Shipping Details</div>';
                     
-                    // Display shipping details
+                    // Column U: Full Name (mailing_name)
                     const mailingName = pendingOrder.mailing_name || pendingOrder.full_name || 'N/A';
+                    // Column V: Contact Number (mailing_phone)
                     const mailingPhone = pendingOrder.mailing_phone || pendingOrder.contact_number || 'N/A';
+                    // Column W: Mailing Address
                     const mailingAddress = pendingOrder.mailing_address || 'N/A';
                     
-                    statusTagHtml += '<div style="color: #047857; font-size: 0.8rem; margin-bottom: 0.25rem;"><strong>Receiver:</strong> ' + mailingName + '</div>';
-                    statusTagHtml += '<div style="color: #047857; font-size: 0.8rem; margin-bottom: 0.25rem;"><strong>Phone:</strong> ' + mailingPhone + '</div>';
-                    statusTagHtml += '<div style="color: #047857; font-size: 0.8rem; margin-bottom: 0.5rem;"><strong>Address:</strong> ' + mailingAddress + '</div>';
+                    statusTagHtml += '<div style="color: #047857; font-size: 0.8rem; margin-bottom: 0.25rem;"><strong>Full Name:</strong> ' + mailingName + '</div>';
+                    statusTagHtml += '<div style="color: #047857; font-size: 0.8rem; margin-bottom: 0.25rem;"><strong>Contact Number:</strong> ' + mailingPhone + '</div>';
+                    statusTagHtml += '<div style="color: #047857; font-size: 0.8rem; margin-bottom: 0.5rem;"><strong>Mailing Address:</strong> ' + mailingAddress + '</div>';
                     statusTagHtml += '<div style="color: #047857; font-size: 0.75rem; font-style: italic;">Need to update? Contact PepHaul admin for changes.</div>';
                     statusTagHtml += '</div>';
                 }
@@ -3234,10 +3236,9 @@
                     cancelOrderBtn.title = 'Cancel this order (cannot be undone)';
                 }
                 
-                // Show "Add Shipping Details" button for paid orders without shipping details
-                const hasShippingDetails = pendingOrder.contact_number && pendingOrder.mailing_address && 
-                                         pendingOrder.contact_number.trim() !== '' && pendingOrder.mailing_address.trim() !== '';
-                if (isPaidStatus && !isCancelled && !hasShippingDetails) {
+                // Show "Add Shipping Details" button only if column W (mailing_address) is empty
+                const hasMailingAddress = pendingOrder.mailing_address && pendingOrder.mailing_address.trim() !== '';
+                if (isPaidStatus && !isCancelled && !hasMailingAddress) {
                     if (shippingDetailsContainer) shippingDetailsContainer.style.display = 'block';
                     if (addShippingDetailsBtn) {
                         addShippingDetailsBtn.onclick = () => {
