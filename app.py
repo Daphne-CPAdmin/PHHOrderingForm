@@ -350,20 +350,39 @@ def get_product_locks():
 def set_product_lock(product_code, is_locked, max_kits=None, admin_name='Admin'):
     """Set product lock status"""
     if not sheets_client:
+        print("❌ Error: sheets_client not initialized")
         return False
     
     try:
         spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
-        worksheet = spreadsheet.worksheet('Product Locks')
+        
+        # Ensure Product Locks worksheet exists
+        try:
+            worksheet = spreadsheet.worksheet('Product Locks')
+        except Exception as e:
+            print(f"⚠️ Product Locks worksheet not found, creating it...")
+            worksheet = spreadsheet.add_worksheet(title='Product Locks', rows=100, cols=5)
+            # Add headers
+            worksheet.update('A1:E1', [['Product Code', 'Max Kits', 'Is Locked', 'Locked Date', 'Locked By']])
+        
+        # Ensure headers exist
+        try:
+            headers = worksheet.row_values(1)
+            if not headers or headers[0] != 'Product Code':
+                worksheet.update('A1:E1', [['Product Code', 'Max Kits', 'Is Locked', 'Locked Date', 'Locked By']])
+        except:
+            worksheet.update('A1:E1', [['Product Code', 'Max Kits', 'Is Locked', 'Locked Date', 'Locked By']])
         
         # Find existing row or add new
         try:
             cell = worksheet.find(product_code)
             row = cell.row
-        except:
-            # Add new row
+        except Exception as e:
+            # Product not found, add new row
             all_values = worksheet.get_all_values()
             row = len(all_values) + 1
+            if row == 1:  # Only header row exists
+                row = 2
             worksheet.update_cell(row, 1, product_code)
         
         # Update values
@@ -373,9 +392,12 @@ def set_product_lock(product_code, is_locked, max_kits=None, admin_name='Admin')
         worksheet.update_cell(row, 4, datetime.now().strftime('%Y-%m-%d %H:%M:%S') if is_locked else '')
         worksheet.update_cell(row, 5, admin_name if is_locked else '')
         
+        print(f"✅ Product {product_code} lock status updated: {'Locked' if is_locked else 'Unlocked'}")
         return True
     except Exception as e:
-        print(f"Error setting product lock: {e}")
+        print(f"❌ Error setting product lock for {product_code}: {e}")
+        import traceback
+        traceback.print_exc()
         return False
 
 # In-memory order form lock (persists while server runs, or use Google Sheets for persistence)
@@ -933,14 +955,18 @@ def update_order_status(order_id, status=None, locked=None, payment_status=None,
         traceback.print_exc()
         return False
 
-def add_items_to_order(order_id, new_items, exchange_rate, telegram_username=None):
-    """Add items to an existing order - consolidates duplicate product codes
+def add_items_to_order(order_id, new_items, exchange_rate, telegram_username=None, is_post_payment=False):
+    """Add items to an existing order
+    
+    If order is paid, creates a NEW separate order entry for unpaid items (preserves existing paid items).
+    If order is unpaid, adds items to existing order.
     
     Args:
         order_id: Order ID to update (if None, will find by telegram_username)
         new_items: List of items to add
         exchange_rate: Exchange rate for calculations
         telegram_username: Optional telegram username to find order if order_id not provided
+        is_post_payment: If True, order is paid - create new order entry instead of modifying existing
     """
     if not sheets_client:
         return False
@@ -987,7 +1013,7 @@ def add_items_to_order(order_id, new_items, exchange_rate, telegram_username=Non
             print("No order_id or telegram_username provided")
             return False
         
-        # Find the first row of this order and get order-level info BEFORE deleting
+        # Find the first row of this order and get order-level info
         first_order_row = None
         order_info = {
             'full_name': '', 
@@ -1006,7 +1032,6 @@ def add_items_to_order(order_id, new_items, exchange_rate, telegram_username=Non
         col_full_name = headers.index('Name') if 'Name' in headers else (headers.index('Full Name') if 'Full Name' in headers else 2)
         col_order_date = headers.index('Order Date') if 'Order Date' in headers else 1
         col_admin_fee = headers.index('Admin Fee PHP') if 'Admin Fee PHP' in headers else 12
-        col_grand_total = headers.index('Grand Total PHP') if 'Grand Total PHP' in headers else 13
         col_order_status = headers.index('Order Status') if 'Order Status' in headers else 14
         col_locked = headers.index('Locked') if 'Locked' in headers else 15
         col_payment_status = headers.index('Payment Status') if 'Payment Status' in headers else 16
@@ -1038,70 +1063,75 @@ def add_items_to_order(order_id, new_items, exchange_rate, telegram_username=Non
             print(f"Order {order_id} not found in sheet")
             return False
         
-        # Find ALL rows for this order (including the first row) - we'll replace everything
-        all_order_rows = []  # List of row numbers to delete
-        for row_num, row in enumerate(all_values[1:], start=2):  # Skip header, 1-indexed for sheets
-            if len(row) > col_indices['order_id'] and row[col_indices['order_id']] == order_id:
-                all_order_rows.append(row_num)
-        
-        # Delete ALL rows for this order (in reverse order to maintain row numbers)
-        if all_order_rows:
-            all_order_rows.sort(reverse=True)
-            for row_num in all_order_rows:
-                worksheet.delete_rows(row_num)
-            # After deletion, the insert position is now the original first_order_row
-            insert_row = first_order_row
-        else:
-            insert_row = first_order_row
+        # Check if order is paid
+        is_paid = order_info['payment_status'] and order_info['payment_status'].lower() == 'paid'
         
         # Filter out 0 quantity items from new_items
         items_to_add = [item for item in new_items if item.get('qty', 0) > 0]
         
-        # Calculate totals for the new first row
-        total_usd = sum(item.get('line_total_usd', 0) for item in items_to_add)
-        total_php = sum(item.get('line_total_php', 0) for item in items_to_add)
-        grand_total_php = total_php + order_info['admin_fee']
+        if not items_to_add:
+            print("No items to add (all items have quantity 0)")
+            return False
         
-        # Create new first row with order info and totals (NO product data)
-        first_row = [
-            order_id,                           # Order ID
-            order_info['order_date'],           # Order Date
-            order_info['full_name'],           # Name
-            order_info['telegram'],            # Telegram Username
-            '',                                 # Product Code - EMPTY (no product in first row)
-            '',                                 # Product Name - EMPTY
-            '',                                 # Order Type - EMPTY
-            '',                                 # QTY - EMPTY
-            '',                                 # Unit Price USD - EMPTY
-            '',                                 # Line Total USD - EMPTY
-            exchange_rate,                      # Exchange Rate
-            '',                                 # Line Total PHP - EMPTY
-            order_info['admin_fee'],            # Admin Fee PHP (only on first row)
-            grand_total_php,                   # Grand Total PHP (only on first row)
-            order_info['order_status'],         # Order Status (only on first row)
-            order_info['locked'],               # Locked (only on first row)
-            order_info['payment_status'],       # Payment Status (only on first row)
-            '',                                 # Remarks
-            order_info['payment_screenshot'],   # Link to Payment
-            order_info['payment_date'],         # Payment Date
-            '',                                 # Full Name (duplicate)
-            order_info['contact_number'],       # Contact Number
-            order_info['mailing_address']       # Mailing Address
-        ]
-        
-        # Insert the new first row
-        worksheet.insert_rows([first_row], insert_row)
-        insert_row += 1  # Next items go below the first row
-        
-        # Add all new items as separate rows below the first row
-        if items_to_add:
+        # If order is paid, create a NEW order entry (preserve existing paid items)
+        if is_paid or is_post_payment:
+            # Generate new order ID for the additional items
+            new_order_id = f"ORD-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+            new_order_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            
+            # Calculate totals for new order (with admin fee)
+            total_usd = sum(item.get('line_total_usd', 0) for item in items_to_add)
+            total_php = sum(item.get('line_total_php', 0) for item in items_to_add)
+            grand_total_php = total_php + ADMIN_FEE_PHP
+            
+            # Find the last row of the existing order to insert after it
+            last_order_row = first_order_row
+            for row_num, row in enumerate(all_values[1:], start=2):
+                if len(row) > col_indices['order_id'] and row[col_indices['order_id']] == order_id:
+                    last_order_row = row_num
+            
+            # Insert position is after the last row of existing order
+            insert_row = last_order_row + 1
+            
+            # Create new first row for the additional order
+            new_first_row = [
+                new_order_id,                        # New Order ID
+                new_order_date,                      # New Order Date
+                order_info['full_name'],            # Name (same customer)
+                order_info['telegram'],             # Telegram Username (same)
+                '',                                  # Product Code - EMPTY (no product in first row)
+                '',                                  # Product Name - EMPTY
+                '',                                  # Order Type - EMPTY
+                '',                                  # QTY - EMPTY
+                '',                                  # Unit Price USD - EMPTY
+                '',                                  # Line Total USD - EMPTY
+                exchange_rate,                       # Exchange Rate
+                '',                                  # Line Total PHP - EMPTY
+                ADMIN_FEE_PHP,                      # Admin Fee PHP (separate admin fee for new items)
+                grand_total_php,                    # Grand Total PHP (only on first row)
+                'Pending',                          # Order Status - Pending (unpaid)
+                'No',                               # Locked - No
+                'Unpaid',                           # Payment Status - Unpaid
+                f'Additional items for {order_id}', # Remarks - link to original order
+                '',                                 # Link to Payment
+                '',                                 # Payment Date
+                '',                                 # Full Name (duplicate)
+                order_info['contact_number'],        # Contact Number
+                order_info['mailing_address']        # Mailing Address
+            ]
+            
+            # Insert the new first row
+            worksheet.insert_rows([new_first_row], insert_row)
+            insert_row += 1
+            
+            # Add all new items as separate rows below the new first row
             rows_to_add = []
             for item in items_to_add:
                 row = [
-                    order_id,                           # All rows have Order ID
-                    order_info['order_date'],           # All rows have Order Date
-                    order_info['full_name'],            # All rows have Name
-                    order_info['telegram'],             # All rows have Telegram
+                    new_order_id,                    # New Order ID
+                    new_order_date,                   # New Order Date
+                    order_info['full_name'],          # All rows have Name
+                    order_info['telegram'],           # All rows have Telegram
                     item['product_code'],
                     item.get('product_name', ''),
                     item['order_type'],
@@ -1110,30 +1140,149 @@ def add_items_to_order(order_id, new_items, exchange_rate, telegram_username=Non
                     item.get('line_total_usd', 0),
                     exchange_rate,
                     item.get('line_total_php', 0),
-                    '',                                 # Admin Fee - only on first row
-                    '',                                 # Grand Total - only on first row
-                    '',                                 # Order Status - only on first row
-                    '',                                 # Locked - only on first row
-                    '',                                 # Payment Status - only on first row
-                    f'Updated {order_id}',              # Remarks
-                    '',                                 # Link to Payment
-                    '',                                 # Payment Date
-                    '',                                 # Full Name (duplicate)
-                    '',                                 # Contact Number
-                    ''                                  # Mailing Address
+                    '',                               # Admin Fee - only on first row
+                    '',                               # Grand Total - only on first row
+                    '',                               # Order Status - only on first row
+                    '',                               # Locked - only on first row
+                    '',                               # Payment Status - only on first row
+                    f'Additional items for {order_id}', # Remarks
+                    '',                               # Link to Payment
+                    '',                               # Payment Date
+                    '',                               # Full Name (duplicate)
+                    '',                               # Contact Number
+                    ''                                # Mailing Address
                 ]
                 rows_to_add.append(row)
             
-            # Insert rows using insert_rows (inserts at the specified row, shifting existing rows down)
+            # Insert rows
             worksheet.insert_rows(rows_to_add, insert_row)
+            
+            print(f"✅ Created new order {new_order_id} for additional items (original order {order_id} preserved)")
+            
+        else:
+            # Order is unpaid - add items to existing order (replace all rows)
+            # Find ALL rows for this order
+            all_order_rows = []
+            for row_num, row in enumerate(all_values[1:], start=2):
+                if len(row) > col_indices['order_id'] and row[col_indices['order_id']] == order_id:
+                    all_order_rows.append(row_num)
+            
+            # Get existing items to preserve them
+            existing_items = []
+            for row_num in all_order_rows:
+                if row_num != first_order_row:  # Skip first row
+                    row_data = all_values[row_num - 1]  # 0-indexed
+                    if len(row_data) > col_indices['product_code'] and row_data[col_indices['product_code']]:
+                        # This is an item row
+                        existing_items.append({
+                            'product_code': row_data[col_indices['product_code']] if len(row_data) > col_indices['product_code'] else '',
+                            'product_name': row_data[headers.index('Product Name')] if 'Product Name' in headers and len(row_data) > headers.index('Product Name') else '',
+                            'order_type': row_data[col_indices['order_type']] if len(row_data) > col_indices['order_type'] else '',
+                            'qty': int(row_data[col_indices['qty']]) if len(row_data) > col_indices['qty'] and row_data[col_indices['qty']] else 0,
+                            'unit_price_usd': float(row_data[col_indices['unit_price']]) if len(row_data) > col_indices['unit_price'] and row_data[col_indices['unit_price']] else 0,
+                            'line_total_usd': float(row_data[col_indices['line_total_usd']]) if len(row_data) > col_indices['line_total_usd'] and row_data[col_indices['line_total_usd']] else 0,
+                            'line_total_php': float(row_data[col_indices['line_total_php']]) if len(row_data) > col_indices['line_total_php'] and row_data[col_indices['line_total_php']] else 0,
+                        })
+            
+            # Combine existing items with new items (consolidate duplicates)
+            all_items = existing_items + items_to_add
+            consolidated_items = {}
+            for item in all_items:
+                key = f"{item['product_code']}_{item.get('order_type', 'Vial')}"
+                if key in consolidated_items:
+                    consolidated_items[key]['qty'] += item.get('qty', 0)
+                    consolidated_items[key]['line_total_usd'] += item.get('line_total_usd', 0)
+                    consolidated_items[key]['line_total_php'] += item.get('line_total_php', 0)
+                else:
+                    consolidated_items[key] = item.copy()
+            
+            # Filter out 0 quantity items
+            final_items = [item for item in consolidated_items.values() if item.get('qty', 0) > 0]
+            
+            # Delete ALL rows for this order
+            if all_order_rows:
+                all_order_rows.sort(reverse=True)
+                for row_num in all_order_rows:
+                    worksheet.delete_rows(row_num)
+                insert_row = first_order_row
+            else:
+                insert_row = first_order_row
+            
+            # Calculate new totals
+            total_usd = sum(item.get('line_total_usd', 0) for item in final_items)
+            total_php = sum(item.get('line_total_php', 0) for item in final_items)
+            grand_total_php = total_php + order_info['admin_fee']
+            
+            # Create new first row
+            first_row = [
+                order_id,                           # Order ID
+                order_info['order_date'],           # Order Date
+                order_info['full_name'],            # Name
+                order_info['telegram'],             # Telegram Username
+                '',                                  # Product Code - EMPTY
+                '',                                  # Product Name - EMPTY
+                '',                                  # Order Type - EMPTY
+                '',                                  # QTY - EMPTY
+                '',                                  # Unit Price USD - EMPTY
+                '',                                  # Line Total USD - EMPTY
+                exchange_rate,                       # Exchange Rate
+                '',                                  # Line Total PHP - EMPTY
+                order_info['admin_fee'],            # Admin Fee PHP
+                grand_total_php,                     # Grand Total PHP
+                order_info['order_status'],          # Order Status
+                order_info['locked'],                # Locked
+                order_info['payment_status'],        # Payment Status
+                '',                                  # Remarks
+                order_info['payment_screenshot'],    # Link to Payment
+                order_info['payment_date'],          # Payment Date
+                '',                                  # Full Name (duplicate)
+                order_info['contact_number'],        # Contact Number
+                order_info['mailing_address']        # Mailing Address
+            ]
+            
+            # Insert the new first row
+            worksheet.insert_rows([first_row], insert_row)
+            insert_row += 1
+            
+            # Add all items as separate rows
+            if final_items:
+                rows_to_add = []
+                for item in final_items:
+                    row = [
+                        order_id,                    # Order ID
+                        order_info['order_date'],    # Order Date
+                        order_info['full_name'],     # Name
+                        order_info['telegram'],      # Telegram
+                        item['product_code'],
+                        item.get('product_name', ''),
+                        item.get('order_type', 'Vial'),
+                        item['qty'],
+                        item.get('unit_price_usd', 0),
+                        item.get('line_total_usd', 0),
+                        exchange_rate,
+                        item.get('line_total_php', 0),
+                        '',                          # Admin Fee - only on first row
+                        '',                          # Grand Total - only on first row
+                        '',                          # Order Status - only on first row
+                        '',                          # Locked - only on first row
+                        '',                          # Payment Status - only on first row
+                        f'Updated {order_id}',       # Remarks
+                        '',                          # Link to Payment
+                        '',                          # Payment Date
+                        '',                          # Full Name (duplicate)
+                        '',                          # Contact Number
+                        ''                           # Mailing Address
+                    ]
+                    rows_to_add.append(row)
+                
+                worksheet.insert_rows(rows_to_add, insert_row)
+            
+            print(f"✅ Updated order {order_id} with {len(final_items)} items")
         
         # Clear cache since orders changed
         clear_cache('orders')
         clear_cache('inventory')
         clear_cache('order_stats')
-        
-        # Recalculate totals (products + admin fee)
-        recalculate_order_total(order_id)
         
         return True
     except Exception as e:
@@ -1142,43 +1291,96 @@ def add_items_to_order(order_id, new_items, exchange_rate, telegram_username=Non
         traceback.print_exc()
         return False
 
-def recalculate_order_total(order_id):
-    """Recalculate order total after adding items - sums all product line totals + admin fee"""
+def recalculate_order_total(order_id, is_post_payment_addition=False):
+    """Recalculate order total after adding items - sums all product line totals + admin fee
+    For post-payment additions, calculates original total + additional items (without admin fee)
+    """
     order = get_order_by_id(order_id)
     if not order:
         return
     
-    # Calculate total from all items (only items with quantity > 0)
-    total_usd = sum(item.get('line_total_usd', 0) for item in order.get('items', []) if item.get('qty', 0) > 0)
-    total_php = sum(item.get('line_total_php', 0) for item in order.get('items', []) if item.get('qty', 0) > 0)
-    # If PHP total is 0 but USD is available, calculate from USD
-    if total_php == 0 and total_usd > 0:
-        total_php = total_usd * order.get('exchange_rate', FALLBACK_EXCHANGE_RATE)
-    grand_total = total_php + ADMIN_FEE_PHP
-    
-    # Update first row with new grand total
+    # Get all order rows from sheet to identify post-payment items
     if sheets_client:
         try:
             spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
             worksheet = spreadsheet.worksheet('PepHaul Entry')
-            
-            # Find the first row of this order
             all_values = worksheet.get_all_values()
             headers = all_values[0] if all_values else []
+            
             order_id_col = headers.index('Order ID') if 'Order ID' in headers else 0
+            remarks_col = headers.index('Remarks') if 'Remarks' in headers else 16
+            line_total_php_col = headers.index('Line Total PHP') if 'Line Total PHP' in headers else 11
+            payment_status_col = headers.index('Payment Status') if 'Payment Status' in headers else 16
             grand_total_col = headers.index('Grand Total PHP') if 'Grand Total PHP' in headers else 14
             
-            # Find first row with this order_id
+            # Find first row to get original payment status and totals
+            first_row_payment_status = None
+            original_items_total_php = 0
+            additional_items_total_php = 0
+            original_admin_fee = ADMIN_FEE_PHP
+            
+            for row_num, row in enumerate(all_values[1:], start=2):
+                if len(row) > order_id_col and row[order_id_col] == order_id:
+                    if first_row_payment_status is None:
+                        # First row - get payment status
+                        first_row_payment_status = row[payment_status_col] if len(row) > payment_status_col else 'Unpaid'
+                        # Get admin fee from first row
+                        admin_fee_col = headers.index('Admin Fee PHP') if 'Admin Fee PHP' in headers else 12
+                        if len(row) > admin_fee_col and row[admin_fee_col]:
+                            try:
+                                original_admin_fee = float(row[admin_fee_col])
+                            except:
+                                pass
+                    else:
+                        # Check if this is a post-payment item
+                        remarks = row[remarks_col] if len(row) > remarks_col else ''
+                        is_post_payment_item = 'Added after payment' in remarks or 'after payment' in remarks.lower()
+                        
+                        if len(row) > line_total_php_col:
+                            try:
+                                item_total = float(row[line_total_php_col]) if row[line_total_php_col] else 0
+                                if is_post_payment_item:
+                                    additional_items_total_php += item_total
+                                else:
+                                    original_items_total_php += item_total
+                            except:
+                                pass
+            
+            # Calculate totals
+            # If order was paid and we're adding post-payment items, don't add admin fee to additional items
+            if is_post_payment_addition and first_row_payment_status and first_row_payment_status.lower() == 'paid':
+                # Calculate: original items + admin fee + additional items (no admin fee on additions)
+                grand_total = original_items_total_php + original_admin_fee + additional_items_total_php
+                print(f"Recalculated order {order_id} (post-payment): Original items ₱{original_items_total_php:.2f} + Admin Fee ₱{original_admin_fee:.2f} + Additional items ₱{additional_items_total_php:.2f} (no admin fee) = Grand Total ₱{grand_total:.2f}")
+            else:
+                # Normal recalculation - sum all items + admin fee
+                total_usd = sum(item.get('line_total_usd', 0) for item in order.get('items', []) if item.get('qty', 0) > 0)
+                total_php = sum(item.get('line_total_php', 0) for item in order.get('items', []) if item.get('qty', 0) > 0)
+                # If PHP total is 0 but USD is available, calculate from USD
+                if total_php == 0 and total_usd > 0:
+                    total_php = total_usd * order.get('exchange_rate', FALLBACK_EXCHANGE_RATE)
+                grand_total = total_php + ADMIN_FEE_PHP
+                print(f"Recalculated order {order_id}: Subtotal PHP {total_php:.2f} + Admin Fee {ADMIN_FEE_PHP:.2f} = Grand Total PHP {grand_total:.2f}")
+            
+            # Update first row with new grand total
             for row_num, row in enumerate(all_values[1:], start=2):
                 if len(row) > order_id_col and row[order_id_col] == order_id:
                     # Update grand total in first row
                     worksheet.update_cell(row_num, grand_total_col + 1, grand_total)
-                    print(f"Recalculated order {order_id}: Subtotal PHP {total_php:.2f} + Admin Fee {ADMIN_FEE_PHP:.2f} = Grand Total PHP {grand_total:.2f}")
                     break
+                    
         except Exception as e:
             print(f"Error recalculating order total: {e}")
             import traceback
             traceback.print_exc()
+    else:
+        # Fallback calculation if sheets_client not available
+        total_usd = sum(item.get('line_total_usd', 0) for item in order.get('items', []) if item.get('qty', 0) > 0)
+        total_php = sum(item.get('line_total_php', 0) for item in order.get('items', []) if item.get('qty', 0) > 0)
+        if total_php == 0 and total_usd > 0:
+            total_php = total_usd * order.get('exchange_rate', FALLBACK_EXCHANGE_RATE)
+        grand_total = total_php + ADMIN_FEE_PHP
+        print(f"Recalculated order {order_id} (fallback): Subtotal PHP {total_php:.2f} + Admin Fee {ADMIN_FEE_PHP:.2f} = Grand Total PHP {grand_total:.2f}")
 
 def upload_to_imgur(file_data, order_id):
     """Upload image to Imgur as fallback storage"""
@@ -2072,14 +2274,28 @@ def api_lock_product():
     if not session.get('is_admin'):
         return jsonify({'error': 'Unauthorized'}), 401
     
-    data = request.json
-    product_code = data.get('product_code')
-    is_locked = data.get('is_locked', True)
-    max_kits = data.get('max_kits')
-    
-    if set_product_lock(product_code, is_locked, max_kits):
-        return jsonify({'success': True})
-    return jsonify({'error': 'Failed to update'}), 500
+    try:
+        data = request.json
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        product_code = data.get('product_code')
+        is_locked = data.get('is_locked', True)
+        max_kits = data.get('max_kits')
+        
+        if not product_code:
+            return jsonify({'error': 'Product code is required'}), 400
+        
+        admin_name = session.get('admin_name', 'Admin')
+        if set_product_lock(product_code, is_locked, max_kits, admin_name):
+            return jsonify({'success': True})
+        else:
+            return jsonify({'error': 'Failed to update product lock status. Check server logs for details.'}), 500
+    except Exception as e:
+        print(f"❌ Error in api_lock_product: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Server error: {str(e)}'}), 500
 
 @app.route('/api/admin/lock-order-form', methods=['POST'])
 def api_lock_order_form():
@@ -2801,7 +3017,9 @@ def api_add_items(order_id=None):
                 'error': error_msg
             }), 404
         
-        if order.get('locked'):
+        # Check if order is locked (admins can still add items to locked orders)
+        is_admin = session.get('is_admin', False)
+        if order.get('locked') and not is_admin:
             return jsonify({
                 'success': False,
                 'error': 'Order is locked and cannot be modified. Please contact admin.'
@@ -2812,6 +3030,14 @@ def api_add_items(order_id=None):
                 'success': False,
                 'error': 'Cannot add items to a cancelled order. Please create a new order.'
             }), 400
+        
+        # Check if order is paid - admins can add items to paid orders
+        is_paid = order.get('payment_status', '').lower() == 'paid'
+        if is_paid and not is_admin:
+            return jsonify({
+                'success': False,
+                'error': 'Cannot add items to a paid order. Please contact admin.'
+            }), 403
         
         # Calculate prices with error handling
         try:
@@ -2877,9 +3103,12 @@ def api_add_items(order_id=None):
                 'error': 'No items with quantity > 0 to add. Please add items with quantity.'
             }), 400
         
-        # Add items to order
+        # Add items to order (mark as post-payment if order is paid)
         try:
-            success = add_items_to_order(order_id, items_with_prices, exchange_rate, telegram_username=telegram_username)
+            is_paid = order.get('payment_status', '').lower() == 'paid'
+            success = add_items_to_order(order_id, items_with_prices, exchange_rate, 
+                                        telegram_username=telegram_username, 
+                                        is_post_payment=is_paid)
         except Exception as e:
             print(f"❌ Error adding items to order: {e}")
             import traceback
