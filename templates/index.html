@@ -3595,14 +3595,11 @@
                         updateOrderSummaryStatusTags();
                         updateEditingControls();
                         
-                        hideMyOrdersSection();
                         hideReturningCustomerBanner();
                         
-                        // Reload all orders for Customer Summary if order form is locked
-                        const orderFormLocked = {{ order_form_locked|tojson }};
-                        if (orderFormLocked) {
-                            loadAllOrdersForSummary();
-                        }
+                        // Always show My Orders section with all orders (including unpaid with Pay Order buttons)
+                        // This allows users to pay any unpaid order, not just the most recent one
+                        showMyOrdersSection(orders);
                     } else {
                         console.log('No orders found for', telegram);
                         currentOrderId = null;
@@ -3646,6 +3643,27 @@
             if (!summarySection || !summaryContent) return;
             
             try {
+                const telegram = document.getElementById('telegram')?.value.trim();
+                if (telegram) {
+                    // If telegram username is provided, use orders lookup to get user's orders
+                    const lookupResponse = await fetch(`/api/orders/lookup?telegram=${encodeURIComponent(telegram)}`);
+                    if (lookupResponse.ok) {
+                        const userOrders = await lookupResponse.json();
+                        if (userOrders && userOrders.length > 0) {
+                            // Store orders for payOrderById function
+                            existingCustomerOrders = userOrders;
+                            // Show orders with Pay Order buttons in My Orders section
+                            showMyOrdersSection(userOrders);
+                            // Also update customer summary content to show orders
+                            const summaryContent = document.getElementById('customer-summary-content');
+                            if (summaryContent) {
+                                summaryContent.innerHTML = '<p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem;">Your orders are displayed below. Click "Pay Order" on any unpaid order to make payment.</p>';
+                            }
+                            return;
+                        }
+                    }
+                }
+                // Fallback: load all orders and show in table format
                 const response = await fetch('/api/orders');
                 if (!response.ok) {
                     throw new Error(`Failed to load orders: ${response.status}`);
@@ -3702,6 +3720,7 @@
             tableHtml += '<tr style="background: rgba(192, 132, 252, 0.1); border-bottom: 2px solid var(--border);">';
             tableHtml += '<th style="padding: 0.75rem; text-align: left; font-weight: 600; color: var(--text-primary);">Order Number</th>';
             tableHtml += '<th style="padding: 0.75rem; text-align: left; font-weight: 600; color: var(--text-primary);">Payment Status</th>';
+            tableHtml += '<th style="padding: 0.75rem; text-align: left; font-weight: 600; color: var(--text-primary);">Action</th>';
             tableHtml += '</tr>';
             tableHtml += '</thead>';
             tableHtml += '<tbody>';
@@ -3715,6 +3734,11 @@
                 tableHtml += '<tr style="border-bottom: 1px solid var(--border);">';
                 tableHtml += `<td style="padding: 0.75rem; font-family: "JetBrains Mono", monospace; color: var(--accent-primary); font-weight: 600;">${order.order_id || 'N/A'}</td>`;
                 tableHtml += `<td style="padding: 0.75rem;"><span style="display: inline-block; padding: 0.35rem 0.85rem; border-radius: 20px; font-size: 0.75rem; font-weight: 700; background: ${statusBg}; color: ${statusColor};">${isPaid ? '✅ PAID' : '⏳ UNPAID'}</span></td>`;
+                if (!isPaid) {
+                    tableHtml += `<td style="padding: 0.75rem;"><button type="button" class="btn btn-emerald" onclick="payOrderById('${order.order_id}')" style="padding: 0.5rem 1rem; font-size: 0.85rem;">💳 Pay Order</button></td>`;
+                } else {
+                    tableHtml += '<td style="padding: 0.75rem;"></td>';
+                }
                 tableHtml += '</tr>';
             });
             
