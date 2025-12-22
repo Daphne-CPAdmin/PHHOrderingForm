@@ -1791,8 +1791,29 @@
                     <!-- Status Tags Container -->
                     <div id="order-summary-status-tags" style="margin-bottom: 1rem;"></div>
 
+                    <!-- Paid Order Section (Locked) -->
+                    <div id="paid-order-section" style="display: none; margin-bottom: 1.5rem; padding: 1rem; background: rgba(16, 185, 129, 0.05); border: 2px solid var(--accent-emerald); border-radius: 12px;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem;">
+                            <h3 style="font-size: 1rem; font-weight: 700; color: var(--accent-emerald); display: flex; align-items: center; gap: 0.5rem;">
+                                <span>🔒</span> Paid Order (Locked)
+                            </h3>
+                            <div id="paid-order-id" style="font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--text-muted);"></div>
+                        </div>
+                        <div id="paid-order-items" style="margin-bottom: 0.75rem;"></div>
+                        <div id="paid-order-summary" class="cart-summary" style="border-top: 1px solid rgba(16, 185, 129, 0.2); padding-top: 0.75rem;"></div>
+                    </div>
+
                     <div id="cart-empty" class="cart-empty">
                         <p>No items yet</p>
+                    </div>
+
+                    <!-- New Order Section (for items added after payment) -->
+                    <div id="new-order-section" style="display: none; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 2px solid var(--accent-amber);">
+                        <h3 style="font-size: 1rem; font-weight: 700; color: var(--accent-amber); margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
+                            <span>➕</span> New Order
+                        </h3>
+                        <div id="new-order-items" class="cart-items" style="display: none;"></div>
+                        <div id="new-order-summary" class="cart-summary" style="display: none;"></div>
                     </div>
 
                     <div id="cart-items" class="cart-items" style="display: none;"></div>
@@ -1824,6 +1845,7 @@
                     <!-- Button container for dynamic buttons (always visible, buttons controlled by JS) -->
                     <div id="order-action-buttons" style="margin-top: 1.5rem; display: flex; flex-direction: column; gap: 0.75rem;">
                         <button type="button" class="btn btn-violet btn-full" id="submit-order" disabled>Submit Order</button>
+                        <button type="button" class="btn btn-amber btn-full" id="create-new-order-btn" style="display: none;">➕ Create New Order</button>
                         <button type="button" class="btn btn-violet btn-full" id="update-order-btn" style="display: none;">Update Order</button>
                         <button type="button" class="btn btn-emerald btn-full" id="pay-order-btn" style="display: none;">💳 Pay Order</button>
                         <button type="button" class="btn btn-rose btn-full" id="cancel-order-btn" style="display: none;">🗑️ Cancel Order</button>
@@ -2721,6 +2743,20 @@
                 cartItems[existingIndex].isExisting = false;
                 showToast('✅ Quantity updated!');
             } else {
+                // Check if there's a paid order - mark new items accordingly
+                const paidOrder = existingCustomerOrders.find(o => 
+                    o.status !== 'Cancelled' && 
+                    o.payment_status && 
+                    o.payment_status.toLowerCase() === 'paid'
+                );
+                
+                // Check if there's a paid order - mark new items accordingly
+                const paidOrder = existingCustomerOrders.find(o => 
+                    o.status !== 'Cancelled' && 
+                    o.payment_status && 
+                    o.payment_status.toLowerCase() === 'paid'
+                );
+                
                 // New item
                 cartItems.push({
                     product_code: selectedProduct.code,
@@ -2730,7 +2766,8 @@
                     unit_price_usd: unitPrice,
                     line_total_usd: unitPrice * qty,
                     line_total_php: unitPrice * qty * EXCHANGE_RATE,
-                    isExisting: false  // Mark as new item
+                    isExisting: false,  // Mark as new item
+                    isNewOrder: paidOrder ? true : false // Mark as new order if paid order exists
                 });
                 showToast('✅ Item added to cart!');
             }
@@ -2796,182 +2833,315 @@
             const items = document.getElementById('cart-items');
             const summary = document.getElementById('cart-summary');
             const submit = document.getElementById('submit-order');
+            const paidOrderSection = document.getElementById('paid-order-section');
+            const paidOrderItems = document.getElementById('paid-order-items');
+            const paidOrderSummary = document.getElementById('paid-order-summary');
+            const paidOrderId = document.getElementById('paid-order-id');
+            const newOrderSection = document.getElementById('new-order-section');
+            const newOrderItems = document.getElementById('new-order-items');
+            const newOrderSummary = document.getElementById('new-order-summary');
+            const createNewOrderBtn = document.getElementById('create-new-order-btn');
             
-            // Initialize totals variables at the start of function (before any early returns)
-            let totalUsd = 0;
-            let totalPhp = 0;
-            let existingTotalUsd = 0;
-            let existingTotalPhp = 0;
-            let newTotalUsd = 0;
-            let newTotalPhp = 0;
+            // Find paid order
+            const paidOrder = existingCustomerOrders.find(o => 
+                o.status !== 'Cancelled' && 
+                o.payment_status && 
+                o.payment_status.toLowerCase() === 'paid'
+            );
             
-            if (cartItems.length === 0) {
+            // Separate paid order items from new items
+            const paidOrderItemsList = paidOrder ? (paidOrder.items || []) : [];
+            const newItems = cartItems.filter(item => !item.isExisting || item.isNewOrder);
+            const hasNewItems = newItems.length > 0;
+            
+            // Show/hide paid order section
+            if (paidOrder && paidOrderItemsList.length > 0) {
+                if (paidOrderSection) paidOrderSection.style.display = 'block';
+                if (paidOrderId) paidOrderId.textContent = paidOrder.order_id;
+                
+                // Display paid order items (locked/read-only)
+                if (paidOrderItems) {
+                    paidOrderItems.innerHTML = paidOrderItemsList.map(item => `
+                        <div class="cart-item" style="opacity: 0.9; border-left: 3px solid var(--accent-emerald);">
+                            <div class="cart-item-header">
+                                <span class="cart-item-name">${item.product_name || item.product_code}</span>
+                                <span class="cart-item-code">${item.product_code}</span>
+                            </div>
+                            <div class="cart-item-details" style="display: flex; align-items: center; gap: 0.75rem;">
+                                <span style="flex: 1;">${item.order_type || 'Vial'} × ${item.qty || 0}</span>
+                                <span class="cart-item-price">₱${(item.line_total_php || 0).toFixed(2)}</span>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+                
+                // Calculate paid order totals
+                let paidTotalUsd = 0;
+                let paidTotalPhp = 0;
+                paidOrderItemsList.forEach(item => {
+                    paidTotalUsd += parseFloat(item.line_total_usd || 0);
+                    paidTotalPhp += parseFloat(item.line_total_php || 0);
+                });
+                const paidGrandTotal = paidTotalPhp + (paidOrder.admin_fee_php || ADMIN_FEE);
+                
+                // Display paid order summary
+                if (paidOrderSummary) {
+                    paidOrderSummary.innerHTML = `
+                        <div class="summary-row">
+                            <span class="summary-label">Subtotal (PHP)</span>
+                            <span class="summary-value">₱${paidTotalPhp.toFixed(2)}</span>
+                        </div>
+                        <div class="summary-row">
+                            <span class="summary-label">Admin Fee</span>
+                            <span class="summary-value">₱${(paidOrder.admin_fee_php || ADMIN_FEE).toFixed(2)}</span>
+                        </div>
+                        <div class="summary-row grand-total" style="border-top: 2px solid var(--accent-emerald); margin-top: 0.5rem; padding-top: 0.5rem;">
+                            <span class="summary-label" style="color: var(--accent-emerald); font-weight: 700;">Grand Total</span>
+                            <span class="summary-value" style="color: var(--accent-emerald); font-weight: 700;">₱${paidGrandTotal.toFixed(2)}</span>
+                        </div>
+                    `;
+                }
+            } else {
+                if (paidOrderSection) paidOrderSection.style.display = 'none';
+            }
+            
+            // Show/hide new order section
+            if (hasNewItems && paidOrder) {
+                if (newOrderSection) newOrderSection.style.display = 'block';
+                if (newOrderItems) {
+                    newOrderItems.style.display = 'block';
+                    newOrderItems.innerHTML = newItems.map((item, i) => {
+                        const itemIndex = cartItems.indexOf(item);
+                        return `
+                            <div class="cart-item" style="border-left: 3px solid var(--accent-amber);">
+                                <button class="cart-item-remove" onclick="removeItem(${itemIndex})" style="position: absolute; top: 0.5rem; right: 0.5rem; width: 24px; height: 24px; border: none; background: var(--accent-rose); color: white; border-radius: 50%; cursor: pointer; font-size: 1.2rem; font-weight: 600; display: flex; align-items: center; justify-content: center; line-height: 1; z-index: 10;">×</button>
+                                <div class="cart-item-header">
+                                    <span class="cart-item-name">${item.product_name}</span>
+                                    <span class="cart-item-code">${item.product_code}</span>
+                                </div>
+                                <div class="cart-item-details" style="display: flex; align-items: center; gap: 0.75rem;">
+                                    <span style="flex: 1;">${item.order_type} × <span id="qty-${itemIndex}">${item.qty}</span></span>
+                                    <div style="display: flex; align-items: center; gap: 0.5rem; background: var(--bg-input); border-radius: 8px; padding: 0.25rem;">
+                                        <button type="button" class="qty-btn-minus" data-index="${itemIndex}" data-action="decrease" style="width: 28px; height: 28px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--accent-rose); font-size: 1.2rem; font-weight: 600; line-height: 1; pointer-events: auto; z-index: 10; position: relative;">−</button>
+                                        <span id="qty-display-${itemIndex}" style="min-width: 30px; text-align: center; font-weight: 600; color: var(--text-primary);">${item.qty}</span>
+                                        <button type="button" class="qty-btn-plus" data-index="${itemIndex}" data-action="increase" style="width: 28px; height: 28px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--accent-teal); font-size: 1.2rem; font-weight: 600; line-height: 1; pointer-events: auto; z-index: 10; position: relative;">+</button>
+                                    </div>
+                                    <span class="cart-item-price">₱<span id="price-${itemIndex}">${(item.line_total_php || 0).toFixed(2)}</span></span>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                }
+                
+                // Calculate new order totals
+                let newTotalUsd = 0;
+                let newTotalPhp = 0;
+                newItems.forEach(item => {
+                    let itemUsd = parseFloat(item.line_total_usd || 0);
+                    let itemPhp = parseFloat(item.line_total_php || 0);
+                    if (isNaN(itemUsd) || itemUsd === 0) {
+                        if (!isNaN(itemPhp) && itemPhp > 0) {
+                            itemUsd = itemPhp / EXCHANGE_RATE;
+                        } else {
+                            const unitPrice = parseFloat(item.unit_price_usd) || 0;
+                            const qty = parseFloat(item.qty) || 1;
+                            itemUsd = unitPrice * qty;
+                            itemPhp = itemUsd * EXCHANGE_RATE;
+                        }
+                    }
+                    if (isNaN(itemPhp) || itemPhp === 0) {
+                        itemPhp = itemUsd * EXCHANGE_RATE;
+                    }
+                    newTotalUsd += itemUsd;
+                    newTotalPhp += itemPhp;
+                });
+                const newGrandTotal = newTotalPhp + ADMIN_FEE;
+                
+                // Display new order summary
+                if (newOrderSummary) {
+                    newOrderSummary.style.display = 'block';
+                    newOrderSummary.innerHTML = `
+                        <div class="summary-row">
+                            <span class="summary-label">Subtotal (USD)</span>
+                            <span class="summary-value">$${newTotalUsd.toFixed(2)}</span>
+                        </div>
+                        <div class="summary-row">
+                            <span class="summary-label">Subtotal (PHP)</span>
+                            <span class="summary-value">₱${newTotalPhp.toFixed(2)}</span>
+                        </div>
+                        <div class="summary-row">
+                            <span class="summary-label">Admin Fee</span>
+                            <span class="summary-value">₱${ADMIN_FEE.toFixed(2)}</span>
+                        </div>
+                        <div class="summary-row grand-total" style="border-top: 2px solid var(--accent-amber); margin-top: 0.5rem; padding-top: 0.5rem;">
+                            <span class="summary-label" style="color: var(--accent-amber); font-weight: 700;">Grand Total</span>
+                            <span class="summary-value" style="color: var(--accent-amber); font-weight: 700;">₱${newGrandTotal.toFixed(2)}</span>
+                        </div>
+                    `;
+                }
+            } else {
+                if (newOrderSection) newOrderSection.style.display = 'none';
+            }
+            
+            // Handle empty cart
+            if (cartItems.length === 0 && !paidOrder) {
                 if (empty) empty.style.display = 'block';
                 if (items) items.style.display = 'none';
                 if (summary) summary.style.display = 'none';
                 if (submit) submit.disabled = true;
-                
-                // Reset summary displays when cart is empty
-                const existingSummary = document.getElementById('existing-summary');
-                const newSummary = document.getElementById('new-summary');
-                if (existingSummary) existingSummary.style.display = 'none';
-                if (newSummary) newSummary.style.display = 'none';
-                
-                // Update totals to zero
-                const summaryUsd = document.getElementById('summary-usd');
-                const summaryPhp = document.getElementById('summary-php');
-                const grandTotal = document.getElementById('grand-total');
-                if (summaryUsd) summaryUsd.textContent = '$0.00';
-                if (summaryPhp) summaryPhp.textContent = '₱0.00';
-                if (grandTotal) grandTotal.textContent = `₱${ADMIN_FEE.toFixed(2)}`;
-                
                 updateSubmitButtonText();
                 updateOrderSummaryStatusTags();
                 updateEditingControls();
                 return;
             }
             
-            if (empty) empty.style.display = 'none';
-            if (items) items.style.display = 'block';
-            if (summary) summary.style.display = 'block';
-            if (submit) submit.disabled = false;
-            
-            // Check if order is editable
-            const pendingOrder = existingCustomerOrders.find(o => o.status !== 'Cancelled');
-            const isEditable = !pendingOrder || (!pendingOrder.locked && pendingOrder.payment_status !== 'Paid' && pendingOrder.payment_status !== 'Waiting for Confirmation');
-            
-            // Display all items together with + - X buttons
-            if (items) {
-                items.innerHTML = cartItems.map((item, i) => {
-                    const isExisting = item.isExisting === true;
-                    const hasChanged = item.originalQty !== undefined && item.qty !== item.originalQty;
-                    // Existing orders cannot be removed only when order form is locked
-                    const orderFormLocked = {{ order_form_locked|tojson }};
-                    const canRemove = isEditable && (!isExisting || !orderFormLocked);
-                    const removeBtnStyle = canRemove ? 
-                        'position: absolute; top: 0.5rem; right: 0.5rem; width: 24px; height: 24px; border: none; background: var(--accent-rose); color: white; border-radius: 50%; cursor: pointer; font-size: 1.2rem; font-weight: 600; display: flex; align-items: center; justify-content: center; line-height: 1; z-index: 10;' :
-                        'position: absolute; top: 0.5rem; right: 0.5rem; width: 24px; height: 24px; border: none; background: var(--accent-rose); color: white; border-radius: 50%; cursor: not-allowed; font-size: 1.2rem; font-weight: 600; display: flex; align-items: center; justify-content: center; line-height: 1; z-index: 10; opacity: 0.5; pointer-events: none;';
-                    const qtyBtnStyle = isEditable ?
-                        'width: 28px; height: 28px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--accent-rose); font-size: 1.2rem; font-weight: 600; line-height: 1; pointer-events: auto; z-index: 10; position: relative;' :
-                        'width: 28px; height: 28px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: not-allowed; display: flex; align-items: center; justify-content: center; color: var(--accent-rose); font-size: 1.2rem; font-weight: 600; line-height: 1; pointer-events: none; z-index: 10; position: relative; opacity: 0.5;';
-                    const qtyBtnPlusStyle = isEditable ?
-                        'width: 28px; height: 28px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--accent-teal); font-size: 1.2rem; font-weight: 600; line-height: 1; pointer-events: auto; z-index: 10; position: relative;' :
-                        'width: 28px; height: 28px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: not-allowed; display: flex; align-items: center; justify-content: center; color: var(--accent-teal); font-size: 1.2rem; font-weight: 600; line-height: 1; pointer-events: none; z-index: 10; position: relative; opacity: 0.5;';
-                    return `
-                        <div class="cart-item" style="${isExisting ? 'border-left: 3px solid var(--accent-amber);' : ''}">
-                            <button class="cart-item-remove" onclick="removeItem(${i})" ${!canRemove ? 'disabled' : ''} style="${removeBtnStyle}" ${isExisting && orderFormLocked ? 'title="Cannot remove items from existing orders when order form is locked"' : ''}>×</button>
-                            <div class="cart-item-header">
-                                <span class="cart-item-name">${item.product_name}${hasChanged ? ' <span style="font-size: 0.75rem; color: var(--accent-teal);">(Updated)</span>' : ''}</span>
-                                <span class="cart-item-code">${item.product_code}</span>
-                            </div>
-                            <div class="cart-item-details" style="display: flex; align-items: center; gap: 0.75rem;">
-                                <span style="flex: 1;">${item.order_type} × <span id="qty-${i}">${item.qty}</span></span>
-                                <div style="display: flex; align-items: center; gap: 0.5rem; background: var(--bg-input); border-radius: 8px; padding: 0.25rem;">
-                                    <button type="button" class="qty-btn-minus" data-index="${i}" data-action="decrease" ${!isEditable ? 'disabled' : ''} style="${qtyBtnStyle}">−</button>
-                                    <span id="qty-display-${i}" style="min-width: 30px; text-align: center; font-weight: 600; color: var(--text-primary);">${item.qty}</span>
-                                    <button type="button" class="qty-btn-plus" data-index="${i}" data-action="increase" ${!isEditable ? 'disabled' : ''} style="${qtyBtnPlusStyle}">+</button>
+            // For non-paid orders or when no paid order exists, show regular cart
+            if (!paidOrder || !hasNewItems) {
+                if (empty) empty.style.display = 'none';
+                if (items) items.style.display = 'block';
+                if (summary) summary.style.display = 'block';
+                if (submit) submit.disabled = false;
+                
+                // Check if order is editable
+                const pendingOrder = existingCustomerOrders.find(o => o.status !== 'Cancelled');
+                const isEditable = !pendingOrder || (!pendingOrder.locked && pendingOrder.payment_status !== 'Paid' && pendingOrder.payment_status !== 'Waiting for Confirmation');
+                
+                // Display all items together with + - X buttons
+                if (items) {
+                    items.innerHTML = cartItems.map((item, i) => {
+                        const isExisting = item.isExisting === true;
+                        const hasChanged = item.originalQty !== undefined && item.qty !== item.originalQty;
+                        const orderFormLocked = {{ order_form_locked|tojson }};
+                        const canRemove = isEditable && (!isExisting || !orderFormLocked);
+                        const removeBtnStyle = canRemove ? 
+                            'position: absolute; top: 0.5rem; right: 0.5rem; width: 24px; height: 24px; border: none; background: var(--accent-rose); color: white; border-radius: 50%; cursor: pointer; font-size: 1.2rem; font-weight: 600; display: flex; align-items: center; justify-content: center; line-height: 1; z-index: 10;' :
+                            'position: absolute; top: 0.5rem; right: 0.5rem; width: 24px; height: 24px; border: none; background: var(--accent-rose); color: white; border-radius: 50%; cursor: not-allowed; font-size: 1.2rem; font-weight: 600; display: flex; align-items: center; justify-content: center; line-height: 1; z-index: 10; opacity: 0.5; pointer-events: none;';
+                        const qtyBtnStyle = isEditable ?
+                            'width: 28px; height: 28px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--accent-rose); font-size: 1.2rem; font-weight: 600; line-height: 1; pointer-events: auto; z-index: 10; position: relative;' :
+                            'width: 28px; height: 28px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: not-allowed; display: flex; align-items: center; justify-content: center; color: var(--accent-rose); font-size: 1.2rem; font-weight: 600; line-height: 1; pointer-events: none; z-index: 10; position: relative; opacity: 0.5;';
+                        const qtyBtnPlusStyle = isEditable ?
+                            'width: 28px; height: 28px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--accent-teal); font-size: 1.2rem; font-weight: 600; line-height: 1; pointer-events: auto; z-index: 10; position: relative;' :
+                            'width: 28px; height: 28px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: not-allowed; display: flex; align-items: center; justify-content: center; color: var(--accent-teal); font-size: 1.2rem; font-weight: 600; line-height: 1; pointer-events: none; z-index: 10; position: relative; opacity: 0.5;';
+                        return `
+                            <div class="cart-item" style="${isExisting ? 'border-left: 3px solid var(--accent-amber);' : ''}">
+                                <button class="cart-item-remove" onclick="removeItem(${i})" ${!canRemove ? 'disabled' : ''} style="${removeBtnStyle}" ${isExisting && orderFormLocked ? 'title="Cannot remove items from existing orders when order form is locked"' : ''}>×</button>
+                                <div class="cart-item-header">
+                                    <span class="cart-item-name">${item.product_name}${hasChanged ? ' <span style="font-size: 0.75rem; color: var(--accent-teal);">(Updated)</span>' : ''}</span>
+                                    <span class="cart-item-code">${item.product_code}</span>
                                 </div>
-                                <span class="cart-item-price">₱<span id="price-${i}">${(item.line_total_php || 0).toFixed(2)}</span></span>
+                                <div class="cart-item-details" style="display: flex; align-items: center; gap: 0.75rem;">
+                                    <span style="flex: 1;">${item.order_type} × <span id="qty-${i}">${item.qty}</span></span>
+                                    <div style="display: flex; align-items: center; gap: 0.5rem; background: var(--bg-input); border-radius: 8px; padding: 0.25rem;">
+                                        <button type="button" class="qty-btn-minus" data-index="${i}" data-action="decrease" ${!isEditable ? 'disabled' : ''} style="${qtyBtnStyle}">−</button>
+                                        <span id="qty-display-${i}" style="min-width: 30px; text-align: center; font-weight: 600; color: var(--text-primary);">${item.qty}</span>
+                                        <button type="button" class="qty-btn-plus" data-index="${i}" data-action="increase" ${!isEditable ? 'disabled' : ''} style="${qtyBtnPlusStyle}">+</button>
+                                    </div>
+                                    <span class="cart-item-price">₱<span id="price-${i}">${(item.line_total_php || 0).toFixed(2)}</span></span>
+                                </div>
                             </div>
-                        </div>
-                    `;
-                }).join('');
-                
-                // Attach event listeners using event delegation
-                const clonedItems = items.cloneNode(true);
-                items.parentNode.replaceChild(clonedItems, items);
-                
-                clonedItems.addEventListener('click', function(e) {
-                    try {
-                        const btn = e.target.closest('.qty-btn-minus, .qty-btn-plus');
-                        if (btn) {
-                            const index = parseInt(btn.getAttribute('data-index'));
-                            const action = btn.getAttribute('data-action');
-                            if (!isNaN(index) && index >= 0 && index < cartItems.length) {
-                                const change = action === 'increase' ? 1 : -1;
-                                updateItemQty(index, change);
-                            } else {
-                                console.warn('Invalid button click - index out of range:', index);
+                        `;
+                    }).join('');
+                    
+                    // Attach event listeners using event delegation
+                    const clonedItems = items.cloneNode(true);
+                    items.parentNode.replaceChild(clonedItems, items);
+                    
+                    clonedItems.addEventListener('click', function(e) {
+                        try {
+                            const btn = e.target.closest('.qty-btn-minus, .qty-btn-plus');
+                            if (btn) {
+                                const index = parseInt(btn.getAttribute('data-index'));
+                                const action = btn.getAttribute('data-action');
+                                if (!isNaN(index) && index >= 0 && index < cartItems.length) {
+                                    const change = action === 'increase' ? 1 : -1;
+                                    updateItemQty(index, change);
+                                } else {
+                                    console.warn('Invalid button click - index out of range:', index);
+                                }
                             }
+                        } catch (error) {
+                            console.error('Error handling quantity button click:', error);
+                            showToast('❌ Error updating quantity. Please try again.', 3000);
                         }
-                    } catch (error) {
-                        console.error('Error handling quantity button click:', error);
-                        showToast('❌ Error updating quantity. Please try again.', 3000);
+                    });
+                }
+                
+                // Calculate totals
+                let totalUsd = 0;
+                let totalPhp = 0;
+                cartItems.forEach(item => {
+                    let itemUsd = parseFloat(item.line_total_usd);
+                    let itemPhp = parseFloat(item.line_total_php);
+                    
+                    if (isNaN(itemUsd) || itemUsd === 0) {
+                        if (!isNaN(itemPhp) && itemPhp > 0) {
+                            itemUsd = itemPhp / EXCHANGE_RATE;
+                            item.line_total_usd = itemUsd;
+                        } else {
+                            const unitPrice = parseFloat(item.unit_price_usd) || 0;
+                            const qty = parseFloat(item.qty) || 1;
+                            itemUsd = unitPrice * qty;
+                            itemPhp = itemUsd * EXCHANGE_RATE;
+                            item.line_total_usd = itemUsd;
+                            item.line_total_php = itemPhp;
+                        }
+                    }
+                    
+                    if (isNaN(itemPhp) || itemPhp === 0) {
+                        if (!isNaN(itemUsd) && itemUsd > 0) {
+                            itemPhp = itemUsd * EXCHANGE_RATE;
+                            item.line_total_php = itemPhp;
+                        }
+                    }
+                    
+                    if (!isNaN(itemUsd) && itemUsd > 0) {
+                        totalUsd += itemUsd;
+                    }
+                    if (!isNaN(itemPhp) && itemPhp > 0) {
+                        totalPhp += itemPhp;
+                    } else if (!isNaN(itemUsd) && itemUsd > 0) {
+                        const calculatedPhp = itemUsd * EXCHANGE_RATE;
+                        totalPhp += calculatedPhp;
                     }
                 });
+                
+                if (totalPhp === 0 && totalUsd > 0) {
+                    totalPhp = totalUsd * EXCHANGE_RATE;
+                }
+                if (totalUsd === 0 && totalPhp > 0) {
+                    totalUsd = totalPhp / EXCHANGE_RATE;
+                }
+                
+                const grandTotal = totalPhp + ADMIN_FEE;
+                
+                // Update summary displays
+                const summaryUsdEl = document.getElementById('summary-usd');
+                const summaryPhpEl = document.getElementById('summary-php');
+                const grandTotalEl = document.getElementById('grand-total');
+                
+                if (summaryUsdEl) summaryUsdEl.textContent = `$${totalUsd.toFixed(2)}`;
+                if (summaryPhpEl) summaryPhpEl.textContent = `₱${totalPhp.toFixed(2)}`;
+                if (grandTotalEl) grandTotalEl.textContent = `₱${grandTotal.toFixed(2)}`;
+            }
+            
+            // Update button visibility
+            if (paidOrder && hasNewItems) {
+                if (createNewOrderBtn) {
+                    createNewOrderBtn.style.display = 'block';
+                    createNewOrderBtn.disabled = false;
+                }
+                if (submit) submit.style.display = 'none';
+            } else {
+                if (createNewOrderBtn) createNewOrderBtn.style.display = 'none';
             }
             
             // Update status tags and editing controls
             updateOrderSummaryStatusTags();
             updateEditingControls();
             
-            // Calculate totals with proper NaN handling - ensure all items have valid prices
-            cartItems.forEach(item => {
-                // Ensure item has valid price values
-                let itemUsd = parseFloat(item.line_total_usd);
-                let itemPhp = parseFloat(item.line_total_php);
-                
-                // If USD is missing or invalid, calculate from PHP
-                if (isNaN(itemUsd) || itemUsd === 0) {
-                    if (!isNaN(itemPhp) && itemPhp > 0) {
-                        itemUsd = itemPhp / EXCHANGE_RATE;
-                        item.line_total_usd = itemUsd;
-                    } else {
-                        // If both are missing, try to calculate from unit price and quantity
-                        const unitPrice = parseFloat(item.unit_price_usd) || 0;
-                        const qty = parseFloat(item.qty) || 1;
-                        itemUsd = unitPrice * qty;
-                        itemPhp = itemUsd * EXCHANGE_RATE;
-                        item.line_total_usd = itemUsd;
-                        item.line_total_php = itemPhp;
-                    }
-                }
-                
-                // If PHP is missing or invalid, calculate from USD
-                if (isNaN(itemPhp) || itemPhp === 0) {
-                    if (!isNaN(itemUsd) && itemUsd > 0) {
-                        itemPhp = itemUsd * EXCHANGE_RATE;
-                        item.line_total_php = itemPhp;
-                    }
-                }
-                
-                // Add to totals (ensure values are valid numbers)
-                if (!isNaN(itemUsd) && itemUsd > 0) {
-                    totalUsd += itemUsd;
-                }
-                if (!isNaN(itemPhp) && itemPhp > 0) {
-                    totalPhp += itemPhp;
-                } else if (!isNaN(itemUsd) && itemUsd > 0) {
-                    // Fallback: calculate PHP from USD if PHP is still missing
-                    const calculatedPhp = itemUsd * EXCHANGE_RATE;
-                    totalPhp += calculatedPhp;
-                }
-            });
-            
-            // Ensure totals are calculated correctly
-            if (totalPhp === 0 && totalUsd > 0) {
-                totalPhp = totalUsd * EXCHANGE_RATE;
-            }
-            if (totalUsd === 0 && totalPhp > 0) {
-                totalUsd = totalPhp / EXCHANGE_RATE;
-            }
-            
-            const grandTotal = totalPhp + ADMIN_FEE;
-            
-            // Update button text based on existing order
-            updateSubmitButtonText();
-            
             // Save updated cart items with corrected prices
             saveCart();
-            
-            // Update summary displays
-            const summaryUsdEl = document.getElementById('summary-usd');
-            const summaryPhpEl = document.getElementById('summary-php');
-            const grandTotalEl = document.getElementById('grand-total');
-            
-            if (summaryUsdEl) summaryUsdEl.textContent = `$${totalUsd.toFixed(2)}`;
-            if (summaryPhpEl) summaryPhpEl.textContent = `₱${totalPhp.toFixed(2)}`;
-            if (grandTotalEl) grandTotalEl.textContent = `₱${grandTotal.toFixed(2)}`;
+            updateSubmitButtonText();
         }
 
         function removeItem(index) {
@@ -3785,6 +3955,28 @@
         // checkReturningCustomer is now called from the required fields check above
 
         // Submit Order - Show confirmation modal first
+        // Create New Order button handler (for adding items to paid orders)
+        document.getElementById('create-new-order-btn').addEventListener('click', () => {
+            const fullName = document.getElementById('full-name').value.trim();
+            const telegram = document.getElementById('telegram').value.trim();
+            
+            if (!fullName || !telegram) {
+                showToast('Please fill in name and telegram username');
+                return;
+            }
+            
+            // Filter only new items (not from paid order)
+            const newItems = cartItems.filter(item => !item.isExisting || item.isNewOrder);
+            
+            if (newItems.length === 0) {
+                showToast('Please add items to create a new order', 3000);
+                return;
+            }
+            
+            // Show confirmation modal with only new items
+            showOrderConfirmationModal();
+        });
+        
         document.getElementById('submit-order').addEventListener('click', () => {
             const fullName = document.getElementById('full-name').value.trim();
             const telegram = document.getElementById('telegram').value.trim();
@@ -3960,8 +4152,22 @@
             const modal = document.getElementById('order-confirmation-modal');
             const itemsList = document.getElementById('confirmation-items-list');
             
+            // Check if there's a paid order - if so, only show new items
+            const paidOrder = existingCustomerOrders.find(o => 
+                o.status !== 'Cancelled' && 
+                o.payment_status && 
+                o.payment_status.toLowerCase() === 'paid'
+            );
+            
+            const itemsToShow = paidOrder ? 
+                cartItems.filter(item => !item.isExisting || item.isNewOrder) : 
+                cartItems;
+            
             // Render cart items with remove buttons
-            itemsList.innerHTML = cartItems.map((item, i) => `
+            itemsList.innerHTML = itemsToShow.map((item, i) => {
+                // Find original index in cartItems for remove functionality
+                const originalIndex = cartItems.indexOf(item);
+                return `
                 <div class="cart-item" id="confirmation-item-${i}">
                     <button class="cart-item-remove" onclick="removeFromConfirmation(${i})">×</button>
                     <div class="cart-item-header">
@@ -3973,10 +4179,11 @@
                         <span class="cart-item-price">₱${item.line_total_php.toFixed(2)}</span>
                     </div>
                 </div>
-            `).join('');
+            `;
+            }).join('');
             
-            // Update totals
-            updateConfirmationTotals();
+            // Update totals (only for items being shown)
+            updateConfirmationTotals(itemsToShow);
             
             // Show modal
             modal.classList.add('show');
@@ -4005,9 +4212,10 @@
         window.removeFromConfirmation = removeFromConfirmation;
         
         // Update confirmation modal totals
-        function updateConfirmationTotals() {
-            const totalUsd = cartItems.reduce((sum, item) => sum + item.line_total_usd, 0);
-            const totalPhp = totalUsd * EXCHANGE_RATE;
+        function updateConfirmationTotals(items = null) {
+            const itemsToCalculate = items || cartItems;
+            const totalUsd = itemsToCalculate.reduce((sum, item) => sum + (item.line_total_usd || 0), 0);
+            const totalPhp = itemsToCalculate.reduce((sum, item) => sum + (item.line_total_php || 0), 0) || (totalUsd * EXCHANGE_RATE);
             const grandTotal = totalPhp + ADMIN_FEE;
             
             document.getElementById('confirmation-subtotal-usd').textContent = `$${totalUsd.toFixed(2)}`;
@@ -4234,11 +4442,31 @@
                     }
                 } else {
                     // Create new order
+                    // If there's a paid order, only submit new items (not paid order items)
+                    const paidOrder = existingCustomerOrders.find(o => 
+                        o.status !== 'Cancelled' && 
+                        o.payment_status && 
+                        o.payment_status.toLowerCase() === 'paid'
+                    );
+                    
+                    let itemsToSubmit = cartItems;
+                    if (paidOrder) {
+                        // Filter only new items (not from paid order)
+                        itemsToSubmit = cartItems.filter(item => !item.isExisting || item.isNewOrder);
+                        
+                        if (itemsToSubmit.length === 0) {
+                            showToast('❌ Please add new items to create a new order', 3000);
+                            btn.disabled = false;
+                            btn.textContent = 'Confirm & Submit Order';
+                            return;
+                        }
+                    }
+                    
                     btn.textContent = 'Submitting...';
                     response = await fetch('/api/submit-order', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ full_name: fullName, telegram, items: cartItems })
+                        body: JSON.stringify({ full_name: fullName, telegram, items: itemsToSubmit })
                     });
                     
                     result = await response.json();
