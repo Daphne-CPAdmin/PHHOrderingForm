@@ -1695,7 +1695,7 @@
                         <div class="form-group">
                             <label class="form-label">Telegram Username <span style="color: #ef4444;">*</span></label>
                             <input type="text" class="form-input" id="telegram" placeholder="@username" required>
-                            <small style="color: var(--accent-violet); font-size: 0.85rem; margin-top: 0.5rem; display: block; font-weight: 500;">📱 Message @pephaul_bot for GB admin to receive updates from orders</small>
+                            <small style="color: var(--accent-violet); font-size: 0.9rem; margin-top: 0.5rem; display: block; font-weight: 600; background: rgba(192, 132, 252, 0.1); padding: 0.5rem; border-radius: 6px; border-left: 3px solid var(--accent-violet);">📱 <strong>Important:</strong> Message @pephaul_bot to receive order notifications</small>
                         </div>
                     </div>
 
@@ -1836,6 +1836,20 @@
 
                 </div>
             </div>
+            
+            <!-- Customer Summary Section (shown when order form is closed) -->
+            {% if order_form_locked %}
+            <div class="card" style="margin-top: 1.5rem;" id="customer-summary-section">
+                <h2 class="card-title"><span class="icon">📊</span> Customer Summary</h2>
+                <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: -0.5rem; margin-bottom: 1.5rem;">Your order overview</p>
+                
+                <div id="customer-summary-content" style="min-height: 100px;">
+                    <div style="text-align: center; padding: 2rem; color: var(--text-muted);">
+                        <p>Enter your Name and Telegram username to view your order summary</p>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
         </div>
 
         <!-- View My Orders Section -->
@@ -2308,7 +2322,7 @@
                     <span style="font-size: 1.5rem;">💸</span>
                     <span>Payment Sent to PepHaul Admin</span>
                 </button>
-                <p style="font-size: 0.8rem; color: var(--text-muted); text-align: center; margin: 0;">GB Admin will be notified via Telegram</p>
+                <p style="font-size: 0.8rem; color: var(--text-muted); text-align: center; margin: 0;">PepHaul Admin will be notified via Telegram</p>
                 <button class="btn btn-secondary" onclick="closeModal('payment-modal')">Close</button>
             </div>
         </div>
@@ -2325,6 +2339,9 @@
                 <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.5rem;">
                     Your payment has been confirmed! 🎉 Please provide your shipping details:
                 </p>
+                <div style="background: rgba(59, 130, 246, 0.1); border-left: 3px solid #3b82f6; padding: 0.75rem; margin-bottom: 1.5rem; border-radius: 6px;">
+                    <p style="color: #1e40af; font-size: 0.85rem; font-weight: 600; margin: 0;">⚠️ Please review and make sure everything added is accurate before saving.</p>
+                </div>
                 <div class="form-group" style="margin-bottom: 1rem;">
                     <label class="form-label">Full Name (Receiver)</label>
                     <input type="text" class="form-input" id="mailing-name" placeholder="Juan Dela Cruz">
@@ -3059,6 +3076,17 @@
                 statusTagHtml = '<div class="order-status-tag locked">LOCKED 🔐</div>';
             } else if (pendingOrder.payment_status === 'Paid') {
                 statusTagHtml = '<div class="order-status-tag paid">PAID 🤑</div>';
+                
+                // Check if shipping details exist
+                const hasShippingDetails = pendingOrder.contact_number && pendingOrder.mailing_address && 
+                                         pendingOrder.contact_number.trim() !== '' && pendingOrder.mailing_address.trim() !== '';
+                
+                if (hasShippingDetails) {
+                    statusTagHtml += '<div style="margin-top: 0.75rem; padding: 0.75rem; background: rgba(16, 185, 129, 0.1); border-left: 3px solid #10b981; border-radius: 6px;">';
+                    statusTagHtml += '<div style="color: #065f46; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.25rem;">📬 Shipping Details Added</div>';
+                    statusTagHtml += '<div style="color: #047857; font-size: 0.75rem;">Need to update? Contact PepHaul admin for changes.</div>';
+                    statusTagHtml += '</div>';
+                }
             } else if (pendingOrder.payment_status === 'Waiting for Confirmation') {
                 statusTagHtml = '<div class="order-status-tag pending-payment">AWAITING ADMIN TO CONFIRM PAYMENT 🤑</div>';
             }
@@ -3393,6 +3421,12 @@
                         
                         hideMyOrdersSection();
                         hideReturningCustomerBanner();
+                        
+                        // Update Customer Summary if order form is locked
+                        const orderFormLocked = {{ order_form_locked|tojson }};
+                        if (orderFormLocked) {
+                            updateCustomerSummary(orders);
+                        }
                     } else {
                         console.log('No orders found for', telegram);
                         currentOrderId = null;
@@ -3404,13 +3438,104 @@
                         updateSubmitButtonText();
                         hideReturningCustomerBanner();
                         hideMyOrdersSection();
+                        
+                        // Clear Customer Summary if order form is locked
+                        const orderFormLocked = {{ order_form_locked|tojson }};
+                        if (orderFormLocked) {
+                            updateCustomerSummary([]);
+                        }
                     }
                 } catch (error) {
                     console.error('Customer lookup error:', error);
                     hideReturningCustomerBanner();
                     hideMyOrdersSection();
+                    
+                    // Clear Customer Summary on error if order form is locked
+                    const orderFormLocked = {{ order_form_locked|tojson }};
+                    if (orderFormLocked) {
+                        updateCustomerSummary([]);
+                    }
                 }
             }, 500);
+        }
+        
+        // Function to update Customer Summary section
+        function updateCustomerSummary(orders) {
+            const summarySection = document.getElementById('customer-summary-section');
+            const summaryContent = document.getElementById('customer-summary-content');
+            
+            if (!summarySection || !summaryContent) return;
+            
+            const orderFormLocked = {{ order_form_locked|tojson }};
+            if (!orderFormLocked) {
+                summarySection.style.display = 'none';
+                return;
+            }
+            
+            summarySection.style.display = 'block';
+            
+            if (!orders || orders.length === 0) {
+                summaryContent.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--text-muted);"><p>Enter your Name and Telegram username to view your order summary</p></div>';
+                return;
+            }
+            
+            // Filter out cancelled orders
+            const validOrders = orders.filter(o => o.status !== 'Cancelled');
+            
+            if (validOrders.length === 0) {
+                summaryContent.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--text-muted);"><p>No active orders found</p></div>';
+                return;
+            }
+            
+            // Count paid vs total orders
+            const paidOrders = validOrders.filter(o => {
+                const paymentStatus = o.payment_status || '';
+                return paymentStatus.toLowerCase() === 'paid';
+            });
+            const paidCount = paidOrders.length;
+            const totalCount = validOrders.length;
+            const paymentProgress = totalCount > 0 ? (paidCount / totalCount) * 100 : 0;
+            
+            // Build table HTML
+            let tableHtml = '<div style="overflow-x: auto; margin-bottom: 1.5rem;">';
+            tableHtml += '<table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">';
+            tableHtml += '<thead>';
+            tableHtml += '<tr style="background: rgba(192, 132, 252, 0.1); border-bottom: 2px solid var(--border);">';
+            tableHtml += '<th style="padding: 0.75rem; text-align: left; font-weight: 600; color: var(--text-primary);">Order Number</th>';
+            tableHtml += '<th style="padding: 0.75rem; text-align: left; font-weight: 600; color: var(--text-primary);">Payment Status</th>';
+            tableHtml += '</tr>';
+            tableHtml += '</thead>';
+            tableHtml += '<tbody>';
+            
+            validOrders.forEach(order => {
+                const paymentStatus = order.payment_status || 'Unpaid';
+                const isPaid = paymentStatus.toLowerCase() === 'paid';
+                const statusColor = isPaid ? '#10b981' : '#f59e0b';
+                const statusBg = isPaid ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)';
+                
+                tableHtml += '<tr style="border-bottom: 1px solid var(--border);">';
+                tableHtml += `<td style="padding: 0.75rem; font-family: "JetBrains Mono", monospace; color: var(--accent-primary); font-weight: 600;">${order.order_id || 'N/A'}</td>`;
+                tableHtml += `<td style="padding: 0.75rem;"><span style="display: inline-block; padding: 0.35rem 0.85rem; border-radius: 20px; font-size: 0.75rem; font-weight: 700; background: ${statusBg}; color: ${statusColor};">${isPaid ? '✅ PAID' : '⏳ UNPAID'}</span></td>`;
+                tableHtml += '</tr>';
+            });
+            
+            tableHtml += '</tbody>';
+            tableHtml += '</table>';
+            tableHtml += '</div>';
+            
+            // Add progress bar
+            tableHtml += '<div style="margin-top: 1.5rem;">';
+            tableHtml += '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">';
+            tableHtml += '<span style="font-size: 0.9rem; font-weight: 600; color: var(--text-primary);">Payment Progress</span>';
+            tableHtml += `<span style="font-size: 0.85rem; color: var(--text-secondary);">${paidCount} of ${totalCount} paid</span>`;
+            tableHtml += '</div>';
+            tableHtml += '<div style="width: 100%; height: 24px; background: rgba(156, 163, 175, 0.2); border-radius: 12px; overflow: hidden; position: relative;">';
+            tableHtml += `<div style="width: ${paymentProgress}%; height: 100%; background: linear-gradient(90deg, #10b981, #059669); transition: width 0.3s ease; border-radius: 12px;"></div>`;
+            tableHtml += '</div>';
+            tableHtml += `<div style="text-align: center; margin-top: 0.5rem; font-size: 0.85rem; color: var(--text-secondary);">${paymentProgress.toFixed(0)}% Complete</div>`;
+            tableHtml += '</div>';
+            
+            summaryContent.innerHTML = tableHtml;
         }
         
         function showMyOrdersSection(orders) {
@@ -3956,7 +4081,7 @@
                         
                         // Close confirmation modal
                         closeModal('order-confirmation-modal');
-                        showToast('✅ Order updated and GB Admin notified!', 5000);
+                        showToast('✅ Order updated and PepHaul Admin notified!', 5000);
                         
                         // Refresh order lookup immediately to get updated totals
                         if (typeof checkReturningCustomer === 'function') {
@@ -4240,14 +4365,14 @@
                         
                         <!-- Mark Payment as Sent -->
                         <div style="text-align: center;">
-                            <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 1rem;">After payment, let GB Admin know:</p>
+                            <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 1rem;">After payment, let PepHaul Admin know:</p>
 
                             <button class="btn btn-primary" onclick="markPaymentSent('${order.order_id}')" style="width: 100%; font-size: 1rem; padding: 1rem; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;">
                                 <span style="font-size: 1.5rem;">💸</span>
                                 <span>Payment Sent to PepHaul Admin</span>
                             </button>
 
-                            <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.75rem;">GB Admin will be notified via Telegram</p>
+                            <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.75rem;">PepHaul Admin will be notified via Telegram</p>
                         </div>
                     </div>
                     ` : ''}
@@ -4340,7 +4465,7 @@
         // Payment file upload removed - customers now use "Payment Sent" button
 
         async function markPaymentSent(orderId) {
-            if (!confirm('Confirm that you have sent payment to GB Admin via GCash/Maya/Bank?')) {
+            if (!confirm('Confirm that you have sent payment to PepHaul Admin via GCash/Maya/Bank?')) {
                 return;
             }
 
@@ -4353,7 +4478,7 @@
                 const result = await response.json();
 
                 if (result.success) {
-                    showToast('✅ Payment marked as sent! GB Admin will confirm soon.');
+                    showToast('✅ Payment marked as sent! PepHaul Admin will confirm soon.');
                     // Refresh the order view
                     viewOrder(orderId);
                 } else {
@@ -4594,6 +4719,13 @@
                     })
                 });
                 
+                if (!response.ok) {
+                    // If response is not OK, try to parse error
+                    const errorResult = await response.json().catch(() => ({ error: 'Failed to save address' }));
+                    showToast(errorResult.error || 'Failed to save address');
+                    return;
+                }
+                
                 const result = await response.json();
                 
                 if (result.success) {
@@ -4606,6 +4738,11 @@
                     }
                     if (typeof updateSubmitButtonText === 'function') {
                         updateSubmitButtonText();
+                    }
+                    // Update Customer Summary if order form is locked
+                    const orderFormLocked = {{ order_form_locked|tojson }};
+                    if (orderFormLocked && typeof updateCustomerSummary === 'function' && existingCustomerOrders) {
+                        updateCustomerSummary(existingCustomerOrders);
                     }
                 } else {
                     showToast(result.error || 'Failed to save address');

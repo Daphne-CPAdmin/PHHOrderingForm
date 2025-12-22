@@ -2966,7 +2966,7 @@ def api_finalize_order(order_id):
         if not order:
             return jsonify({'error': 'Order not found after recalculation'}), 404
         
-        # Send Telegram notification to GB Admin
+        # Send Telegram notification to PepHaul Admin
         try:
             items_text = '\n'.join([f"• {item['product_name']} ({item['order_type']} x{item['qty']}) - ₱{item['line_total_php']:.2f}" 
                                    for item in order.get('items', []) if item.get('qty', 0) > 0])
@@ -2984,7 +2984,7 @@ def api_finalize_order(order_id):
 {items_text}
 
 <b>Subtotal (PHP):</b> ₱{subtotal_php:,.2f}
-<b>GB Admin Fee:</b> ₱{ADMIN_FEE_PHP:,.2f}
+<b>PepHaul Admin Fee:</b> ₱{ADMIN_FEE_PHP:,.2f}
 <b>Grand Total:</b> ₱{grand_total_php:,.2f}
 
 <b>Status:</b> Finalized - Pending Payment"""
@@ -2992,6 +2992,13 @@ def api_finalize_order(order_id):
         except Exception as e:
             print(f"⚠️ Error sending Telegram notification: {e}")
             # Don't fail if Telegram fails
+        
+        # Also notify customer if registered (non-blocking)
+        try:
+            notify_customer_order(order, order_id)
+        except Exception as e:
+            print(f"⚠️ Error notifying customer: {e}")
+            # Don't fail if customer notification fails
         
         return jsonify({
             'success': True,
@@ -3464,7 +3471,7 @@ def api_submit_payment_link(order_id):
 
 @app.route('/api/mark-payment-sent/<order_id>', methods=['POST'])
 def api_mark_payment_sent(order_id):
-    """Mark payment as sent to GB Admin - updates status to Waiting for Confirmation"""
+    """Mark payment as sent to PepHaul Admin - updates status to Waiting for Confirmation"""
     print(f"📤 Marking payment as sent for order: {order_id}")
     
     # Update order status to Waiting for Confirmation
@@ -3479,14 +3486,21 @@ def api_mark_payment_sent(order_id):
 <b>Telegram:</b> @{order.get('telegram', 'N/A').replace('@', '')}
 <b>Amount:</b> ₱{order.get('grand_total_php', 0):,.2f}
 
-Customer has marked payment as sent to GB Admin.
+Customer has marked payment as sent to PepHaul Admin.
 ⏳ Status: <b>Waiting for Confirmation</b>
 
 Please check GCash and confirm payment in Admin Panel."""
             send_telegram_notification(telegram_msg)
         
+        # Also notify customer if registered (non-blocking)
+        try:
+            notify_customer_payment_sent(order, order_id)
+        except Exception as e:
+            print(f"⚠️ Error notifying customer: {e}")
+            # Don't fail if customer notification fails
+        
         print(f"✅ Payment marked as sent - status updated to Waiting for Confirmation")
-        return jsonify({'success': True, 'message': 'Payment marked as sent! GB Admin will be notified.'})
+        return jsonify({'success': True, 'message': 'Payment marked as sent! PepHaul Admin will be notified.'})
     
     print(f"❌ Failed to mark payment as sent for order {order_id}")
     return jsonify({'error': 'Failed to update payment status'}), 500
@@ -3600,10 +3614,11 @@ def api_save_mailing_address(order_id):
         clear_cache('inventory')
         clear_cache('order_stats')
         
-        # Send notification to admin
-        order = get_order_by_id(order_id)
-        if order:
-            telegram_msg = f"""📬 <b>Mailing Address Added!</b>
+        # Send notification to admin (non-blocking - don't fail if this fails)
+        try:
+            order = get_order_by_id(order_id)
+            if order:
+                telegram_msg = f"""📬 <b>Mailing Address Added!</b>
 
 <b>Order ID:</b> {order_id}
 <b>Customer:</b> {order.get('full_name', 'N/A')}
@@ -3615,13 +3630,25 @@ def api_save_mailing_address(order_id):
 {mailing_address}
 
 ✅ Ready for fulfillment!"""
-            send_telegram_notification(telegram_msg)
+                send_telegram_notification(telegram_msg)
+                
+                # Also notify customer if registered (non-blocking)
+                try:
+                    notify_customer_shipping_details(order, order_id, mailing_name, mailing_phone, mailing_address)
+                except Exception as customer_notify_error:
+                    print(f"⚠️ Error notifying customer: {customer_notify_error}")
+                    # Don't fail if customer notification fails
+        except Exception as notify_error:
+            print(f"⚠️ Error sending notification (address saved successfully): {notify_error}")
+            # Don't fail the save if notification fails
         
         return jsonify({'success': True})
         
     except Exception as e:
         print(f"Error saving mailing address: {e}")
-        return jsonify({'error': str(e)}), 500
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 # Telegram customer notifications storage (in-memory, consider using database for production)
 telegram_customers = {}  # {telegram_username: chat_id}
@@ -3670,11 +3697,11 @@ def telegram_webhook():
                     # Store admin chat ID in environment (for current session)
                     global TELEGRAM_ADMIN_CHAT_ID
                     TELEGRAM_ADMIN_CHAT_ID = str(chat_id)
-                    print(f"✅ GB Admin registered: @{username} (chat_id: {chat_id})")
+                    print(f"✅ PepHaul Admin registered: @{username} (chat_id: {chat_id})")
             
             # Send welcome message
             if is_admin:
-                welcome_msg = f"""🎉 <b>Welcome GB Admin, {first_name}!</b> 👑
+                welcome_msg = f"""🎉 <b>Welcome PepHaul Admin, {first_name}!</b> 👑
 
 You're now registered as the <b>PepHaul Admin</b>.
 
@@ -3769,6 +3796,72 @@ def notify_customer_order(order_data, order_id):
 📱 Please complete your payment and upload the screenshot on the order form.
 
 Thank you for your order! 💜"""
+    
+    return send_customer_telegram(chat_id, message)
+
+def notify_customer_payment_sent(order_data, order_id):
+    """Send payment sent confirmation to customer via Telegram - auto-resolves username to chat ID"""
+    telegram_handle = order_data.get('telegram', '').strip().lower()
+    if not telegram_handle:
+        return False
+    
+    # Clean up the handle
+    if telegram_handle.startswith('@'):
+        telegram_handle = telegram_handle[1:]
+    
+    # Try to resolve username to chat ID
+    chat_id = resolve_telegram_recipient(telegram_handle)
+    
+    if not chat_id:
+        print(f"⚠️ Customer @{telegram_handle} not found - they need to message @{TELEGRAM_BOT_USERNAME} first")
+        return False
+    
+    message = f"""💸 <b>Payment Sent Confirmation</b>
+
+<b>Order ID:</b> {order_id}
+<b>Amount:</b> ₱{order_data.get('grand_total_php', 0):,.2f}
+
+✅ Your payment has been marked as sent to PepHaul Admin.
+
+⏳ Status: <b>Waiting for Confirmation</b>
+
+The admin will verify your payment and update your order status. You'll be notified once confirmed!
+
+Thank you! 💜"""
+    
+    return send_customer_telegram(chat_id, message)
+
+def notify_customer_shipping_details(order_data, order_id, mailing_name, mailing_phone, mailing_address):
+    """Send shipping details confirmation to customer via Telegram - auto-resolves username to chat ID"""
+    telegram_handle = order_data.get('telegram', '').strip().lower()
+    if not telegram_handle:
+        return False
+    
+    # Clean up the handle
+    if telegram_handle.startswith('@'):
+        telegram_handle = telegram_handle[1:]
+    
+    # Try to resolve username to chat ID
+    chat_id = resolve_telegram_recipient(telegram_handle)
+    
+    if not chat_id:
+        print(f"⚠️ Customer @{telegram_handle} not found - they need to message @{TELEGRAM_BOT_USERNAME} first")
+        return False
+    
+    message = f"""📬 <b>Shipping Details Confirmed!</b>
+
+<b>Order ID:</b> {order_id}
+
+<b>Shipping Address:</b>
+{mailing_name}
+{mailing_phone}
+{mailing_address}
+
+✅ Your shipping details have been saved successfully!
+
+Your order is ready for fulfillment. If you need to update your shipping address, please contact PepHaul admin.
+
+Thank you! 💜"""
     
     return send_customer_telegram(chat_id, message)
 
@@ -3939,7 +4032,7 @@ def api_admin_confirm_payment(order_id):
         if order:
             items_text = '\n'.join([f"• {item['product_name']} ({item['order_type']} x{item['qty']})" for item in order.get('items', [])])
             
-            # Notify GB Admin via Telegram
+            # Notify PepHaul Admin via Telegram
             admin_msg = f"""✅ <b>Payment Confirmed!</b>
 
 <b>Order ID:</b> {order_id}
