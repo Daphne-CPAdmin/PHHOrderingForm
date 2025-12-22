@@ -3724,7 +3724,8 @@ def api_upload_payment(order_id):
     drive_link = upload_to_drive(screenshot_data, 'payment.jpg', order_id)
     
     if drive_link:
-        update_order_status(order_id, payment_status='Paid', payment_screenshot=drive_link)
+        # Set status to "Waiting for Confirmation" - order will be locked when admin confirms payment
+        update_order_status(order_id, payment_status='Waiting for Confirmation', payment_screenshot=drive_link)
         
         # Get order details for notification
         order = get_order_by_id(order_id)
@@ -3767,8 +3768,8 @@ def api_submit_payment_link(order_id):
     
     print(f"🔗 Payment link submitted for order {order_id}: {payment_link}")
     
-    # Update order with payment link
-    if update_order_status(order_id, payment_status='Paid', payment_screenshot=payment_link):
+    # Update order with payment link - set to "Waiting for Confirmation" until admin confirms
+    if update_order_status(order_id, payment_status='Waiting for Confirmation', payment_screenshot=payment_link):
         # Get order details for notification
         order = get_order_by_id(order_id)
         if order:
@@ -3863,7 +3864,8 @@ def api_upload_payment_generic():
     drive_link = upload_to_drive(file_data, file_name, order_id)
     
     if drive_link:
-        update_order_status(order_id, payment_status='Paid', payment_screenshot=drive_link)
+        # Set status to "Waiting for Confirmation" - order will be locked when admin confirms payment
+        update_order_status(order_id, payment_status='Waiting for Confirmation', payment_screenshot=drive_link)
         
         # Get order details for notification
         order = get_order_by_id(order_id)
@@ -4347,7 +4349,8 @@ def api_admin_confirm_payment(order_id):
     if not session.get('is_admin'):
         return jsonify({'error': 'Unauthorized'}), 401
     
-    if update_order_status(order_id, payment_status='Paid'):
+    # Lock the order when payment is confirmed (paid orders cannot be modified)
+    if update_order_status(order_id, payment_status='Paid', locked=True):
         # Get order details for notifications
         order = get_order_by_id(order_id)
         if order:
@@ -4531,7 +4534,8 @@ def api_admin_confirm_payment_post():
     if not order_id:
         return jsonify({'error': 'Order ID required'}), 400
     
-    if update_order_status(order_id, payment_status='Paid'):
+    # Lock the order when payment is confirmed (paid orders cannot be modified)
+    if update_order_status(order_id, payment_status='Paid', locked=True):
         # Get order details for customer notification
         order = get_order_by_id(order_id)
         if order:
