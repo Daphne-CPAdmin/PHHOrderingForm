@@ -2750,13 +2750,6 @@
                     o.payment_status.toLowerCase() === 'paid'
                 );
                 
-                // Check if there's a paid order - mark new items accordingly
-                const paidOrder = existingCustomerOrders.find(o => 
-                    o.status !== 'Cancelled' && 
-                    o.payment_status && 
-                    o.payment_status.toLowerCase() === 'paid'
-                );
-                
                 // New item
                 cartItems.push({
                     product_code: selectedProduct.code,
@@ -3477,8 +3470,14 @@
                     if (orders && orders.length > 0) {
                         existingCustomerOrders = orders;
                         
-                        // Find the most recent pending (non-cancelled, non-locked) order
-                        const pendingOrder = orders.find(o => o.status !== 'Cancelled' && !o.locked);
+                        // Find the most recent unpaid/pending (non-cancelled, not locked) order
+                        // Paid orders are locked and should NOT be loaded into cart, but will be shown in locked section
+                        const pendingOrder = orders.find(o => 
+                            o.status !== 'Cancelled' && 
+                            !o.locked && 
+                            o.payment_status && 
+                            o.payment_status.toLowerCase() !== 'paid'
+                        );
                         
                         if (pendingOrder && pendingOrder.items && pendingOrder.items.length > 0) {
                             // Store pending order ID for button text
@@ -3486,9 +3485,6 @@
                             
                             // Update status tags
                             updateOrderSummaryStatusTags();
-                            
-                            // Clear removed items tracking when loading fresh order
-                            // Removed items tracking no longer needed
                             
                             // Filter out items with 0 quantity before populating cart
                             const validItems = pendingOrder.items.filter(item => {
@@ -3585,16 +3581,16 @@
                             updateEditingControls();
                             showToast(`✅ Loaded ${cartItems.length} item(s) from your existing order`, 3000);
                         } else {
-                            // No pending order, clear cart and reset order ID
+                            // No pending unpaid order, clear cart and reset order ID
+                            // Paid orders will be shown in locked section via updateCart()
                             currentOrderId = null;
                             cartItems = [];
                             originalOrderItems = []; // Clear original order items
-                            // Removed items tracking no longer needed
-                            updateCart();
+                            updateCart(); // This will show paid orders in locked section if they exist
                             saveCart();
                         }
                         
-                        // Update button text
+                        // Update button text and cart display (will show paid orders in locked section)
                         updateSubmitButtonText();
                         updateOrderSummaryStatusTags();
                         updateEditingControls();
