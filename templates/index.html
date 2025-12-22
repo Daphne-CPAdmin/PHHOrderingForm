@@ -1792,7 +1792,7 @@
                     
                     <div id="customer-summary-content" style="min-height: 100px;">
                         <div style="text-align: center; padding: 2rem; color: var(--text-muted);">
-                            <p>Enter your Name and Telegram username to view your order summary</p>
+                            <p>Loading orders...</p>
                         </div>
                     </div>
                 </div>
@@ -3083,8 +3083,17 @@
                 
                 if (hasShippingDetails) {
                     statusTagHtml += '<div style="margin-top: 0.75rem; padding: 0.75rem; background: rgba(16, 185, 129, 0.1); border-left: 3px solid #10b981; border-radius: 6px;">';
-                    statusTagHtml += '<div style="color: #065f46; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.25rem;">📬 Shipping Details Added</div>';
-                    statusTagHtml += '<div style="color: #047857; font-size: 0.75rem;">Need to update? Contact PepHaul admin for changes.</div>';
+                    statusTagHtml += '<div style="color: #065f46; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.5rem;">📬 Shipping Details Added</div>';
+                    
+                    // Display shipping details
+                    const mailingName = pendingOrder.mailing_name || pendingOrder.full_name || 'N/A';
+                    const mailingPhone = pendingOrder.mailing_phone || pendingOrder.contact_number || 'N/A';
+                    const mailingAddress = pendingOrder.mailing_address || 'N/A';
+                    
+                    statusTagHtml += '<div style="color: #047857; font-size: 0.8rem; margin-bottom: 0.25rem;"><strong>Receiver:</strong> ' + mailingName + '</div>';
+                    statusTagHtml += '<div style="color: #047857; font-size: 0.8rem; margin-bottom: 0.25rem;"><strong>Phone:</strong> ' + mailingPhone + '</div>';
+                    statusTagHtml += '<div style="color: #047857; font-size: 0.8rem; margin-bottom: 0.5rem;"><strong>Address:</strong> ' + mailingAddress + '</div>';
+                    statusTagHtml += '<div style="color: #047857; font-size: 0.75rem; font-style: italic;">Need to update? Contact PepHaul admin for changes.</div>';
                     statusTagHtml += '</div>';
                 }
             } else if (pendingOrder.payment_status === 'Waiting for Confirmation') {
@@ -3422,10 +3431,10 @@
                         hideMyOrdersSection();
                         hideReturningCustomerBanner();
                         
-                        // Update Customer Summary if order form is locked
+                        // Reload all orders for Customer Summary if order form is locked
                         const orderFormLocked = {{ order_form_locked|tojson }};
                         if (orderFormLocked) {
-                            updateCustomerSummary(orders);
+                            loadAllOrdersForSummary();
                         }
                     } else {
                         console.log('No orders found for', telegram);
@@ -3439,10 +3448,10 @@
                         hideReturningCustomerBanner();
                         hideMyOrdersSection();
                         
-                        // Clear Customer Summary if order form is locked
+                        // Reload all orders for Customer Summary if order form is locked
                         const orderFormLocked = {{ order_form_locked|tojson }};
                         if (orderFormLocked) {
-                            updateCustomerSummary([]);
+                            loadAllOrdersForSummary();
                         }
                     }
                 } catch (error) {
@@ -3450,13 +3459,36 @@
                     hideReturningCustomerBanner();
                     hideMyOrdersSection();
                     
-                    // Clear Customer Summary on error if order form is locked
+                    // Reload all orders for Customer Summary on error if order form is locked
                     const orderFormLocked = {{ order_form_locked|tojson }};
                     if (orderFormLocked) {
-                        updateCustomerSummary([]);
+                        loadAllOrdersForSummary();
                     }
                 }
             }, 500);
+        }
+        
+        // Function to load all orders for Customer Summary (when order form is locked)
+        async function loadAllOrdersForSummary() {
+            const orderFormLocked = {{ order_form_locked|tojson }};
+            if (!orderFormLocked) return;
+            
+            const summarySection = document.getElementById('customer-summary-section');
+            const summaryContent = document.getElementById('customer-summary-content');
+            
+            if (!summarySection || !summaryContent) return;
+            
+            try {
+                const response = await fetch('/api/orders');
+                if (!response.ok) {
+                    throw new Error(`Failed to load orders: ${response.status}`);
+                }
+                const allOrders = await response.json();
+                updateCustomerSummary(allOrders);
+            } catch (error) {
+                console.error('Error loading all orders for summary:', error);
+                summaryContent.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--text-muted);"><p>Error loading orders. Please refresh the page.</p></div>';
+            }
         }
         
         // Function to update Customer Summary section
@@ -3475,7 +3507,7 @@
             summarySection.style.display = 'block';
             
             if (!orders || orders.length === 0) {
-                summaryContent.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--text-muted);"><p>Enter your Name and Telegram username to view your order summary</p></div>';
+                summaryContent.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--text-muted);"><p>No orders found</p></div>';
                 return;
             }
             
@@ -4294,11 +4326,11 @@
                         <div style="font-weight: 500;">${order.full_name}</div>
                         ${order.telegram ? `<div style="color: var(--text-muted); font-size: 0.75rem;">📱 ${order.telegram}</div>` : ''}
                         ${order.mailing_address ? `
-                            <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px dashed var(--border);">
-                                <div style="color: var(--accent-primary); font-size: 0.8rem; font-weight: 600;">📬 Mailing Address:</div>
-                                <div style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 0.25rem;">${order.mailing_name || order.full_name}</div>
-                                <div style="color: var(--text-secondary); font-size: 0.85rem;">${order.mailing_phone}</div>
-                                <div style="color: var(--text-secondary); font-size: 0.85rem;">${order.mailing_address}</div>
+                            <div style="margin-top: 0.75rem; padding: 0.75rem; background: rgba(16, 185, 129, 0.1); border-left: 3px solid #10b981; border-radius: 6px;">
+                                <div style="color: #065f46; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.5rem;">📬 Shipping Details</div>
+                                <div style="color: #047857; font-size: 0.85rem; margin-bottom: 0.25rem;"><strong>Receiver:</strong> ${order.mailing_name || order.full_name}</div>
+                                <div style="color: #047857; font-size: 0.85rem; margin-bottom: 0.25rem;"><strong>Phone:</strong> ${order.mailing_phone || order.contact_number || 'N/A'}</div>
+                                <div style="color: #047857; font-size: 0.85rem;">${order.mailing_address}</div>
                             </div>
                         ` : ''}
                     </div>
@@ -4380,19 +4412,28 @@
                 
                 const footer = document.getElementById('order-details-footer');
                 const hasMailing = order.mailing_address && order.mailing_address.trim() !== '';
+                const hasShippingDetails = order.contact_number && order.mailing_address && 
+                                         order.contact_number.trim() !== '' && order.mailing_address.trim() !== '';
                 
                 let footerHtml = '';
                 
-                // Show "Add Mailing Address" button for paid orders without mailing address
-                if (orderIsPaid && !hasMailing) {
-                    footerHtml += `<button class="btn btn-violet" onclick="openMailingAddressModal('${order.order_id}', '${order.full_name}')">📬 Add Mailing Address</button>`;
+                // If order is paid and has shipping details, disable all action buttons (only show Close)
+                if (orderIsPaid && hasShippingDetails) {
+                    // Order is finalized - no action buttons, only Close
+                    footerHtml += `<button class="btn btn-secondary" onclick="closeModal('order-details-modal')">Close</button>`;
+                } else {
+                    // Show "Add Mailing Address" button for paid orders without mailing address
+                    if (orderIsPaid && !hasMailing) {
+                        footerHtml += `<button class="btn btn-violet" onclick="openMailingAddressModal('${order.order_id}', '${order.full_name}')">📬 Add Mailing Address</button>`;
+                    }
+                    
+                    // Show edit/cancel buttons only if order can be edited
+                    if (canEdit) {
+                        footerHtml += `<button class="btn btn-rose" onclick="cancelOrder('${order.order_id}', '${(order.telegram || '').replace(/'/g, "\\'")}')" style="font-weight: 600;" title="⚠️ Warning: This action cannot be undone. You will need to create a new order to reserve products.">🗑️ Cancel Order</button>`;
+                    }
+                    
+                    footerHtml += `<button class="btn btn-secondary" onclick="closeModal('order-details-modal')">Close</button>`;
                 }
-                
-                if (canEdit) {
-                    footerHtml += `<button class="btn btn-rose" onclick="cancelOrder('${order.order_id}', '${(order.telegram || '').replace(/'/g, "\\'")}')" style="font-weight: 600;" title="⚠️ Warning: This action cannot be undone. You will need to create a new order to reserve products.">🗑️ Cancel Order</button>`;
-                }
-                
-                footerHtml += `<button class="btn btn-secondary" onclick="closeModal('order-details-modal')">Close</button>`;
                 
                 if (footer) {
                     footer.innerHTML = footerHtml;
@@ -4678,6 +4719,12 @@
             if (addressInput) {
                 addressInput.addEventListener('input', updateMailingAddressCharCount);
             }
+            
+            // Load all orders for Customer Summary if order form is locked
+            const orderFormLocked = {{ order_form_locked|tojson }};
+            if (orderFormLocked) {
+                loadAllOrdersForSummary();
+            }
         });
         
         async function saveMailingAddress() {
@@ -4739,10 +4786,10 @@
                     if (typeof updateSubmitButtonText === 'function') {
                         updateSubmitButtonText();
                     }
-                    // Update Customer Summary if order form is locked
+                    // Reload all orders for Customer Summary if order form is locked
                     const orderFormLocked = {{ order_form_locked|tojson }};
-                    if (orderFormLocked && typeof updateCustomerSummary === 'function' && existingCustomerOrders) {
-                        updateCustomerSummary(existingCustomerOrders);
+                    if (orderFormLocked && typeof loadAllOrdersForSummary === 'function') {
+                        loadAllOrdersForSummary();
                     }
                 } else {
                     showToast(result.error || 'Failed to save address');

@@ -740,10 +740,26 @@ def get_order_by_id(order_id):
             ''
         )
     
+    # Get customer name from Column C ("Name")
+    customer_full_name = first_item.get('Name', first_item.get('Full Name', ''))
+    
+    # Get mailing details - these are stored in columns U (Full Name/mailing_name), V (Contact Number/mailing_phone), W (Mailing Address)
+    # When shipping details are added, Column U is updated to contain mailing receiver name
+    mailing_address = first_item.get('Mailing Address', '')  # Column W
+    
+    # If mailing address exists, Column U contains mailing receiver name, Column V contains mailing phone
+    # Otherwise, these columns might be empty or contain customer info
+    if mailing_address and mailing_address.strip():
+        mailing_name = first_item.get('Full Name', '')  # Column U - mailing receiver name
+        mailing_phone = first_item.get('Contact Number', '')  # Column V - mailing phone
+    else:
+        mailing_name = ''
+        mailing_phone = ''
+    
     order = {
         'order_id': order_id,
         'order_date': first_item.get('Order Date', ''),
-        'full_name': first_item.get('Name', first_item.get('Full Name', '')),
+        'full_name': customer_full_name,
         'telegram': telegram_value,
         'exchange_rate': float(first_item.get('Exchange Rate', FALLBACK_EXCHANGE_RATE) or FALLBACK_EXCHANGE_RATE),
         'admin_fee_php': float(first_item.get('Admin Fee PHP', ADMIN_FEE_PHP) or 0),
@@ -752,9 +768,10 @@ def get_order_by_id(order_id):
         'locked': str(first_item.get('Locked', 'No')).lower() == 'yes',
         'payment_status': first_item.get('Payment Status', first_item.get('Confirmed Paid?', 'Unpaid')),
         'payment_screenshot': first_item.get('Link to Payment', first_item.get('Payment Screenshot Link', first_item.get('Payment Screenshot', ''))),
-        'full_name': first_item.get('Full Name', first_item.get('Name', '')),
-        'contact_number': first_item.get('Contact Number', ''),
-        'mailing_address': first_item.get('Mailing Address', ''),
+        'contact_number': mailing_phone if mailing_address else '',  # Use mailing phone if shipping details exist
+        'mailing_address': mailing_address,
+        'mailing_name': mailing_name,
+        'mailing_phone': mailing_phone,
         'items': []
     }
     
