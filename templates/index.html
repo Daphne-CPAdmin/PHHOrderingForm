@@ -3831,9 +3831,9 @@
                     const adminFee = (order.grand_total_php || 0) - itemsTotal;
                     
                     html += `
-                        <div class="card" style="cursor: pointer; padding: 1.5rem; border: 2px solid var(--accent-amber); background: rgba(245, 158, 11, 0.05); margin-bottom: 1rem;" onclick="viewOrder('${order.order_id}')">
+                        <div class="card" style="padding: 1.5rem; border: 2px solid var(--accent-amber); background: rgba(245, 158, 11, 0.05); margin-bottom: 1rem;">
                             <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;">
-                                <div>
+                                <div style="cursor: pointer; flex: 1;" onclick="viewOrder('${order.order_id}')">
                                     <div style="font-family: 'JetBrains Mono', monospace; color: var(--accent-primary); font-weight: 700; font-size: 1.1rem; margin-bottom: 0.35rem;">${order.order_id}</div>
                                     <div style="font-size: 0.85rem; color: var(--text-muted);">${order.order_date}</div>
                                 </div>
@@ -3842,23 +3842,28 @@
                                     <div style="display: inline-block; padding: 0.35rem 0.85rem; border-radius: 20px; font-size: 0.75rem; font-weight: 700; background: rgba(245, 158, 11, 0.2); color: #92400e;">⏳ UNPAID</div>
                                 </div>
                             </div>
-                            <div style="font-size: 0.9rem; color: var(--text-primary); margin-bottom: 0.5rem; font-weight: 500;">📦 Items:</div>
-                            <div style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.4; margin-bottom: 0.75rem;">${itemsPreview}</div>
-                            <div style="border-top: 1px solid rgba(245, 158, 11, 0.2); padding-top: 0.75rem; font-size: 0.85rem;">
-                                <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
-                                    <span style="color: var(--text-secondary);">Items Subtotal:</span>
-                                    <span style="font-weight: 600;">₱${itemsTotal.toLocaleString('en-PH', {minimumFractionDigits: 2})}</span>
-                                </div>
-                                <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
-                                    <span style="color: var(--text-secondary);">Admin Fee:</span>
-                                    <span style="font-weight: 600;">₱${adminFee.toLocaleString('en-PH', {minimumFractionDigits: 2})}</span>
-                                </div>
-                                <div style="display: flex; justify-content: space-between; font-weight: 700; color: var(--accent-amber); margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid rgba(245, 158, 11, 0.2);">
-                                    <span>Total:</span>
-                                    <span>₱${order.grand_total_php.toLocaleString('en-PH', {minimumFractionDigits: 2})}</span>
+                            <div style="cursor: pointer;" onclick="viewOrder('${order.order_id}')">
+                                <div style="font-size: 0.9rem; color: var(--text-primary); margin-bottom: 0.5rem; font-weight: 500;">📦 Items:</div>
+                                <div style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.4; margin-bottom: 0.75rem;">${itemsPreview}</div>
+                                <div style="border-top: 1px solid rgba(245, 158, 11, 0.2); padding-top: 0.75rem; font-size: 0.85rem;">
+                                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+                                        <span style="color: var(--text-secondary);">Items Subtotal:</span>
+                                        <span style="font-weight: 600;">₱${itemsTotal.toLocaleString('en-PH', {minimumFractionDigits: 2})}</span>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+                                        <span style="color: var(--text-secondary);">Admin Fee:</span>
+                                        <span style="font-weight: 600;">₱${adminFee.toLocaleString('en-PH', {minimumFractionDigits: 2})}</span>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between; font-weight: 700; color: var(--accent-amber); margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid rgba(245, 158, 11, 0.2);">
+                                        <span>Total:</span>
+                                        <span>₱${order.grand_total_php.toLocaleString('en-PH', {minimumFractionDigits: 2})}</span>
+                                    </div>
                                 </div>
                             </div>
-                            ${order.payment_screenshot ? '<div style="margin-top: 0.75rem; font-size: 0.8rem; color: var(--accent-teal);">📷 Payment screenshot uploaded - pending confirmation</div>' : ''}
+                            ${order.payment_screenshot ? '<div style="margin-top: 0.75rem; margin-bottom: 0.75rem; font-size: 0.8rem; color: var(--accent-teal);">📷 Payment screenshot uploaded - pending confirmation</div>' : ''}
+                            <div style="margin-top: 1rem; display: flex; gap: 0.5rem;">
+                                <button type="button" class="btn btn-emerald btn-full" onclick="event.stopPropagation(); payOrderById('${order.order_id}')" style="flex: 1;">💳 Pay Order</button>
+                            </div>
                         </div>
                     `;
                 });
@@ -4078,6 +4083,19 @@
         
         // Store current order ID for payment modal
         let currentPaymentOrderId = null;
+        
+        // Function to pay order by ID (for use in order cards)
+        function payOrderById(orderId) {
+            const order = existingCustomerOrders.find(o => o.order_id === orderId);
+            if (order) {
+                showPaymentModal(order);
+            } else {
+                showToast('Order not found', 3000);
+            }
+        }
+        
+        // Expose to global scope
+        window.payOrderById = payOrderById;
         
         function showPaymentModal(order) {
             const modal = document.getElementById('payment-modal');
