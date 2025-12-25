@@ -3431,7 +3431,7 @@
                 const hasMailingAddress = pendingOrder.mailing_address && pendingOrder.mailing_address.trim() !== '';
                 
                 if (hasMailingAddress) {
-                    // Display shipping details: Full Name (column U), Contact Number (column V), Mailing Address (column W)
+                    // Display shipping details: Full Name (column U), Contact Number (column V), Mailing Address (column W), Tracking Number (column X)
                     statusTagHtml += '<div style="margin-top: 0.75rem; padding: 0.75rem; background: rgba(16, 185, 129, 0.1); border-left: 3px solid #10b981; border-radius: 6px;">';
                     statusTagHtml += '<div style="color: #065f46; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.5rem;">📬 Shipping Details</div>';
                     
@@ -3441,10 +3441,15 @@
                     const mailingPhone = pendingOrder.mailing_phone || pendingOrder.contact_number || 'N/A';
                     // Column W: Mailing Address
                     const mailingAddress = pendingOrder.mailing_address || 'N/A';
+                    // Column X: Tracking Number
+                    const trackingNumber = pendingOrder.tracking_number || '';
                     
                     statusTagHtml += '<div style="color: #047857; font-size: 0.8rem; margin-bottom: 0.25rem;"><strong>Full Name:</strong> ' + mailingName + '</div>';
                     statusTagHtml += '<div style="color: #047857; font-size: 0.8rem; margin-bottom: 0.25rem;"><strong>Contact Number:</strong> ' + mailingPhone + '</div>';
-                    statusTagHtml += '<div style="color: #047857; font-size: 0.8rem; margin-bottom: 0.5rem;"><strong>Mailing Address:</strong> ' + mailingAddress + '</div>';
+                    statusTagHtml += '<div style="color: #047857; font-size: 0.8rem; margin-bottom: 0.25rem;"><strong>Mailing Address:</strong> ' + mailingAddress + '</div>';
+                    if (trackingNumber && trackingNumber.trim() !== '') {
+                        statusTagHtml += '<div style="color: #059669; font-size: 0.8rem; margin-bottom: 0.5rem; font-weight: 600;"><strong>📦 Tracking Number:</strong> ' + trackingNumber + '</div>';
+                    }
                     statusTagHtml += '<div style="color: #047857; font-size: 0.75rem; font-style: italic;">Need to update? Contact PepHaul admin for changes.</div>';
                     statusTagHtml += '</div>';
                 }

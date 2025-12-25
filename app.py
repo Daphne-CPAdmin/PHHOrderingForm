@@ -860,6 +860,9 @@ def get_order_by_id(order_id):
         mailing_name = ''
         mailing_phone = ''
     
+    # Get tracking number from column X (24)
+    tracking_number = first_item.get('Tracking Number', '')
+    
     order = {
         'order_id': order_id,
         'order_date': first_item.get('Order Date', ''),
@@ -876,6 +879,7 @@ def get_order_by_id(order_id):
         'mailing_address': mailing_address,
         'mailing_name': mailing_name,
         'mailing_phone': mailing_phone,
+        'tracking_number': tracking_number,
         'items': []
     }
     
@@ -2803,6 +2807,7 @@ def api_orders_lookup():
                 'payment_screenshot': order.get('Link to Payment', order.get('Payment Screenshot Link', order.get('Payment Screenshot', ''))),
                 'contact_number': order.get('Contact Number', ''),
                 'mailing_address': order.get('Mailing Address', ''),
+                'tracking_number': order.get('Tracking Number', ''),
                 'items': []
             }
         
@@ -2945,6 +2950,8 @@ def api_orders():
                 'status': order.get('Order Status', 'Pending'),
                 'locked': str(order.get('Locked', 'No')).lower() == 'yes',
                 'payment_status': order.get('Payment Status', order.get('Confirmed Paid?', 'Unpaid')),
+                'mailing_address': order.get('Mailing Address', ''),
+                'tracking_number': order.get('Tracking Number', ''),
                 'items': []
             }
         
@@ -4230,6 +4237,85 @@ def api_save_mailing_address(order_id):
         
     except Exception as e:
         print(f"Error saving mailing address: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/admin/orders/<order_id>/tracking-number', methods=['POST'])
+def api_save_tracking_number(order_id):
+    """Admin: Save tracking number for an order (only for paid orders with shipping details)"""
+    if not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    data = request.json or {}
+    tracking_number = data.get('tracking_number', '').strip()
+    
+    if not tracking_number:
+        return jsonify({'error': 'Tracking number is required'}), 400
+    
+    if not sheets_client:
+        return jsonify({'error': 'Sheets not configured'}), 500
+    
+    try:
+        # Verify order exists and is paid with shipping details
+        order = get_order_by_id(order_id)
+        if not order:
+            return jsonify({'error': 'Order not found'}), 404
+        
+        payment_status = order.get('payment_status', '').lower()
+        if payment_status != 'paid':
+            return jsonify({'error': 'Tracking number can only be added for paid orders'}), 400
+        
+        mailing_address = order.get('mailing_address', '')
+        if not mailing_address or not mailing_address.strip():
+            return jsonify({'error': 'Shipping details must be added before tracking number'}), 400
+        
+        spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
+        worksheet = spreadsheet.worksheet('PepHaul Entry')
+        
+        # Find the order's first row
+        cell = worksheet.find(order_id)
+        if not cell:
+            return jsonify({'error': 'Order not found in sheets'}), 404
+        
+        # Ensure headers exist - column X (24) for Tracking Number
+        headers = worksheet.row_values(1)
+        if len(headers) < 24:
+            # Extend headers if needed
+            while len(headers) < 24:
+                headers.append('')
+            worksheet.update('A1:X1', [headers])
+        
+        # Set header for column X if not already set
+        if len(headers) < 24 or headers[23] != 'Tracking Number':
+            worksheet.update_cell(1, 24, 'Tracking Number')
+        
+        # Update the order row with tracking number in column X (24)
+        worksheet.update_cell(cell.row, 24, tracking_number)
+        
+        # Clear cache since orders changed
+        clear_cache('orders')
+        clear_cache('inventory')
+        clear_cache('order_stats')
+        
+        # Send notification to admin (non-blocking)
+        try:
+            telegram_msg = f"""📦 <b>Tracking Number Added!</b>
+
+<b>Order ID:</b> {order_id}
+<b>Customer:</b> {order.get('full_name', 'N/A')}
+<b>Telegram:</b> {order.get('telegram', 'N/A')}
+<b>Tracking Number:</b> {tracking_number}
+
+✅ Order is ready for shipment!"""
+            send_telegram_notification(telegram_msg)
+        except Exception as notify_error:
+            print(f"⚠️ Error sending notification (tracking number saved successfully): {notify_error}")
+        
+        return jsonify({'success': True})
+        
+    except Exception as e:
+        print(f"Error saving tracking number: {e}")
         import traceback
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500

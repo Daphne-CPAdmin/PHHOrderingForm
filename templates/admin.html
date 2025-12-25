@@ -854,6 +854,30 @@
         </div>
     </div>
 
+    <!-- Tracking Number Modal -->
+    <div class="modal" id="tracking-modal">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3 class="modal-title">📦 Add Tracking Number</h3>
+                <button class="modal-close" onclick="closeTrackingModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.5rem;">
+                    Enter the tracking number for this order's shipment.
+                </p>
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label class="form-label">Tracking Number</label>
+                    <input type="text" class="form-input" id="tracking-number-input" placeholder="Enter tracking number (e.g., ABC123456789)" maxlength="100">
+                    <small style="color: var(--text-muted); font-size: 0.75rem; display: block; margin-top: 0.25rem;">This will be displayed in the shipping details section</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeTrackingModal()">Cancel</button>
+                <button class="btn btn-primary" id="save-tracking-btn" onclick="saveTrackingNumber()">💾 Save Tracking Number</button>
+            </div>
+        </div>
+    </div>
+
 
     <script>
         let isLoggedIn = false;
@@ -1813,6 +1837,8 @@
                 const isLocked = order.locked === true;
                 const isNonEditableDueToPayment = isPaid || isWaitingForConfirmation;
                 const showUnlockButton = isLocked || isNonEditableDueToPayment;
+                const hasShippingDetails = order.mailing_address && order.mailing_address.trim() !== '';
+                const hasTrackingNumber = order.tracking_number && order.tracking_number.trim() !== '';
                 
                 return `
                     <tr data-order-id="${order.order_id}" class="${isLocked ? 'locked-order' : ''}">
@@ -1844,6 +1870,9 @@
                                     ? `<button class="btn-sm btn-confirm" onclick="confirmPayment('${order.order_id}')">✓ Confirm</button>
                                        <button class="btn-sm" style="background: #c084fc; color: white;" onclick="sendReminder('${order.order_id}')">📲 Remind</button>` 
                                     : `<button class="btn-sm" style="background: #a78bfa; color: white;" onclick="notifyCustomer('${order.order_id}')">📱 Notify</button>`}
+                                ${isPaid && hasShippingDetails 
+                                    ? `<button class="btn-sm" style="background: #10b981; color: white;" onclick="openTrackingModal('${order.order_id}', '${(order.tracking_number || '').replace(/'/g, "\\'")}')" title="${hasTrackingNumber ? 'Update' : 'Add'} tracking number">📦 ${hasTrackingNumber ? 'Update Tracking' : 'Add Tracking'}</button>` 
+                                    : ''}
                                 <button class="btn-sm" style="background: #f472b6; color: white;" onclick="cancelOrder('${order.order_id}', '${order.telegram || ''}')" title="Cancel order and delete all rows">🗑️ Cancel</button>
                             </div>
                         </td>
@@ -2065,6 +2094,56 @@
 
         function closeOrderModal() {
             document.getElementById('order-modal').classList.remove('show');
+        }
+
+        // Tracking Number Modal Functions
+        let currentTrackingOrderId = null;
+        
+        function openTrackingModal(orderId, existingTrackingNumber = '') {
+            currentTrackingOrderId = orderId;
+            document.getElementById('tracking-number-input').value = existingTrackingNumber || '';
+            document.getElementById('tracking-modal').classList.add('show');
+        }
+        
+        function closeTrackingModal() {
+            document.getElementById('tracking-modal').classList.remove('show');
+            currentTrackingOrderId = null;
+            document.getElementById('tracking-number-input').value = '';
+        }
+        
+        async function saveTrackingNumber() {
+            if (!currentTrackingOrderId) {
+                showToast('⚠️ No order selected');
+                return;
+            }
+            
+            const trackingNumber = document.getElementById('tracking-number-input').value.trim();
+            
+            if (!trackingNumber) {
+                showToast('⚠️ Please enter a tracking number');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/admin/orders/${currentTrackingOrderId}/tracking-number`, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tracking_number: trackingNumber })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    showToast('✅ Tracking number saved successfully!');
+                    closeTrackingModal();
+                    loadOrders(); // Reload to reflect changes
+                } else {
+                    showToast(result.error || 'Failed to save tracking number');
+                }
+            } catch (error) {
+                console.error('Error saving tracking number:', error);
+                showToast('Error saving tracking number');
+            }
         }
 
         // Confirm payment
