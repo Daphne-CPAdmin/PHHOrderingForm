@@ -1226,6 +1226,11 @@
         
         window.deleteTimelineEntry = deleteTimelineEntry;
         
+        function escapeJS(str) {
+            if (!str) return '';
+            return String(str).replace(/[\\"']/g, '\\$&').replace(/\u0000/g, '\\0');
+        }
+        
         document.getElementById('add-timeline-btn').addEventListener('click', async () => {
             const btn = document.getElementById('add-timeline-btn');
             const statusEl = document.getElementById('timeline-add-status');
