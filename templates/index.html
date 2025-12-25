@@ -1503,6 +1503,146 @@
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: var(--bg-input); }
         ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+        /* Theme Styles */
+        {% if current_theme == 'merry_christmas' %}
+        :root {
+            --bg-primary: #fef2f2;
+            --bg-secondary: #fff7ed;
+            --accent-primary: #dc2626;
+            --accent-secondary: #16a34a;
+            --accent-gold: #f59e0b;
+            --text-primary: #7f1d1d;
+            --text-secondary: #991b1b;
+        }
+        body {
+            background: linear-gradient(135deg, #fef2f2 0%, #fff7ed 25%, #fef2f2 50%, #dcfce7 75%, #fef2f2 100%);
+        }
+        body::before {
+            background: 
+                radial-gradient(ellipse at 10% 20%, rgba(220, 38, 38, 0.1) 0%, transparent 50%),
+                radial-gradient(ellipse at 90% 80%, rgba(22, 163, 74, 0.1) 0%, transparent 50%),
+                radial-gradient(ellipse at 50% 50%, rgba(245, 158, 11, 0.08) 0%, transparent 50%);
+        }
+        {% elif current_theme == 'happy_new_year' %}
+        :root {
+            --bg-primary: #f0f9ff;
+            --bg-secondary: #eff6ff;
+            --accent-primary: #3b82f6;
+            --accent-secondary: #8b5cf6;
+            --accent-gold: #fbbf24;
+            --text-primary: #1e3a8a;
+            --text-secondary: #1e40af;
+        }
+        body {
+            background: linear-gradient(135deg, #f0f9ff 0%, #eff6ff 25%, #e0e7ff 50%, #ddd6fe 75%, #f0f9ff 100%);
+        }
+        body::before {
+            background: 
+                radial-gradient(ellipse at 10% 20%, rgba(59, 130, 246, 0.15) 0%, transparent 50%),
+                radial-gradient(ellipse at 90% 80%, rgba(139, 92, 246, 0.15) 0%, transparent 50%),
+                radial-gradient(ellipse at 50% 50%, rgba(251, 191, 36, 0.1) 0%, transparent 50%);
+        }
+        {% elif current_theme == 'chinese_new_year' %}
+        :root {
+            --bg-primary: #fef2f2;
+            --bg-secondary: #fff7ed;
+            --accent-primary: #dc2626;
+            --accent-secondary: #f59e0b;
+            --accent-gold: #fbbf24;
+            --text-primary: #991b1b;
+            --text-secondary: #b45309;
+        }
+        body {
+            background: linear-gradient(135deg, #fef2f2 0%, #fff7ed 25%, #fef2f2 50%, #fff7ed 75%, #fef2f2 100%);
+        }
+        body::before {
+            background: 
+                radial-gradient(ellipse at 10% 20%, rgba(220, 38, 38, 0.15) 0%, transparent 50%),
+                radial-gradient(ellipse at 90% 80%, rgba(245, 158, 11, 0.15) 0%, transparent 50%),
+                radial-gradient(ellipse at 50% 50%, rgba(251, 191, 36, 0.1) 0%, transparent 50%);
+        }
+        {% elif current_theme == 'summer' %}
+        :root {
+            --bg-primary: #f0fdf4;
+            --bg-secondary: #ecfdf5;
+            --accent-primary: #10b981;
+            --accent-secondary: #06b6d4;
+            --accent-gold: #f59e0b;
+            --text-primary: #065f46;
+            --text-secondary: #047857;
+        }
+        body {
+            background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 25%, #d1fae5 50%, #a7f3d0 75%, #f0fdf4 100%);
+        }
+        body::before {
+            background: 
+                radial-gradient(ellipse at 10% 20%, rgba(16, 185, 129, 0.15) 0%, transparent 50%),
+                radial-gradient(ellipse at 90% 80%, rgba(6, 182, 212, 0.15) 0%, transparent 50%),
+                radial-gradient(ellipse at 50% 50%, rgba(245, 158, 11, 0.1) 0%, transparent 50%);
+        }
+        {% elif current_theme == 'valentines' %}
+        :root {
+            --bg-primary: #fdf2f8;
+            --bg-secondary: #fce7f3;
+            --accent-primary: #ec4899;
+            --accent-secondary: #f472b6;
+            --accent-gold: #f9a8d4;
+            --text-primary: #831843;
+            --text-secondary: #9f1239;
+        }
+        body {
+            background: linear-gradient(135deg, #fdf2f8 0%, #fce7f3 25%, #fbcfe8 50%, #f9a8d4 75%, #fdf2f8 100%);
+        }
+        body::before {
+            background: 
+                radial-gradient(ellipse at 10% 20%, rgba(236, 72, 153, 0.2) 0%, transparent 50%),
+                radial-gradient(ellipse at 90% 80%, rgba(244, 114, 182, 0.2) 0%, transparent 50%),
+                radial-gradient(ellipse at 50% 50%, rgba(249, 168, 212, 0.15) 0%, transparent 50%);
+        }
+        {% elif current_theme == 'halloween' %}
+        :root {
+            --bg-primary: #1c1917;
+            --bg-secondary: #292524;
+            --accent-primary: #f59e0b;
+            --accent-secondary: #dc2626;
+            --accent-gold: #fbbf24;
+            --text-primary: #fbbf24;
+            --text-secondary: #f59e0b;
+        }
+        body {
+            background: linear-gradient(135deg, #1c1917 0%, #292524 25%, #3f3f46 50%, #292524 75%, #1c1917 100%);
+        }
+        body::before {
+            background: 
+                radial-gradient(ellipse at 10% 20%, rgba(245, 158, 11, 0.2) 0%, transparent 50%),
+                radial-gradient(ellipse at 90% 80%, rgba(220, 38, 38, 0.2) 0%, transparent 50%),
+                radial-gradient(ellipse at 50% 50%, rgba(251, 191, 36, 0.15) 0%, transparent 50%);
+        }
+        .card, .btn, .form-input {
+            background: rgba(41, 37, 36, 0.9) !important;
+            border-color: rgba(245, 158, 11, 0.3) !important;
+            color: #fbbf24 !important;
+        }
+        {% elif current_theme == 'holy_week' %}
+        :root {
+            --bg-primary: #fef3c7;
+            --bg-secondary: #fde68a;
+            --accent-primary: #92400e;
+            --accent-secondary: #78350f;
+            --accent-gold: #d97706;
+            --text-primary: #78350f;
+            --text-secondary: #92400e;
+        }
+        body {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 25%, #fcd34d 50%, #fde68a 75%, #fef3c7 100%);
+        }
+        body::before {
+            background: 
+                radial-gradient(ellipse at 10% 20%, rgba(146, 64, 14, 0.1) 0%, transparent 50%),
+                radial-gradient(ellipse at 90% 80%, rgba(120, 53, 15, 0.1) 0%, transparent 50%),
+                radial-gradient(ellipse at 50% 50%, rgba(217, 119, 6, 0.08) 0%, transparent 50%);
+        }
+        {% endif %}
     </style>
 </head>
 <body>
@@ -1584,6 +1724,7 @@
         </header>
 
         <!-- Consolidated Order Stats Banner -->
+        {% if not order_form_locked %}
         <div class="stats-banner">
             <div class="stats-grid">
                 <div class="stat-item">
@@ -1651,6 +1792,7 @@
                 </div>
             </div>
         </div>
+        {% endif %}
 
         {% if order_form_locked %}
         <!-- Order Form Locked Banner -->
@@ -1895,6 +2037,7 @@
         </div>
 
         <!-- Incomplete Kits Section -->
+        {% if not order_form_locked %}
         <div class="orders-summary-section" style="border: 2px solid #f472b6;">
             <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
                 <div style="background: linear-gradient(135deg, #f472b6, #c084fc); padding: 0.75rem; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
@@ -2025,8 +2168,10 @@
             </div>
             {% endif %}
         </div>
+        {% endif %}
 
         <!-- Products with Active Orders Summary -->
+        {% if not order_form_locked %}
         <div class="orders-summary-section">
             <h3 class="orders-summary-title">🛒 Products with Active Orders</h3>
             {% if products_with_orders and products_with_orders|length > 0 %}
@@ -2073,6 +2218,7 @@
             </div>
             {% endif %}
         </div>
+        {% endif %}
 
         <!-- Live Product Inventory Section -->
         <div class="orders-summary-section">
@@ -2398,6 +2544,26 @@
     </div>
 
     <script>
+        // Helper function to escape JavaScript strings (handles quotes, braces, brackets, parentheses)
+        function escapeJS(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/\\/g, '\\\\')  // Escape backslashes first
+                .replace(/'/g, "\\'")    // Escape single quotes
+                .replace(/"/g, '\\"')    // Escape double quotes
+                .replace(/\n/g, '\\n')   // Escape newlines
+                .replace(/\r/g, '\\r')   // Escape carriage returns
+                .replace(/\t/g, '\\t');  // Escape tabs
+        }
+        
+        // Helper function to escape HTML content
+        function escapeHTML(str) {
+            if (!str) return '';
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+        
         // Config
         const EXCHANGE_RATE = {{ exchange_rate|default(59.0)|tojson }};
         const ADMIN_FEE = {{ admin_fee|default(300.0)|tojson }};
@@ -3418,8 +3584,16 @@
                 // Show Submit Order button
                 submitBtn.style.display = 'block';
                 submitBtn.textContent = 'Submit Order';
-                submitBtn.disabled = cartItems.length === 0;
-                submitBtn.title = cartItems.length === 0 ? 'Add items to cart first' : 'Submit your new order';
+                // Disable if cart is empty OR if order form is locked
+                const shouldDisableSubmit = cartItems.length === 0 || orderFormLocked;
+                submitBtn.disabled = shouldDisableSubmit;
+                if (orderFormLocked) {
+                    submitBtn.title = 'Order form is locked - cannot submit new orders. You can still add items to your cart.';
+                } else if (cartItems.length === 0) {
+                    submitBtn.title = 'Add items to cart first';
+                } else {
+                    submitBtn.title = 'Submit your new order';
+                }
                 
                 // Hide Update Order button (no existing order to update)
                 updateOrderBtn.style.display = 'none';
@@ -3731,11 +3905,20 @@
                 const statusColor = isPaid ? '#10b981' : '#f59e0b';
                 const statusBg = isPaid ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)';
                 
+                // Check if shipping details are missing (mailing_address is empty or null)
+                const hasShippingDetails = order.mailing_address && order.mailing_address.trim() !== '';
+                
                 tableHtml += '<tr style="border-bottom: 1px solid var(--border);">';
                 tableHtml += `<td style="padding: 0.75rem; font-family: "JetBrains Mono", monospace; color: var(--accent-primary); font-weight: 600;">${order.order_id || 'N/A'}</td>`;
                 tableHtml += `<td style="padding: 0.75rem;"><span style="display: inline-block; padding: 0.35rem 0.85rem; border-radius: 20px; font-size: 0.75rem; font-weight: 700; background: ${statusBg}; color: ${statusColor};">${isPaid ? '✅ PAID' : '⏳ UNPAID'}</span></td>`;
                 if (!isPaid) {
-                    tableHtml += `<td style="padding: 0.75rem;"><button type="button" class="btn btn-emerald" onclick="payOrderById('${order.order_id}')" style="padding: 0.5rem 1rem; font-size: 0.85rem;">💳 Pay Order</button></td>`;
+                    const escapedOrderId = escapeJS(order.order_id);
+                    tableHtml += `<td style="padding: 0.75rem;"><button type="button" class="btn btn-emerald" onclick="payOrderById('${escapedOrderId}')" style="padding: 0.5rem 1rem; font-size: 0.85rem;">💳 Pay Order</button></td>`;
+                } else if (isPaid && !hasShippingDetails) {
+                    // Show "Add Shipping Details" button for paid orders without shipping details
+                    const escapedOrderId = escapeJS(order.order_id);
+                    const escapedFullName = escapeJS(order.full_name || '');
+                    tableHtml += `<td style="padding: 0.75rem;"><button type="button" class="btn btn-violet" onclick="openMailingAddressModal('${escapedOrderId}', '${escapedFullName}')" style="padding: 0.5rem 1rem; font-size: 0.85rem;">📬 Add Shipping Details</button></td>`;
                 } else {
                     tableHtml += '<td style="padding: 0.75rem;"></td>';
                 }
@@ -3803,7 +3986,7 @@
                     const adminFee = (order.grand_total_php || 0) - itemsTotal;
                     
                     html += `
-                        <div class="card" style="cursor: pointer; padding: 1.5rem; border: 2px solid var(--accent-emerald); background: rgba(16, 185, 129, 0.05); margin-bottom: 1rem;" onclick="viewOrder('${order.order_id}')">
+                        <div class="card" style="cursor: pointer; padding: 1.5rem; border: 2px solid var(--accent-emerald); background: rgba(16, 185, 129, 0.05); margin-bottom: 1rem;" onclick="viewOrder('${escapeJS(order.order_id)}')">
                             <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;">
                                 <div>
                                     <div style="font-family: 'JetBrains Mono', monospace; color: var(--accent-primary); font-weight: 700; font-size: 1.1rem; margin-bottom: 0.35rem;">${order.order_id}</div>
@@ -3857,7 +4040,7 @@
                     html += `
                         <div class="card" style="padding: 1.5rem; border: 2px solid var(--accent-amber); background: rgba(245, 158, 11, 0.05); margin-bottom: 1rem;">
                             <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;">
-                                <div style="cursor: pointer; flex: 1;" onclick="viewOrder('${order.order_id}')">
+                                <div style="cursor: pointer; flex: 1;" onclick="viewOrder('${escapeJS(order.order_id)}')">
                                     <div style="font-family: 'JetBrains Mono', monospace; color: var(--accent-primary); font-weight: 700; font-size: 1.1rem; margin-bottom: 0.35rem;">${order.order_id}</div>
                                     <div style="font-size: 0.85rem; color: var(--text-muted);">${order.order_date}</div>
                                 </div>
@@ -3866,7 +4049,7 @@
                                     <div style="display: inline-block; padding: 0.35rem 0.85rem; border-radius: 20px; font-size: 0.75rem; font-weight: 700; background: rgba(245, 158, 11, 0.2); color: #92400e;">⏳ UNPAID</div>
                                 </div>
                             </div>
-                            <div style="cursor: pointer;" onclick="viewOrder('${order.order_id}')">
+                            <div style="cursor: pointer;" onclick="viewOrder('${escapeJS(order.order_id)}')">
                                 <div style="font-size: 0.9rem; color: var(--text-primary); margin-bottom: 0.5rem; font-weight: 500;">📦 Items:</div>
                                 <div style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.4; margin-bottom: 0.75rem;">${itemsPreview}</div>
                                 <div style="border-top: 1px solid rgba(245, 158, 11, 0.2); padding-top: 0.75rem; font-size: 0.85rem;">
@@ -3886,7 +4069,7 @@
                             </div>
                             ${order.payment_screenshot ? '<div style="margin-top: 0.75rem; margin-bottom: 0.75rem; font-size: 0.8rem; color: var(--accent-teal);">📷 Payment screenshot uploaded - pending confirmation</div>' : ''}
                             <div style="margin-top: 1rem; display: flex; gap: 0.5rem;">
-                                <button type="button" class="btn btn-emerald btn-full" onclick="event.stopPropagation(); payOrderById('${order.order_id}')" style="flex: 1;">💳 Pay Order</button>
+                                <button type="button" class="btn btn-emerald btn-full" onclick="event.stopPropagation(); payOrderById('${escapeJS(order.order_id)}')" style="flex: 1;">💳 Pay Order</button>
                             </div>
                         </div>
                     `;
@@ -4622,7 +4805,7 @@
                 list.innerHTML = orders.length === 0 
                     ? '<div class="cart-empty">No matching orders</div>'
                     : orders.map(order => `
-                        <div class="order-card" onclick="viewOrder('${order.order_id}')">
+                        <div class="order-card" onclick="viewOrder('${escapeJS(order.order_id)}')">
                             <div class="order-card-header">
                                 <span class="order-card-id">${order.order_id}</span>
                             </div>
@@ -4710,7 +4893,7 @@
                             </div>
                             <div style="display: flex; align-items: center; gap: 0.5rem;">
                                 ${canEdit ? `
-                                <button class="edit-qty-btn" onclick="editItemQty('${order.order_id}', '${item.product_code}', '${item.order_type}', ${item.qty})" title="Edit quantity">✏️</button>
+                                <button class="edit-qty-btn" onclick="editItemQty('${escapeJS(order.order_id)}', '${escapeJS(item.product_code)}', '${escapeJS(item.order_type)}', ${item.qty})" title="Edit quantity">✏️</button>
                                 ` : ''}
                                 <span>₱${item.line_total_php.toFixed(2)}</span>
                             </div>
@@ -4764,7 +4947,7 @@
                         <div style="text-align: center;">
                             <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 1rem;">After payment, let PepHaul Admin know:</p>
 
-                            <button class="btn btn-primary" onclick="markPaymentSent('${order.order_id}')" style="width: 100%; font-size: 1rem; padding: 1rem; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;">
+                            <button class="btn btn-primary" onclick="markPaymentSent('${escapeJS(order.order_id)}')" style="width: 100%; font-size: 1rem; padding: 1rem; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;">
                                 <span style="font-size: 1.5rem;">💸</span>
                                 <span>Payment Sent to PepHaul Admin</span>
                             </button>
@@ -4789,12 +4972,12 @@
                 } else {
                     // Show "Add Mailing Address" button for paid orders without mailing address
                     if (orderIsPaid && !hasMailing) {
-                        footerHtml += `<button class="btn btn-violet" onclick="openMailingAddressModal('${order.order_id}', '${order.full_name}')">📬 Add Mailing Address</button>`;
+                        footerHtml += `<button class="btn btn-violet" onclick="openMailingAddressModal('${escapeJS(order.order_id)}', '${escapeJS(order.full_name)}')">📬 Add Mailing Address</button>`;
                     }
                     
                     // Show edit/cancel buttons only if order can be edited
                     if (canEdit) {
-                        footerHtml += `<button class="btn btn-rose" onclick="cancelOrder('${order.order_id}', '${(order.telegram || '').replace(/'/g, "\\'")}')" style="font-weight: 600;" title="⚠️ Warning: This action cannot be undone. You will need to create a new order to reserve products.">🗑️ Cancel Order</button>`;
+                        footerHtml += `<button class="btn btn-rose" onclick="cancelOrder('${escapeJS(order.order_id)}', '${escapeJS(order.telegram || '')}')" style="font-weight: 600;" title="⚠️ Warning: This action cannot be undone. You will need to create a new order to reserve products.">🗑️ Cancel Order</button>`;
                     }
                     
                     footerHtml += `<button class="btn btn-secondary" onclick="closeModal('order-details-modal')">Close</button>`;

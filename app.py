@@ -404,6 +404,9 @@ def set_product_lock(product_code, is_locked, max_kits=None, admin_name='Admin')
 _order_form_locked = False
 _order_form_lock_message = ""
 
+# In-memory theme (persists while server runs, or use Google Sheets for persistence)
+_current_theme = "default"
+
 def _fetch_order_form_lock():
     """Internal function to fetch lock status from sheets"""
     global _order_form_locked, _order_form_lock_message
@@ -516,6 +519,85 @@ def _fetch_order_goal():
             print(f"Error getting order goal: {e}")
     
     return _order_goal
+
+# Theme Management
+def _fetch_theme():
+    """Internal function to fetch theme from sheets"""
+    global _current_theme
+    
+    if sheets_client:
+        try:
+            spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
+            
+            try:
+                worksheet = spreadsheet.worksheet('Settings')
+            except:
+                worksheet = spreadsheet.add_worksheet(title='Settings', rows=10, cols=5)
+                worksheet.update('A1:C1', [['Setting', 'Value', 'Updated']])
+                worksheet.update('A4:C4', [['Theme', 'default', '']])
+                return 'default'
+            
+            records = worksheet.get_all_records()
+            for record in records:
+                if record.get('Setting') == 'Theme':
+                    theme_value = str(record.get('Value', 'default')).strip()
+                    if theme_value:
+                        _current_theme = theme_value
+                    break
+        except Exception as e:
+            print(f"Error getting theme: {e}")
+    
+    return _current_theme
+
+def get_theme():
+    """Get current theme (cached)"""
+    return get_cached('theme', _fetch_theme, cache_duration=600)
+
+def set_theme(theme_name):
+    """Set theme"""
+    global _current_theme
+    
+    valid_themes = ['default', 'merry_christmas', 'happy_new_year', 'chinese_new_year', 
+                    'summer', 'valentines', 'halloween', 'holy_week']
+    
+    if theme_name not in valid_themes:
+        return False
+    
+    _current_theme = theme_name
+    
+    if sheets_client:
+        try:
+            spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
+            
+            try:
+                worksheet = spreadsheet.worksheet('Settings')
+            except:
+                worksheet = spreadsheet.add_worksheet(title='Settings', rows=10, cols=5)
+                worksheet.update('A1:C1', [['Setting', 'Value', 'Updated']])
+            
+            # Find or create Theme row
+            records = worksheet.get_all_records()
+            theme_row = None
+            for idx, record in enumerate(records, start=2):
+                if record.get('Setting') == 'Theme':
+                    theme_row = idx
+                    break
+            
+            if not theme_row:
+                # Add new row
+                all_values = worksheet.get_all_values()
+                theme_row = len(all_values) + 1
+                worksheet.update_cell(theme_row, 1, 'Theme')
+            
+            worksheet.update_cell(theme_row, 2, theme_name)
+            worksheet.update_cell(theme_row, 3, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+            
+            return True
+        except Exception as e:
+            print(f"Error setting theme: {e}")
+            return False
+    
+    return True
 
 def get_order_goal():
     """Get order goal from Settings sheet (cached)"""
@@ -2072,7 +2154,8 @@ def index():
                              order_form_lock_message=order_form_lock['message'],
                              telegram_bot_username=TELEGRAM_BOT_USERNAME,
                              order_stats=order_stats,
-                             order_goal=order_goal)
+                             order_goal=order_goal,
+                             current_theme=current_theme)
     except Exception as e:
         app.logger.error(f"Error loading index page: {str(e)}")
         import traceback
@@ -2418,6 +2501,29 @@ def api_set_order_goal():
         return jsonify({'success': True, 'goal': goal})
     
     return jsonify({'error': 'Failed to update goal'}), 500
+
+@app.route('/api/admin/theme')
+def api_get_theme():
+    """Get current theme"""
+    theme = get_theme()
+    return jsonify({'theme': theme})
+
+@app.route('/api/admin/theme', methods=['POST'])
+def api_set_theme():
+    """Set theme"""
+    if not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    data = request.json
+    theme_name = data.get('theme')
+    
+    if not theme_name:
+        return jsonify({'error': 'Theme name is required'}), 400
+    
+    if set_theme(theme_name):
+        return jsonify({'success': True, 'theme': theme_name})
+    else:
+        return jsonify({'error': 'Failed to update theme'}), 500
 
 @app.route('/api/exchange-rate')
 def api_exchange_rate():
@@ -2795,6 +2901,19 @@ def api_submit_order():
                     'success': False,
                     'error': f'Item {idx + 1}: Quantity must be a positive number'
                 }), 400
+        
+        # Check if order form is locked
+        try:
+            order_form_lock = get_order_form_lock()
+            if order_form_lock.get('is_locked', False):
+                lock_message = order_form_lock.get('message', 'Orders are currently closed. New orders cannot be submitted at this time.')
+                return jsonify({
+                    'success': False,
+                    'error': lock_message
+                }), 403
+        except Exception as e:
+            print(f"⚠️ Error checking order form lock status: {e}")
+            # Continue if lock check fails (fail open for availability)
         
         # Get exchange rate with error handling
         try:

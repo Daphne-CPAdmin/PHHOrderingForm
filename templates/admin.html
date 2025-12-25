@@ -531,6 +531,39 @@
                 </div>
             </div>
 
+            <!-- Theme Selection -->
+            <div class="card" style="margin-bottom: 2rem; border: 2px solid #c084fc;">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                    <div>
+                        <h2 style="font-size: 1.25rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                            🎨 Theme Selection
+                        </h2>
+                        <p style="color: var(--text-muted); font-size: 0.9rem;">
+                            Choose a holiday or seasonal theme for the order form.
+                        </p>
+                    </div>
+                </div>
+                <div style="margin-top: 1rem;">
+                    <label style="display: block; font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem;">Select Theme</label>
+                    <select id="theme-selector" class="form-input" style="width: 100%; max-width: 400px;">
+                        <option value="default">Default Theme</option>
+                        <option value="merry_christmas">🎄 Merry Christmas</option>
+                        <option value="happy_new_year">🎆 Happy New Year</option>
+                        <option value="chinese_new_year">🧧 Happy Chinese New Year</option>
+                        <option value="summer">☀️ Summer Theme</option>
+                        <option value="valentines">💝 Happy Valentines / Hearts Day</option>
+                        <option value="halloween">🎃 Halloween Theme</option>
+                        <option value="holy_week">✝️ Holy Week Theme</option>
+                    </select>
+                    <button id="save-theme-btn" class="btn" style="padding: 0.75rem 1.5rem; background: #c084fc; margin-top: 1rem;">
+                        💾 Save Theme
+                    </button>
+                    <div id="theme-save-status" style="margin-top: 0.75rem; font-size: 0.85rem; color: #7c3aed; display: none;">
+                        ✓ Theme saved successfully!
+                    </div>
+                </div>
+            </div>
+
             <!-- Order Goal Settings -->
             <div class="card" style="margin-bottom: 2rem; border: 2px solid #f9a8d4;">
                 <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
@@ -789,6 +822,7 @@
                     loadCustomerSummary();
                     loadOrderFormStatus();
                     loadOrderGoal();
+                    loadTheme();
                 } else {
                     document.getElementById('login-error').textContent = 'Invalid password';
                     document.getElementById('login-error').style.display = 'block';
@@ -813,6 +847,7 @@
                     loadCustomerSummary();
                     loadOrderFormStatus();
                     loadOrderGoal();
+                    loadTheme();
                 }
             } catch (e) {
                 // If this fails, user can still log in manually.
@@ -848,6 +883,72 @@
                 console.error('Error loading order goal:', error);
             }
         }
+
+        // Theme Functions
+        async function loadTheme() {
+            try {
+                const response = await fetch('/api/admin/theme', { credentials: 'same-origin' });
+                const data = await response.json();
+                const themeSelector = document.getElementById('theme-selector');
+                if (themeSelector && data.theme) {
+                    themeSelector.value = data.theme;
+                }
+            } catch (error) {
+                console.error('Error loading theme:', error);
+            }
+        }
+
+        document.getElementById('save-theme-btn').addEventListener('click', async () => {
+            const themeSelector = document.getElementById('theme-selector');
+            const selectedTheme = themeSelector.value;
+            
+            if (!selectedTheme) {
+                alert('Please select a theme');
+                return;
+            }
+            
+            const btn = document.getElementById('save-theme-btn');
+            btn.disabled = true;
+            btn.textContent = 'Saving...';
+            
+            try {
+                const response = await fetch('/api/admin/theme', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ theme: selectedTheme })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    const statusEl = document.getElementById('theme-save-status');
+                    statusEl.style.display = 'block';
+                    const themeNames = {
+                        'default': 'Default Theme',
+                        'merry_christmas': 'Merry Christmas',
+                        'happy_new_year': 'Happy New Year',
+                        'chinese_new_year': 'Chinese New Year',
+                        'summer': 'Summer Theme',
+                        'valentines': 'Valentines Theme',
+                        'halloween': 'Halloween Theme',
+                        'holy_week': 'Holy Week Theme'
+                    };
+                    statusEl.textContent = `✓ Theme saved successfully! (${themeNames[selectedTheme] || selectedTheme})`;
+                    setTimeout(() => {
+                        statusEl.style.display = 'none';
+                    }, 3000);
+                } else {
+                    alert('Failed to save theme: ' + (data.error || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error saving theme:', error);
+                alert('Error saving theme');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '💾 Save Theme';
+            }
+        });
 
         document.getElementById('save-goal-btn').addEventListener('click', async () => {
             const goalAmount = parseFloat(document.getElementById('order-goal-amount').value);
