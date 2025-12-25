@@ -292,17 +292,27 @@ def ensure_worksheets_exist():
         spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
         existing_sheets = [ws.title for ws in spreadsheet.worksheets()]
         
-        # PepHaul Entry tab
-        if 'PepHaul Entry' not in existing_sheets:
-            worksheet = spreadsheet.add_worksheet(title='PepHaul Entry', rows=1000, cols=25)
+        # PepHaul Entry tab - check for old name and rename, or create new
+        if 'PepHaul Entry' in existing_sheets and 'PepHaul Entry-01' not in existing_sheets:
+            # Rename existing "PepHaul Entry" to "PepHaul Entry-01"
+            try:
+                old_worksheet = spreadsheet.worksheet('PepHaul Entry')
+                old_worksheet.update_title('PepHaul Entry-01')
+                print("✅ Renamed 'PepHaul Entry' to 'PepHaul Entry-01'")
+            except Exception as e:
+                print(f"⚠️ Could not rename tab: {e}")
+        
+        # Create PepHaul Entry-01 if it doesn't exist
+        if 'PepHaul Entry-01' not in existing_sheets:
+            worksheet = spreadsheet.add_worksheet(title='PepHaul Entry-01', rows=1000, cols=25)
             headers = [
                 'Order ID', 'Order Date', 'Name', 'Telegram Username',
                 'Product Code', 'Product Name', 'Order Type', 'QTY', 'Unit Price USD',
                 'Line Total USD', 'Exchange Rate', 'Line Total PHP', 'Admin Fee PHP',
                 'Grand Total PHP', 'Order Status', 'Locked', 'Payment Status', 
-                'Remarks', 'Link to Payment', 'Payment Date', 'Full Name', 'Contact Number', 'Mailing Address'
+                'Remarks', 'Link to Payment', 'Payment Date', 'Full Name', 'Contact Number', 'Mailing Address', 'Tracking Number'
             ]
-            worksheet.update('A1:W1', [headers])
+            worksheet.update('A1:X1', [headers])
         
         # Product Locks tab (for admin)
         if 'Product Locks' not in existing_sheets:
@@ -667,16 +677,30 @@ def _fetch_orders_from_sheets():
         all_worksheets = [ws.title for ws in spreadsheet.worksheets()]
         print(f"📋 Available worksheets in sheet: {all_worksheets}")
         
-        # Check if 'PepHaul Entry' exists
-        if 'PepHaul Entry' not in all_worksheets:
-            print(f"⚠️ WARNING: 'PepHaul Entry' worksheet not found!")
-            print(f"📋 Available worksheets: {', '.join(all_worksheets)}")
-            if all_worksheets:
-                print(f"⚠️ Trying first available worksheet: {all_worksheets[0]}")
-                worksheet = spreadsheet.worksheet(all_worksheets[0])
+        # Get current tab name dynamically
+        current_tab = get_current_pephaul_tab()
+        
+        # Check if current tab exists, with fallback logic
+        if current_tab not in all_worksheets:
+            # Try fallback to PepHaul Entry-01
+            if 'PepHaul Entry-01' in all_worksheets:
+                current_tab = 'PepHaul Entry-01'
+                set_current_pephaul_tab(current_tab)
+            elif 'PepHaul Entry' in all_worksheets:
+                # Old name exists, will be renamed on next ensure_worksheets_exist call
+                current_tab = 'PepHaul Entry'
             else:
-                print(f"❌ ERROR: No worksheets found in spreadsheet!")
-                return []
+                print(f"⚠️ WARNING: '{current_tab}' worksheet not found!")
+                print(f"📋 Available worksheets: {', '.join(all_worksheets)}")
+                if all_worksheets:
+                    print(f"⚠️ Trying first available worksheet: {all_worksheets[0]}")
+                    worksheet = spreadsheet.worksheet(all_worksheets[0])
+                else:
+                    print(f"❌ ERROR: No worksheets found in spreadsheet!")
+                    return []
+                # Continue with fallback worksheet
+            if 'worksheet' not in locals():
+                worksheet = spreadsheet.worksheet(current_tab)
         else:
             worksheet = get_pephaul_worksheet(spreadsheet)
             if not worksheet:
@@ -5142,7 +5166,7 @@ Thank you! 💜"""
 
 
 # PepHaul Entry Tab Management
-CURRENT_PEPHAUL_TAB = 'PepHaul Entry'  # Default tab name
+CURRENT_PEPHAUL_TAB = 'PepHaul Entry-01'  # Default tab name
 
 def get_current_pephaul_tab():
     """Get the current active PepHaul Entry tab name"""
@@ -5173,9 +5197,13 @@ def get_pephaul_worksheet(spreadsheet=None):
     except:
         # Fallback to default if tab doesn't exist
         try:
-            return spreadsheet.worksheet('PepHaul Entry')
+            return spreadsheet.worksheet('PepHaul Entry-01')
         except:
-            return None
+            # Last resort: try old name
+            try:
+                return spreadsheet.worksheet('PepHaul Entry')
+            except:
+                return None
 
 @app.route('/api/admin/pephaul-tabs', methods=['GET'])
 def api_admin_list_pephaul_tabs():
@@ -5193,15 +5221,17 @@ def api_admin_list_pephaul_tabs():
         # Filter tabs that start with "PepHaul Entry"
         pephaul_tabs = [ws.title for ws in all_sheets if ws.title.startswith('PepHaul Entry')]
         
-        # Sort tabs: "PepHaul Entry" first, then numbered ones
+        # Sort tabs: "PepHaul Entry-01" first, then other numbered ones, then old "PepHaul Entry"
         def sort_key(name):
+            if name == 'PepHaul Entry-01':
+                return (0, 1)  # Highest priority
             if name == 'PepHaul Entry':
-                return (0, '')
-            # Extract number from "PepHaul Entry-01" format
+                return (1, 0)  # Second priority (old name)
+            # Extract number from "PepHaul Entry-02", "PepHaul Entry-03", etc.
             if '-' in name:
                 try:
                     num = int(name.split('-')[-1])
-                    return (1, num)
+                    return (1, num)  # After -01, sorted by number
                 except:
                     return (2, name)
             return (2, name)
@@ -5316,6 +5346,66 @@ def api_admin_switch_pephaul_tab():
         })
     except Exception as e:
         print(f"Error switching tab: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/admin/pephaul-tabs/rename', methods=['POST'])
+def api_admin_rename_pephaul_tab():
+    """Rename a PepHaul Entry tab (e.g., rename 'PepHaul Entry' to 'PepHaul Entry-01')"""
+    if not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    if not sheets_client:
+        return jsonify({'error': 'Sheets not configured'}), 500
+    
+    data = request.json or {}
+    old_name = data.get('old_name', '').strip()
+    new_name = data.get('new_name', '').strip()
+    
+    if not old_name or not new_name:
+        return jsonify({'error': 'Both old_name and new_name are required'}), 400
+    
+    if old_name == new_name:
+        return jsonify({'error': 'Old and new names are the same'}), 400
+    
+    try:
+        spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
+        
+        # Verify old tab exists
+        try:
+            worksheet = spreadsheet.worksheet(old_name)
+        except:
+            return jsonify({'error': f'Tab "{old_name}" not found'}), 404
+        
+        # Check if new name already exists
+        all_sheets = [ws.title for ws in spreadsheet.worksheets()]
+        if new_name in all_sheets:
+            return jsonify({'error': f'Tab "{new_name}" already exists'}), 400
+        
+        # Rename the tab
+        worksheet.update_title(new_name)
+        
+        # If this was the current tab, update session
+        current_tab = get_current_pephaul_tab()
+        if current_tab == old_name:
+            set_current_pephaul_tab(new_name)
+        
+        # Clear cache
+        clear_cache('orders')
+        clear_cache('inventory')
+        clear_cache('order_stats')
+        
+        print(f"✅ Renamed tab from '{old_name}' to '{new_name}'")
+        
+        return jsonify({
+            'success': True,
+            'old_name': old_name,
+            'new_name': new_name,
+            'message': f'Renamed tab from "{old_name}" to "{new_name}"'
+        })
+    except Exception as e:
+        print(f"Error renaming tab: {e}")
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
