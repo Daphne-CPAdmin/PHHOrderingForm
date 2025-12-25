@@ -3963,16 +3963,37 @@
             validOrders.forEach(order => {
                 const paymentStatus = order.payment_status || 'Unpaid';
                 const isPaid = paymentStatus.toLowerCase() === 'paid';
-                const statusColor = isPaid ? '#10b981' : '#f59e0b';
-                const statusBg = isPaid ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)';
+                const isWaitingForConfirmation = paymentStatus.toLowerCase() === 'waiting for confirmation';
+                
+                // Set status color and background based on payment status
+                let statusColor, statusBg, statusText;
+                if (isPaid) {
+                    statusColor = '#10b981';
+                    statusBg = 'rgba(16, 185, 129, 0.1)';
+                    statusText = '✅ PAID';
+                } else if (isWaitingForConfirmation) {
+                    statusColor = '#3b82f6';
+                    statusBg = 'rgba(59, 130, 246, 0.1)';
+                    statusText = '⏳ WAITING FOR CONFIRMATION';
+                } else {
+                    statusColor = '#f59e0b';
+                    statusBg = 'rgba(245, 158, 11, 0.1)';
+                    statusText = '⏳ UNPAID';
+                }
                 
                 // Check if shipping details exist (using stored flag from before removing mailing_address for privacy)
                 const hasShippingDetails = order._hasShippingDetails === true;
                 
                 tableHtml += '<tr style="border-bottom: 1px solid var(--border);">';
                 tableHtml += `<td style="padding: 0.75rem; font-family: "JetBrains Mono", monospace; color: var(--accent-primary); font-weight: 600;">${order.order_id || 'N/A'}</td>`;
-                tableHtml += `<td style="padding: 0.75rem;"><span style="display: inline-block; padding: 0.35rem 0.85rem; border-radius: 20px; font-size: 0.75rem; font-weight: 700; background: ${statusBg}; color: ${statusColor};">${isPaid ? '✅ PAID' : '⏳ UNPAID'}</span></td>`;
-                if (!isPaid) {
+                tableHtml += `<td style="padding: 0.75rem;"><span style="display: inline-block; padding: 0.35rem 0.85rem; border-radius: 20px; font-size: 0.75rem; font-weight: 700; background: ${statusBg}; color: ${statusColor};">${statusText}</span></td>`;
+                
+                // Action column logic
+                if (isWaitingForConfirmation) {
+                    // Show waiting message for orders waiting for confirmation
+                    tableHtml += '<td style="padding: 0.75rem; text-align: center;"><span style="color: #3b82f6; font-size: 0.85rem; font-weight: 600;">⏳ Pending payment confirmation by PepHaul Admin. Thank you for your patience.</span></td>';
+                } else if (!isPaid && !isWaitingForConfirmation) {
+                    // Show "Pay Order" button for unpaid orders
                     const escapedOrderId = escapeJS(order.order_id);
                     tableHtml += `<td style="padding: 0.75rem; text-align: center;"><button type="button" class="btn btn-emerald" onclick="payOrderByIdFromSummary('${escapedOrderId}')" style="padding: 0.5rem 1rem; font-size: 0.85rem;">💳 Pay Order</button></td>`;
                 } else if (isPaid && !hasShippingDetails) {
@@ -5074,8 +5095,8 @@
                         ${order.payment_screenshot ? `<a href="${order.payment_screenshot}" target="_blank" style="color: var(--accent-teal); font-size: 0.85rem;">View Receipt</a>` : ''}
                     </div>
                     
-                    ${order.payment_status === 'Unpaid' && order.status !== 'Cancelled' && !order.locked ? `
-                    <!-- Payment Section for Unpaid Orders -->
+                    ${(order.payment_status === 'Unpaid' || order.payment_status === 'Waiting for Confirmation') && order.status !== 'Cancelled' && !order.locked ? `
+                    <!-- Payment Section for Unpaid Orders or Waiting for Confirmation -->
                     <div class="payment-section" style="margin-top: 1.5rem; padding: 1.5rem; background: linear-gradient(135deg, #fdf4ff 0%, #fce7f3 100%); border-radius: 16px; border: 2px solid var(--accent-primary);">
                         <h4 style="margin-bottom: 1rem; color: var(--accent-primary); text-align: center;">💳 Make Payment</h4>
                         
@@ -5120,9 +5141,10 @@
                 `;
                 
                 const footer = document.getElementById('order-details-footer');
-                const hasMailing = order.mailing_address && order.mailing_address.trim() !== '';
-                const hasShippingDetails = order.contact_number && order.mailing_address && 
-                                         order.contact_number.trim() !== '' && order.mailing_address.trim() !== '';
+                const hasMailing = order.mailing_address && typeof order.mailing_address === 'string' && order.mailing_address.trim() !== '';
+                const contactNumber = order.contact_number || '';
+                const hasShippingDetails = order.mailing_address && typeof order.mailing_address === 'string' && 
+                                         typeof contactNumber === 'string' && contactNumber.trim() !== '' && order.mailing_address.trim() !== '';
                 
                 let footerHtml = '';
                 
@@ -5231,6 +5253,15 @@
                     showToast('✅ Payment marked as sent! PepHaul Admin will confirm soon.');
                     // Refresh the order view
                     viewOrder(orderId);
+                    // Reload orders for Customer Summary if form is locked
+                    const orderFormLocked = {{ order_form_locked|tojson }};
+                    if (orderFormLocked && typeof loadAllOrdersForSummary === 'function') {
+                        loadAllOrdersForSummary();
+                    }
+                    // Reload My Orders section
+                    if (typeof checkReturningCustomer === 'function') {
+                        checkReturningCustomer();
+                    }
                 } else {
                     showToast(result.error || 'Failed to update payment status');
                 }
