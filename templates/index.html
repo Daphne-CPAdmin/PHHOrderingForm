@@ -3896,11 +3896,13 @@
                     showMyOrdersSection(filteredOrders);
                 }
                 
-                // Store mailing_address status before removing for privacy
+                // Store mailing_address and tracking_number status before removing for privacy
                 filteredOrders.forEach(order => {
                     order._hasShippingDetails = !!(order.mailing_address && order.mailing_address.trim() !== '');
-                    // Remove mailing_address to protect privacy
+                    order._hasTrackingNumber = !!(order.tracking_number && typeof order.tracking_number === 'string' && order.tracking_number.trim() !== '');
+                    // Remove mailing_address and tracking_number to protect privacy
                     delete order.mailing_address;
+                    delete order.tracking_number;
                 });
                 
                 // Update customer summary with the orders table (grouped by Order ID, same as admin panel)
@@ -3981,15 +3983,19 @@
                     statusText = '⏳ UNPAID';
                 }
                 
-                // Check if shipping details exist (using stored flag from before removing mailing_address for privacy)
+                // Check if shipping details and tracking number exist (using stored flags from before removing for privacy)
                 const hasShippingDetails = order._hasShippingDetails === true;
+                const hasTrackingNumber = order._hasTrackingNumber === true;
                 
                 tableHtml += '<tr style="border-bottom: 1px solid var(--border);">';
                 tableHtml += `<td style="padding: 0.75rem; font-family: "JetBrains Mono", monospace; color: var(--accent-primary); font-weight: 600;">${order.order_id || 'N/A'}</td>`;
                 tableHtml += `<td style="padding: 0.75rem;"><span style="display: inline-block; padding: 0.35rem 0.85rem; border-radius: 20px; font-size: 0.75rem; font-weight: 700; background: ${statusBg}; color: ${statusColor};">${statusText}</span></td>`;
                 
-                // Action column logic
-                if (isWaitingForConfirmation) {
+                // Action column logic - check tracking number first (highest priority)
+                if (hasTrackingNumber && isPaid) {
+                    // Show fulfillment message when tracking number is added
+                    tableHtml += '<td style="padding: 0.75rem; text-align: center;"><span style="color: #10b981; font-size: 0.85rem; font-weight: 600;">🚚 Order is fulfilled. Soon to be at your doorstep.</span></td>';
+                } else if (isWaitingForConfirmation) {
                     // Show waiting message for orders waiting for confirmation
                     tableHtml += '<td style="padding: 0.75rem; text-align: center;"><span style="color: #3b82f6; font-size: 0.85rem; font-weight: 600;">⏳ Pending payment confirmation by PepHaul Admin. Thank you for your patience.</span></td>';
                 } else if (!isPaid && !isWaitingForConfirmation) {
@@ -4001,8 +4007,8 @@
                     const escapedOrderId = escapeJS(order.order_id);
                     const escapedFullName = escapeJS(order.full_name || '');
                     tableHtml += `<td style="padding: 0.75rem; text-align: center;"><button type="button" class="btn btn-violet" onclick="openMailingAddressModal('${escapedOrderId}', '${escapedFullName}')" style="padding: 0.5rem 1rem; font-size: 0.85rem;" title="Contact @deejay1992 for shipping details updates">📬 Add Shipping Details</button></td>`;
-                } else if (isPaid && hasShippingDetails) {
-                    // Show note when shipping details have been recorded
+                } else if (isPaid && hasShippingDetails && !hasTrackingNumber) {
+                    // Show note when shipping details have been recorded but no tracking yet
                     tableHtml += '<td style="padding: 0.75rem; text-align: center;"><span style="color: var(--accent-emerald); font-size: 0.85rem; font-weight: 600; cursor: help;" title="Shipping details recorded. No further action required. For updates, contact PepHaul Admin @deejay1992">✅ Shipping details recorded. No further action required.</span></td>';
                 } else {
                     tableHtml += '<td style="padding: 0.75rem; text-align: center;"></td>';
