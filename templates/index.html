@@ -3919,6 +3919,9 @@
                     const escapedOrderId = escapeJS(order.order_id);
                     const escapedFullName = escapeJS(order.full_name || '');
                     tableHtml += `<td style="padding: 0.75rem;"><button type="button" class="btn btn-violet" onclick="openMailingAddressModal('${escapedOrderId}', '${escapedFullName}')" style="padding: 0.5rem 1rem; font-size: 0.85rem;">📬 Add Shipping Details</button></td>`;
+                } else if (isPaid && hasShippingDetails) {
+                    // Show note when shipping details have been added
+                    tableHtml += '<td style="padding: 0.75rem;"><span style="color: var(--accent-emerald); font-size: 0.85rem; font-weight: 600;">✅ Shipping Details has been added</span></td>';
                 } else {
                     tableHtml += '<td style="padding: 0.75rem;"></td>';
                 }
@@ -5326,7 +5329,6 @@
                 if (result.success) {
                     showToast('Mailing address saved! 📬');
                     closeModal('mailing-address-modal');
-                    loadOrders();
                     // Refresh order summary to update button visibility
                     if (typeof checkReturningCustomer === 'function') {
                         checkReturningCustomer();
@@ -5334,9 +5336,11 @@
                     if (typeof updateSubmitButtonText === 'function') {
                         updateSubmitButtonText();
                     }
-                    // Reload all orders for Customer Summary if order form is locked
+                    // Reload all orders for Customer Summary
                     const orderFormLocked = {{ order_form_locked|tojson }};
                     if (orderFormLocked && typeof loadAllOrdersForSummary === 'function') {
+                        loadAllOrdersForSummary();
+                    } else if (typeof loadAllOrdersForSummary === 'function') {
                         loadAllOrdersForSummary();
                     }
                 } else {
