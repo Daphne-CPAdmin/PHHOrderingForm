@@ -3956,8 +3956,8 @@
                     const escapedFullName = escapeJS(order.full_name || '');
                     tableHtml += `<td style="padding: 0.75rem; text-align: center;"><button type="button" class="btn btn-violet" onclick="openMailingAddressModal('${escapedOrderId}', '${escapedFullName}')" style="padding: 0.5rem 1rem; font-size: 0.85rem;" title="Contact @deejay1992 for shipping details updates">📬 Add Shipping Details</button></td>`;
                 } else if (isPaid && hasShippingDetails) {
-                    // Show note when shipping details have been added with tooltip
-                    tableHtml += '<td style="padding: 0.75rem; text-align: center;"><span style="color: var(--accent-emerald); font-size: 0.85rem; font-weight: 600; cursor: help;" title="Shipping details added. No further action required. For updates, contact PepHaul Admin @deejay1992">✅ Shipping details added. No further action required.</span></td>';
+                    // Show note when shipping details have been recorded
+                    tableHtml += '<td style="padding: 0.75rem; text-align: center;"><span style="color: var(--accent-emerald); font-size: 0.85rem; font-weight: 600; cursor: help;" title="Shipping details recorded. No further action required. For updates, contact PepHaul Admin @deejay1992">✅ Shipping details recorded. No further action required.</span></td>';
                 } else {
                     tableHtml += '<td style="padding: 0.75rem; text-align: center;"></td>';
                 }
