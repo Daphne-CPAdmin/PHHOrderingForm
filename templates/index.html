@@ -3808,6 +3808,7 @@
                         
                         // Always show My Orders section with all orders (including unpaid with Pay Order buttons)
                         // This allows users to pay any unpaid order, not just the most recent one
+                        // showMyOrdersSection will filter by telegram username for privacy
                         showMyOrdersSection(orders);
                     } else {
                         console.log('No orders found for', telegram);
@@ -4012,12 +4013,32 @@
             const list = document.getElementById('my-orders-list');
             const empty = document.getElementById('my-orders-empty');
             
-            if (orders.length === 0) {
+            // CRITICAL: Filter orders by current telegram username for privacy/security
+            const telegramInput = document.getElementById('telegram');
+            const currentTelegram = telegramInput?.value.trim().toLowerCase().replace('@', '') || '';
+            
+            // Only show orders if telegram is provided and filter orders to match
+            if (!currentTelegram) {
+                // Hide section if no telegram entered
+                section.style.display = 'none';
+                return;
+            }
+            
+            // Filter orders to only show those matching current telegram username
+            const filteredOrders = orders.filter(order => {
+                const orderTelegram = (order.telegram || '').toLowerCase().replace('@', '');
+                return orderTelegram === currentTelegram;
+            });
+            
+            if (filteredOrders.length === 0) {
                 list.style.display = 'none';
                 empty.style.display = 'block';
                 section.style.display = 'block';
                 return;
             }
+            
+            // Use filtered orders instead of original orders
+            orders = filteredOrders;
             
             // Separate paid and unpaid orders
             const paidOrders = orders.filter(o => {
