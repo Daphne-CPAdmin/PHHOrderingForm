@@ -2637,6 +2637,15 @@
         }
         if (telegramInput) {
             telegramInput.addEventListener('input', () => {
+                // Reload orders for Customer Summary when telegram changes (if form is locked)
+                const orderFormLocked = {{ order_form_locked|tojson }};
+                if (orderFormLocked && typeof loadAllOrdersForSummary === 'function') {
+                    // Debounce: wait 500ms after user stops typing
+                    clearTimeout(window.telegramDebounceTimer);
+                    window.telegramDebounceTimer = setTimeout(() => {
+                        loadAllOrdersForSummary();
+                    }, 500);
+                }
                 checkRequiredFields();
                 checkReturningCustomer(); // Also check for existing orders
             });
@@ -3843,47 +3852,57 @@
             if (!summarySection || !summaryContent) return;
             
             try {
-                const telegram = document.getElementById('telegram')?.value.trim();
-                if (telegram) {
-                    // If telegram username is provided, use orders lookup to get user's orders
-                    const lookupResponse = await fetch(`/api/orders/lookup?telegram=${encodeURIComponent(telegram)}`);
-                    if (lookupResponse.ok) {
-                        const userOrders = await lookupResponse.json();
-                        if (userOrders && userOrders.length > 0) {
-                            // Store orders for payOrderById function
-                            existingCustomerOrders = userOrders;
-                            // Show orders with Pay Order buttons in My Orders section
-                            showMyOrdersSection(userOrders);
-                            // Store mailing_address status before removing for privacy
-                            userOrders.forEach(order => {
-                                order._hasShippingDetails = !!(order.mailing_address && order.mailing_address.trim() !== '');
-                                // Remove mailing_address to protect privacy
-                                delete order.mailing_address;
-                            });
-                            // Update customer summary with the orders table
-                            updateCustomerSummary(userOrders);
-                            return;
-                        }
-                    }
-                }
-                // Fallback: load all orders but filter by telegram for privacy
+                // Always load all orders (grouped by Order ID, same as admin panel)
                 const response = await fetch('/api/orders');
                 if (!response.ok) {
                     throw new Error(`Failed to load orders: ${response.status}`);
                 }
                 const allOrders = await response.json();
-                // Filter orders by telegram username to only show current user's orders
-                const currentTelegram = document.getElementById('telegram')?.value.trim().toLowerCase().replace('@', '') || '';
-                const filteredOrders = allOrders.filter(order => {
-                    const orderTelegram = (order.telegram || '').toLowerCase().replace('@', '');
-                    return currentTelegram && orderTelegram && orderTelegram === currentTelegram;
-                });
+                
+                // Get telegram from input field
+                const telegramInput = document.getElementById('telegram');
+                const currentTelegram = telegramInput?.value.trim().toLowerCase().replace('@', '') || '';
+                
+                // Filter orders by telegram username to only show current user's orders (for privacy)
+                let filteredOrders = allOrders;
+                if (currentTelegram) {
+                    filteredOrders = allOrders.filter(order => {
+                        const orderTelegram = (order.telegram || '').toLowerCase().replace('@', '');
+                        return orderTelegram === currentTelegram;
+                    });
+                }
+                
+                // If telegram is provided and we have orders, also try lookup endpoint for additional orders
+                if (currentTelegram && filteredOrders.length === 0) {
+                    try {
+                        const lookupResponse = await fetch(`/api/orders/lookup?telegram=${encodeURIComponent(currentTelegram)}`);
+                        if (lookupResponse.ok) {
+                            const lookupOrders = await lookupResponse.json();
+                            if (lookupOrders && lookupOrders.length > 0) {
+                                filteredOrders = lookupOrders;
+                            }
+                        }
+                    } catch (lookupError) {
+                        console.warn('Lookup endpoint failed, using main orders:', lookupError);
+                    }
+                }
+                
+                // Store orders for payOrderById function
+                existingCustomerOrders = filteredOrders;
+                
+                // Show orders with Pay Order buttons in My Orders section
+                if (filteredOrders.length > 0) {
+                    showMyOrdersSection(filteredOrders);
+                }
+                
                 // Store mailing_address status before removing for privacy
                 filteredOrders.forEach(order => {
                     order._hasShippingDetails = !!(order.mailing_address && order.mailing_address.trim() !== '');
                     // Remove mailing_address to protect privacy
                     delete order.mailing_address;
                 });
+                
+                // Update customer summary with the orders table (grouped by Order ID, same as admin panel)
                 updateCustomerSummary(filteredOrders);
             } catch (error) {
                 console.error('Error loading all orders for summary:', error);

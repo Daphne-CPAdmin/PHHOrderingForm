@@ -678,7 +678,9 @@ def _fetch_orders_from_sheets():
                 print(f"❌ ERROR: No worksheets found in spreadsheet!")
                 return []
         else:
-            worksheet = spreadsheet.worksheet('PepHaul Entry')
+            worksheet = get_pephaul_worksheet(spreadsheet)
+            if not worksheet:
+                return []
         
         # Check if worksheet has data before trying to get records
         all_values = worksheet.get_all_values()
@@ -919,7 +921,9 @@ def save_order_to_sheets(order_data, order_id=None):
     
     try:
         spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
-        worksheet = spreadsheet.worksheet('PepHaul Entry')
+        worksheet = get_pephaul_worksheet(spreadsheet)
+        if not worksheet:
+            return None
         
         # Generate or use existing order ID
         if not order_id:
@@ -983,7 +987,9 @@ def update_order_status(order_id, status=None, locked=None, payment_status=None,
     
     try:
         spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
-        worksheet = spreadsheet.worksheet('PepHaul Entry')
+        worksheet = get_pephaul_worksheet(spreadsheet)
+        if not worksheet:
+            return None
         
         # Get headers to find column indices dynamically
         all_values = worksheet.get_all_values()
@@ -1059,7 +1065,9 @@ def add_items_to_order(order_id, new_items, exchange_rate, telegram_username=Non
     
     try:
         spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
-        worksheet = spreadsheet.worksheet('PepHaul Entry')
+        worksheet = get_pephaul_worksheet(spreadsheet)
+        if not worksheet:
+            return None
         
         # Get all existing data
         all_values = worksheet.get_all_values()
@@ -1389,7 +1397,9 @@ def recalculate_order_total(order_id, is_post_payment_addition=False):
     if sheets_client:
         try:
             spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
-            worksheet = spreadsheet.worksheet('PepHaul Entry')
+            worksheet = get_pephaul_worksheet(spreadsheet)
+            if not worksheet:
+                return False
             all_values = worksheet.get_all_values()
             headers = all_values[0] if all_values else []
             
@@ -3600,7 +3610,9 @@ def cleanup_zero_quantity_rows(order_id=None):
     
     try:
         spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
-        worksheet = spreadsheet.worksheet('PepHaul Entry')
+        worksheet = get_pephaul_worksheet(spreadsheet)
+        if not worksheet:
+            return None
         
         all_values = worksheet.get_all_values()
         headers = all_values[0] if all_values else []
@@ -3662,7 +3674,9 @@ def update_item_quantity(order_id, product_code, order_type, new_qty):
     
     try:
         spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
-        worksheet = spreadsheet.worksheet('PepHaul Entry')
+        worksheet = get_pephaul_worksheet(spreadsheet)
+        if not worksheet:
+            return None
         
         # Get all data
         all_values = worksheet.get_all_values()
@@ -3855,7 +3869,9 @@ def delete_order_rows(order_id, telegram_username=None):
     
     try:
         spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
-        worksheet = spreadsheet.worksheet('PepHaul Entry')
+        worksheet = get_pephaul_worksheet(spreadsheet)
+        if not worksheet:
+            return None
         
         # Get all data
         all_values = worksheet.get_all_values()
@@ -4165,7 +4181,9 @@ def api_save_mailing_address(order_id):
     
     try:
         spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
-        worksheet = spreadsheet.worksheet('PepHaul Entry')
+        worksheet = get_pephaul_worksheet(spreadsheet)
+        if not worksheet:
+            return None
         
         # Find the order's first row
         cell = worksheet.find(order_id)
@@ -4271,7 +4289,9 @@ def api_save_tracking_number(order_id):
             return jsonify({'error': 'Shipping details must be added before tracking number'}), 400
         
         spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
-        worksheet = spreadsheet.worksheet('PepHaul Entry')
+        worksheet = get_pephaul_worksheet(spreadsheet)
+        if not worksheet:
+            return jsonify({'error': 'Worksheet not found'}), 404
         
         # Find the order's first row
         cell = worksheet.find(order_id)
@@ -5120,6 +5140,185 @@ Thank you! 💜"""
     else:
         return jsonify({'error': 'Failed to send Telegram message'}), 500
 
+
+# PepHaul Entry Tab Management
+CURRENT_PEPHAUL_TAB = 'PepHaul Entry'  # Default tab name
+
+def get_current_pephaul_tab():
+    """Get the current active PepHaul Entry tab name"""
+    # Try to get from session, fallback to default
+    try:
+        return session.get('current_pephaul_tab', CURRENT_PEPHAUL_TAB)
+    except:
+        # If session not available (e.g., in background tasks), use default
+        return CURRENT_PEPHAUL_TAB
+
+def set_current_pephaul_tab(tab_name):
+    """Set the current active PepHaul Entry tab name"""
+    try:
+        session['current_pephaul_tab'] = tab_name
+    except:
+        pass  # Session not available in some contexts
+
+def get_pephaul_worksheet(spreadsheet=None):
+    """Get the current PepHaul Entry worksheet"""
+    if not spreadsheet:
+        if not sheets_client:
+            return None
+        spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
+    
+    tab_name = get_current_pephaul_tab()
+    try:
+        return spreadsheet.worksheet(tab_name)
+    except:
+        # Fallback to default if tab doesn't exist
+        try:
+            return spreadsheet.worksheet('PepHaul Entry')
+        except:
+            return None
+
+@app.route('/api/admin/pephaul-tabs', methods=['GET'])
+def api_admin_list_pephaul_tabs():
+    """Get list of available PepHaul Entry tabs"""
+    if not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    if not sheets_client:
+        return jsonify({'error': 'Sheets not configured'}), 500
+    
+    try:
+        spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
+        all_sheets = spreadsheet.worksheets()
+        
+        # Filter tabs that start with "PepHaul Entry"
+        pephaul_tabs = [ws.title for ws in all_sheets if ws.title.startswith('PepHaul Entry')]
+        
+        # Sort tabs: "PepHaul Entry" first, then numbered ones
+        def sort_key(name):
+            if name == 'PepHaul Entry':
+                return (0, '')
+            # Extract number from "PepHaul Entry-01" format
+            if '-' in name:
+                try:
+                    num = int(name.split('-')[-1])
+                    return (1, num)
+                except:
+                    return (2, name)
+            return (2, name)
+        
+        pephaul_tabs.sort(key=sort_key)
+        
+        current_tab = get_current_pephaul_tab()
+        
+        return jsonify({
+            'success': True,
+            'tabs': pephaul_tabs,
+            'current_tab': current_tab
+        })
+    except Exception as e:
+        print(f"Error listing tabs: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/admin/pephaul-tabs/create', methods=['POST'])
+def api_admin_create_pephaul_tab():
+    """Create a new PepHaul Entry tab"""
+    if not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    if not sheets_client:
+        return jsonify({'error': 'Sheets not configured'}), 500
+    
+    try:
+        spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
+        all_sheets = spreadsheet.worksheets()
+        
+        # Find existing PepHaul Entry tabs
+        existing_tabs = [ws.title for ws in all_sheets if ws.title.startswith('PepHaul Entry')]
+        
+        # Determine next tab number
+        next_num = 1
+        for tab_name in existing_tabs:
+            if '-' in tab_name:
+                try:
+                    num = int(tab_name.split('-')[-1])
+                    if num >= next_num:
+                        next_num = num + 1
+                except:
+                    pass
+        
+        # Create new tab name (e.g., "PepHaul Entry-01")
+        new_tab_name = f"PepHaul Entry-{next_num:02d}"
+        
+        # Create new worksheet with headers
+        worksheet = spreadsheet.add_worksheet(title=new_tab_name, rows=1000, cols=25)
+        headers = [
+            'Order ID', 'Order Date', 'Name', 'Telegram Username',
+            'Product Code', 'Product Name', 'Order Type', 'QTY', 'Unit Price USD',
+            'Line Total USD', 'Exchange Rate', 'Line Total PHP', 'Admin Fee PHP',
+            'Grand Total PHP', 'Order Status', 'Locked', 'Payment Status', 
+            'Remarks', 'Link to Payment', 'Payment Date', 'Full Name', 'Contact Number', 'Mailing Address', 'Tracking Number'
+        ]
+        worksheet.update('A1:X1', [headers])
+        
+        print(f"✅ Created new PepHaul Entry tab: {new_tab_name}")
+        
+        return jsonify({
+            'success': True,
+            'tab_name': new_tab_name,
+            'message': f'Created new tab: {new_tab_name}'
+        })
+    except Exception as e:
+        print(f"Error creating tab: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/admin/pephaul-tabs/switch', methods=['POST'])
+def api_admin_switch_pephaul_tab():
+    """Switch to a different PepHaul Entry tab"""
+    if not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    if not sheets_client:
+        return jsonify({'error': 'Sheets not configured'}), 500
+    
+    data = request.json or {}
+    tab_name = data.get('tab_name', '').strip()
+    
+    if not tab_name:
+        return jsonify({'error': 'Tab name is required'}), 400
+    
+    try:
+        spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
+        
+        # Verify tab exists
+        try:
+            worksheet = spreadsheet.worksheet(tab_name)
+        except:
+            return jsonify({'error': f'Tab "{tab_name}" not found'}), 404
+        
+        # Set as current tab
+        set_current_pephaul_tab(tab_name)
+        
+        # Clear cache to force reload from new tab
+        clear_cache('orders')
+        clear_cache('inventory')
+        clear_cache('order_stats')
+        
+        print(f"✅ Switched to PepHaul Entry tab: {tab_name}")
+        
+        return jsonify({
+            'success': True,
+            'tab_name': tab_name,
+            'message': f'Switched to tab: {tab_name}'
+        })
+    except Exception as e:
+        print(f"Error switching tab: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
 
 # Initialize on startup
 init_google_services()

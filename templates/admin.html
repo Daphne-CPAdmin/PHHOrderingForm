@@ -502,7 +502,43 @@
         <div id="admin-content" class="admin-content">
             <div class="header">
                 <h1>Admin Panel</h1>
-                <a href="/" class="back-link">← Back to Order Form</a>
+                <div style="display: flex; gap: 1rem; align-items: center;">
+                    <button id="export-html-btn" class="btn" style="padding: 0.75rem 1.5rem; background: #10b981; color: white; width: auto;">
+                        📄 Export Page as HTML
+                    </button>
+                    <a href="/" class="back-link">← Back to Order Form</a>
+                </div>
+            </div>
+
+            <!-- PepHaul Entry Tab Management -->
+            <div class="card" style="margin-bottom: 2rem; border: 2px solid #10b981;">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                    <div>
+                        <h2 style="font-size: 1.25rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                            📋 PepHaul Entry Tab Management
+                        </h2>
+                        <p style="color: var(--text-muted); font-size: 0.9rem;">
+                            Create new PepHaul Entry tabs (e.g., PepHaul Entry-01, PepHaul Entry-02) and switch between them. All order records are preserved when switching tabs.
+                        </p>
+                    </div>
+                </div>
+                <div style="margin-top: 1.5rem; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                    <div style="flex: 1; min-width: 200px;">
+                        <label style="display: block; font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem;">Current Tab</label>
+                        <select id="pephaul-tab-selector" class="form-input" style="width: 100%;">
+                            <option value="PepHaul Entry">PepHaul Entry</option>
+                        </select>
+                    </div>
+                    <button id="create-new-tab-btn" class="btn" style="padding: 0.75rem 1.5rem; background: #10b981; color: white; margin-top: 1.5rem;">
+                        ➕ Create New Tab
+                    </button>
+                    <button id="switch-tab-btn" class="btn" style="padding: 0.75rem 1.5rem; background: #c084fc; color: white; margin-top: 1.5rem;">
+                        🔄 Switch to Selected Tab
+                    </button>
+                </div>
+                <div id="tab-status" style="margin-top: 1rem; font-size: 0.85rem; color: #7c3aed; display: none;">
+                    ✓ Tab operation completed successfully!
+                </div>
             </div>
 
             <!-- Order Form Lock Control -->
@@ -2387,8 +2423,150 @@
             }
         }
 
+        // Export page as HTML
+        function exportPageAsHTML() {
+            try {
+                // Get the entire page HTML
+                const htmlContent = document.documentElement.outerHTML;
+                
+                // Create a blob with the HTML content
+                const blob = new Blob([htmlContent], { type: 'text/html' });
+                
+                // Create a download link
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `pephaul-admin-panel-${new Date().toISOString().split('T')[0]}.html`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                showToast('✅ Page exported as HTML successfully!');
+            } catch (error) {
+                console.error('Error exporting HTML:', error);
+                showToast('❌ Error exporting HTML');
+            }
+        }
+
+        // Load available PepHaul Entry tabs
+        async function loadPepHaulTabs() {
+            try {
+                const response = await fetch('/api/admin/pephaul-tabs', {
+                    credentials: 'same-origin'
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to load tabs: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                const tabs = result.tabs || [];
+                const currentTab = result.current_tab || 'PepHaul Entry';
+                
+                // Update selector
+                const selector = document.getElementById('pephaul-tab-selector');
+                selector.innerHTML = tabs.map(tab => 
+                    `<option value="${tab}" ${tab === currentTab ? 'selected' : ''}>${tab}</option>`
+                ).join('');
+                
+            } catch (error) {
+                console.error('Error loading tabs:', error);
+                showToast('⚠️ Could not load tabs - using default');
+            }
+        }
+
+        // Create new PepHaul Entry tab
+        async function createNewPepHaulTab() {
+            if (!confirm('Create a new PepHaul Entry tab? This will create a new tab with headers only.')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/admin/pephaul-tabs/create', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    showToast(`✅ Created new tab: ${result.tab_name}`);
+                    loadPepHaulTabs(); // Reload tabs list
+                    loadOrders(); // Reload orders to show new tab's data
+                } else {
+                    showToast(result.error || 'Failed to create tab');
+                }
+            } catch (error) {
+                console.error('Error creating tab:', error);
+                showToast('❌ Error creating tab');
+            }
+        }
+
+        // Switch to selected PepHaul Entry tab
+        async function switchPepHaulTab() {
+            const selector = document.getElementById('pephaul-tab-selector');
+            const selectedTab = selector.value;
+            
+            if (!selectedTab) {
+                showToast('⚠️ Please select a tab');
+                return;
+            }
+            
+            if (!confirm(`Switch to tab "${selectedTab}"? All order records will be preserved.`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/admin/pephaul-tabs/switch', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tab_name: selectedTab })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    showToast(`✅ Switched to tab: ${selectedTab}`);
+                    loadOrders(); // Reload orders from new tab
+                    loadCustomerSummary(); // Reload customer summary
+                } else {
+                    showToast(result.error || 'Failed to switch tab');
+                }
+            } catch (error) {
+                console.error('Error switching tab:', error);
+                showToast('❌ Error switching tab');
+            }
+        }
+
+        // Setup event listeners for new features
+        function setupNewFeatures() {
+            // HTML Export button
+            const exportBtn = document.getElementById('export-html-btn');
+            if (exportBtn) {
+                exportBtn.addEventListener('click', exportPageAsHTML);
+            }
+            
+            // PepHaul Tab Management
+            const createTabBtn = document.getElementById('create-new-tab-btn');
+            if (createTabBtn) {
+                createTabBtn.addEventListener('click', createNewPepHaulTab);
+            }
+            
+            const switchTabBtn = document.getElementById('switch-tab-btn');
+            if (switchTabBtn) {
+                switchTabBtn.addEventListener('click', switchPepHaulTab);
+            }
+            
+            // Load tabs on page load
+            loadPepHaulTabs();
+        }
+
         // Auto-boot on page load (if session is already logged in)
-        document.addEventListener('DOMContentLoaded', bootAdmin);
+        document.addEventListener('DOMContentLoaded', function() {
+            bootAdmin();
+            setupNewFeatures();
+        });
     </script>
 </body>
 </html>
