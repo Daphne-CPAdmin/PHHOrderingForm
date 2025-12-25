@@ -602,11 +602,16 @@ def set_theme(theme_name):
             worksheet.update_cell(theme_row, 2, theme_name)
             worksheet.update_cell(theme_row, 3, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
             
+            # Clear cache so theme is immediately available
+            clear_cache('theme')
+            
             return True
         except Exception as e:
             print(f"Error setting theme: {e}")
             return False
     
+    # Clear cache even if sheets_client is not available
+    clear_cache('theme')
     return True
 
 def get_order_goal():
