@@ -5125,6 +5125,13 @@
                             <p style="font-size: 0.85rem; color: var(--accent-primary); text-align: center; margin-top: 0.75rem;">Thank you for keeping our pep-haul smooth, happy, and drama-free! 💕🥰</p>
                         </div>
                         
+                        ${order.payment_status === 'Waiting for Confirmation' ? `
+                        <!-- Waiting for Confirmation Message -->
+                        <div style="text-align: center; padding: 1.5rem; background: rgba(59, 130, 246, 0.1); border-radius: 12px; border: 2px solid #3b82f6;">
+                            <p style="font-size: 1rem; font-weight: 600; color: #3b82f6; margin-bottom: 0.5rem;">⏳ Pending payment confirmation by PepHaul Admin</p>
+                            <p style="font-size: 0.9rem; color: var(--text-secondary); margin: 0;">Thank you for your patience.</p>
+                        </div>
+                        ` : `
                         <!-- Mark Payment as Sent -->
                         <div style="text-align: center;">
                             <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 1rem;">After payment, let PepHaul Admin know:</p>
@@ -5136,6 +5143,7 @@
 
                             <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.75rem;">PepHaul Admin will be notified via Telegram</p>
                         </div>
+                        `}
                     </div>
                     ` : ''}
                 `;
