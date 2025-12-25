@@ -4052,6 +4052,13 @@ def api_save_mailing_address(order_id):
         worksheet.update_cell(cell.row, 22, mailing_phone)  # Column V
         worksheet.update_cell(cell.row, 23, mailing_address)  # Column W
         
+        # Lock the order (Column P = 16) when shipping details are added
+        # Ensure header exists
+        if len(headers) < 16 or headers[15] != 'Locked':
+            worksheet.update_cell(1, 16, 'Locked')
+        # Set order to locked
+        worksheet.update_cell(cell.row, 16, 'Yes')
+        
         # Clear cache since orders changed
         clear_cache('orders')
         clear_cache('inventory')
