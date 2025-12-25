@@ -4528,7 +4528,8 @@
             // Show/hide payment sent button based on payment status
             const paymentSentBtn = document.getElementById('payment-sent-btn');
             if (paymentSentBtn) {
-                if (order.payment_status === 'Paid' || order.payment_status === 'Waiting for Confirmation') {
+                const paymentStatus = (order.payment_status || '').toLowerCase();
+                if (paymentStatus === 'paid' || paymentStatus === 'waiting for confirmation') {
                     paymentSentBtn.style.display = 'none';
                 } else {
                     paymentSentBtn.style.display = 'flex';
