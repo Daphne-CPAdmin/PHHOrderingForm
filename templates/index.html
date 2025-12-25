@@ -1805,6 +1805,19 @@
         </div>
         {% endif %}
 
+        <!-- Timeline Section -->
+        <div id="timeline-section" style="display: none; margin-bottom: 2rem;">
+            <div class="card" style="border: 2px solid #fbbf24; background: linear-gradient(135deg, rgba(251, 191, 36, 0.05) 0%, rgba(251, 191, 36, 0.02) 100%);">
+                <h2 style="font-size: 1.5rem; font-weight: 700; color: var(--text-primary); margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                    📅 Order Timeline
+                </h2>
+                <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.5rem;">Track the latest updates and transaction details</p>
+                <div id="timeline-content" style="min-height: 100px;">
+                    <div style="text-align: center; padding: 2rem; color: var(--text-muted);">Loading timeline...</div>
+                </div>
+            </div>
+        </div>
+
         <!-- Rate Banner -->
         <div class="rate-banner">
             <div class="rate-item">
@@ -5354,6 +5367,61 @@
         }
         
         // Add event listener for character count
+        // Load Timeline
+        async function loadTimeline() {
+            const timelineSection = document.getElementById('timeline-section');
+            const timelineContent = document.getElementById('timeline-content');
+            
+            if (!timelineSection || !timelineContent) return;
+            
+            try {
+                const response = await fetch('/api/timeline');
+                if (!response.ok) {
+                    throw new Error(`Failed to load timeline: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                const entries = data.entries || [];
+                
+                if (entries.length === 0) {
+                    timelineSection.style.display = 'none';
+                    return;
+                }
+                
+                // Sort by date (newest first)
+                const sortedEntries = entries.sort((a, b) => {
+                    const dateA = new Date(a.date + ' ' + (a.time || ''));
+                    const dateB = new Date(b.date + ' ' + (b.time || ''));
+                    return dateB - dateA;
+                });
+                
+                let html = '<div style="position: relative; padding-left: 2rem;">';
+                sortedEntries.forEach((entry, index) => {
+                    const isLast = index === sortedEntries.length - 1;
+                    html += `
+                        <div style="position: relative; margin-bottom: ${isLast ? '0' : '2rem'};">
+                            <div style="position: absolute; left: -2rem; top: 0.25rem; width: 12px; height: 12px; background: #fbbf24; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 0 2px #fbbf24;"></div>
+                            ${!isLast ? '<div style="position: absolute; left: -1.5rem; top: 1.25rem; width: 2px; height: calc(100% + 0.5rem); background: #fbbf24; opacity: 0.3;"></div>' : ''}
+                            <div style="background: white; padding: 1rem 1.25rem; border-radius: 8px; border-left: 3px solid #fbbf24; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                                <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                                    <span style="font-weight: 600; color: var(--text-primary); font-size: 0.95rem;">${entry.date}</span>
+                                    ${entry.time ? `<span style="color: var(--text-secondary); font-size: 0.9rem;">• ${entry.time}</span>` : ''}
+                                </div>
+                                <div style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.6; white-space: pre-wrap;">${escapeJS(entry.details)}</div>
+                            </div>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+                
+                timelineContent.innerHTML = html;
+                timelineSection.style.display = 'block';
+            } catch (error) {
+                console.error('Error loading timeline:', error);
+                timelineSection.style.display = 'none';
+            }
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
             const addressInput = document.getElementById('mailing-address-input');
             if (addressInput) {
@@ -5365,6 +5433,9 @@
             if (orderFormLocked) {
                 loadAllOrdersForSummary();
             }
+            
+            // Load timeline
+            loadTimeline();
         });
         
         async function saveMailingAddress() {

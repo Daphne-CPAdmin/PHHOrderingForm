@@ -539,6 +539,57 @@
                 </div>
             </div>
 
+            <!-- Timeline Management -->
+            <div class="card" style="margin-bottom: 2rem; border: 2px solid #fbbf24;">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                    <div>
+                        <h2 style="font-size: 1.25rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                            📅 Timeline Management
+                        </h2>
+                        <p style="color: var(--text-muted); font-size: 0.9rem;">
+                            Add timeline entries to track order updates and show customers.
+                        </p>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 1.5rem; padding: 1.5rem; background: rgba(251, 191, 36, 0.05); border-radius: 12px; border: 1px solid rgba(251, 191, 36, 0.2);">
+                    <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 1rem; color: var(--text-primary);">Add New Timeline Entry</h3>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                        <div>
+                            <label style="display: block; font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem;">Date</label>
+                            <input type="date" id="timeline-date" class="form-input" style="width: 100%;">
+                        </div>
+                        <div>
+                            <label style="display: block; font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem;">Time (e.g., 10 PM, 11AM)</label>
+                            <input type="text" id="timeline-time" class="form-input" placeholder="10 PM" style="width: 100%;">
+                        </div>
+                    </div>
+                    
+                    <div style="margin-bottom: 1rem;">
+                        <label style="display: block; font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem;">Details of Transaction</label>
+                        <textarea id="timeline-details" class="form-input" rows="3" placeholder="Enter transaction details..." style="width: 100%; resize: vertical;"></textarea>
+                    </div>
+                    
+                    <button id="add-timeline-btn" class="btn" style="padding: 0.75rem 1.5rem; background: #fbbf24; width: auto; min-width: 150px;">
+                        ➕ Add Timeline Entry
+                    </button>
+                    
+                    <div id="timeline-add-status" style="margin-top: 0.75rem; font-size: 0.85rem; color: #f59e0b; display: none;">
+                        ✓ Timeline entry added successfully!
+                    </div>
+                </div>
+                
+                <div style="margin-top: 1.5rem;">
+                    <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 1rem; color: var(--text-primary);">Timeline Entries</h3>
+                    <div id="timeline-entries-list" style="max-height: 400px; overflow-y: auto;">
+                        <div style="text-align: center; padding: 2rem; color: var(--text-muted);">
+                            Loading timeline entries...
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Theme Selection -->
             <div class="card" style="margin-bottom: 2rem; border: 2px solid #c084fc;">
                 <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
@@ -831,6 +882,7 @@
                     loadOrderFormStatus();
                     loadOrderGoal();
                     loadTheme();
+                    loadTimelineEntries();
                 } else {
                     document.getElementById('login-error').textContent = 'Invalid password';
                     document.getElementById('login-error').style.display = 'block';
@@ -1105,6 +1157,144 @@
             }
         });
 
+        // Timeline Management
+        async function loadTimelineEntries() {
+            try {
+                const response = await fetch('/api/admin/timeline', { credentials: 'same-origin' });
+                const data = await response.json();
+                const entriesList = document.getElementById('timeline-entries-list');
+                
+                if (!data.entries || data.entries.length === 0) {
+                    entriesList.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--text-muted);">No timeline entries yet. Add one above!</div>';
+                    return;
+                }
+                
+                // Sort by date (newest first)
+                const sortedEntries = data.entries.sort((a, b) => {
+                    const dateA = new Date(a.date + ' ' + (a.time || ''));
+                    const dateB = new Date(b.date + ' ' + (b.time || ''));
+                    return dateB - dateA;
+                });
+                
+                let html = '<div style="display: flex; flex-direction: column; gap: 1rem;">';
+                sortedEntries.forEach((entry, index) => {
+                    html += `
+                        <div style="padding: 1rem; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; border-left: 4px solid #fbbf24;">
+                            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.5rem;">
+                                <div>
+                                    <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.25rem;">
+                                        ${entry.date} ${entry.time ? '• ' + entry.time : ''}
+                                    </div>
+                                    <div style="color: var(--text-secondary); font-size: 0.9rem; white-space: pre-wrap;">${escapeJS(entry.details)}</div>
+                                </div>
+                                <button onclick="deleteTimelineEntry('${escapeJS(entry.id)}')" style="padding: 0.25rem 0.5rem; background: #ef4444; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.75rem;">🗑️ Delete</button>
+                            </div>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+                entriesList.innerHTML = html;
+            } catch (error) {
+                console.error('Error loading timeline entries:', error);
+                document.getElementById('timeline-entries-list').innerHTML = '<div style="text-align: center; padding: 2rem; color: #ef4444;">Error loading timeline entries</div>';
+            }
+        }
+        
+        async function deleteTimelineEntry(entryId) {
+            if (!confirm('Are you sure you want to delete this timeline entry?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/admin/timeline/${entryId}`, {
+                    method: 'DELETE',
+                    credentials: 'same-origin'
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    showToast('Timeline entry deleted');
+                    loadTimelineEntries();
+                } else {
+                    showToast('Failed to delete timeline entry');
+                }
+            } catch (error) {
+                console.error('Error deleting timeline entry:', error);
+                showToast('Error deleting timeline entry');
+            }
+        }
+        
+        window.deleteTimelineEntry = deleteTimelineEntry;
+        
+        document.getElementById('add-timeline-btn').addEventListener('click', async () => {
+            const btn = document.getElementById('add-timeline-btn');
+            const statusEl = document.getElementById('timeline-add-status');
+            const date = document.getElementById('timeline-date').value.trim();
+            const time = document.getElementById('timeline-time').value.trim();
+            const details = document.getElementById('timeline-details').value.trim();
+            
+            if (!date) {
+                showToast('Please select a date');
+                return;
+            }
+            if (!details) {
+                showToast('Please enter transaction details');
+                return;
+            }
+            
+            btn.disabled = true;
+            btn.textContent = 'Adding...';
+            statusEl.style.display = 'none';
+            
+            try {
+                const response = await fetch('/api/admin/timeline', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({
+                        date: date,
+                        time: time,
+                        details: details
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    statusEl.style.display = 'block';
+                    statusEl.style.color = '#f59e0b';
+                    statusEl.textContent = '✓ Timeline entry added successfully!';
+                    showToast('Timeline entry added successfully!');
+                    
+                    // Clear form
+                    document.getElementById('timeline-date').value = '';
+                    document.getElementById('timeline-time').value = '';
+                    document.getElementById('timeline-details').value = '';
+                    
+                    // Reload timeline entries
+                    loadTimelineEntries();
+                    
+                    // Hide status after 3 seconds
+                    setTimeout(() => {
+                        statusEl.style.display = 'none';
+                    }, 3000);
+                } else {
+                    statusEl.style.display = 'block';
+                    statusEl.style.color = '#dc2626';
+                    statusEl.textContent = '✗ Failed to add timeline entry';
+                    showToast(data.error || 'Failed to add timeline entry');
+                }
+            } catch (error) {
+                console.error('Error adding timeline entry:', error);
+                statusEl.style.display = 'block';
+                statusEl.style.color = '#dc2626';
+                statusEl.textContent = '✗ Error adding timeline entry';
+                showToast('Error adding timeline entry');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '➕ Add Timeline Entry';
+            }
+        });
+        
         // Load Products
         async function loadProducts() {
             try {

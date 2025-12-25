@@ -2509,6 +2509,140 @@ def api_get_theme():
     theme = get_theme()
     return jsonify({'theme': theme})
 
+# Timeline Management
+_timeline_entries = []
+
+def _fetch_timeline_entries():
+    """Internal function to fetch timeline entries from sheets"""
+    global _timeline_entries
+    entries = []
+    
+    if sheets_client:
+        try:
+            spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
+            
+            try:
+                worksheet = spreadsheet.worksheet('Timeline')
+            except:
+                # Create Timeline sheet if doesn't exist
+                worksheet = spreadsheet.add_worksheet(title='Timeline', rows=100, cols=5)
+                worksheet.update('A1:D1', [['ID', 'Date', 'Time', 'Details']])
+                return []
+            
+            records = worksheet.get_all_records()
+            for record in records:
+                if record.get('ID') and record.get('Date'):
+                    entries.append({
+                        'id': str(record.get('ID', '')),
+                        'date': record.get('Date', ''),
+                        'time': record.get('Time', ''),
+                        'details': record.get('Details', '')
+                    })
+        except Exception as e:
+            print(f"Error getting timeline entries: {e}")
+    
+    _timeline_entries = entries
+    return entries
+
+def get_timeline_entries():
+    """Get timeline entries (cached)"""
+    return get_cached('timeline_entries', _fetch_timeline_entries, cache_duration=300)  # 5 minutes
+
+def add_timeline_entry(date, time, details):
+    """Add timeline entry to sheets"""
+    import uuid
+    
+    entry_id = str(uuid.uuid4())[:8]
+    
+    if sheets_client:
+        try:
+            spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
+            
+            try:
+                worksheet = spreadsheet.worksheet('Timeline')
+            except:
+                worksheet = spreadsheet.add_worksheet(title='Timeline', rows=100, cols=5)
+                worksheet.update('A1:D1', [['ID', 'Date', 'Time', 'Details']])
+            
+            # Append new row
+            next_row = len(worksheet.get_all_values()) + 1
+            worksheet.update(f'A{next_row}:D{next_row}', [[entry_id, date, time, details]])
+            
+            # Clear cache
+            clear_cache('timeline_entries')
+            
+            return True
+        except Exception as e:
+            print(f"Error adding timeline entry: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+    
+    return False
+
+def delete_timeline_entry(entry_id):
+    """Delete timeline entry from sheets"""
+    if sheets_client:
+        try:
+            spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
+            worksheet = spreadsheet.worksheet('Timeline')
+            
+            # Find the row with this ID
+            cell = worksheet.find(entry_id)
+            if cell:
+                worksheet.delete_rows(cell.row)
+                clear_cache('timeline_entries')
+                return True
+        except Exception as e:
+            print(f"Error deleting timeline entry: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+    
+    return False
+
+@app.route('/api/admin/timeline')
+def api_get_timeline():
+    """Get timeline entries"""
+    entries = get_timeline_entries()
+    return jsonify({'entries': entries})
+
+@app.route('/api/admin/timeline', methods=['POST'])
+def api_add_timeline():
+    """Add timeline entry"""
+    if not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    data = request.json
+    date = data.get('date', '')
+    time = data.get('time', '')
+    details = data.get('details', '')
+    
+    if not date or not details:
+        return jsonify({'error': 'Date and details are required'}), 400
+    
+    if add_timeline_entry(date, time, details):
+        return jsonify({'success': True})
+    
+    return jsonify({'error': 'Failed to add timeline entry'}), 500
+
+@app.route('/api/admin/timeline/<entry_id>', methods=['DELETE'])
+def api_delete_timeline(entry_id):
+    """Delete timeline entry"""
+    if not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    if delete_timeline_entry(entry_id):
+        return jsonify({'success': True})
+    
+    return jsonify({'error': 'Failed to delete timeline entry'}), 500
+
+@app.route('/api/timeline')
+def api_public_timeline():
+    """Get timeline entries for public display"""
+    entries = get_timeline_entries()
+    return jsonify({'entries': entries})
+
 @app.route('/api/admin/theme', methods=['POST'])
 def api_set_theme():
     """Set theme"""
