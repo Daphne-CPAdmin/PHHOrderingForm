@@ -4003,10 +4003,11 @@
                     const itemsTotal = items.reduce((sum, i) => sum + (i.line_total_php || 0), 0);
                     const adminFee = (order.grand_total_php || 0) - itemsTotal;
                     
-                    // Check if shipping details exist
+                    // Check if shipping details exist (mailing_address in column W)
                     const hasShippingDetails = order.mailing_address && order.mailing_address.trim() !== '';
-                    const mailingName = order.contact_number && order.mailing_address ? (order.full_name || '') : '';
-                    const mailingPhone = order.contact_number || '';
+                    // When shipping details exist, mailing_name is in column U, mailing_phone is in column V
+                    const mailingName = hasShippingDetails ? (order.mailing_name || order.full_name || '') : '';
+                    const mailingPhone = hasShippingDetails ? (order.mailing_phone || order.contact_number || '') : '';
                     const mailingAddress = order.mailing_address || '';
                     
                     html += `
@@ -4066,17 +4067,16 @@
                     }
                 });
                 
-                // Add shipping details cards before total
+                html += `<div style="display: flex; justify-content: space-between; align-items: flex-start; margin-top: 1rem; padding-top: 1rem; border-top: 2px solid var(--accent-emerald); gap: 1.5rem; flex-wrap: wrap;">`;
                 if (shippingDetailsHtml) {
-                    html += '<div style="margin-top: 1.5rem; margin-bottom: 1rem;">';
+                    html += `<div style="flex: 1; min-width: 300px;">`;
                     html += '<h3 style="font-size: 1rem; font-weight: 600; color: var(--accent-violet); margin-bottom: 0.75rem;">📬 Shipping Details</h3>';
                     html += shippingDetailsHtml;
-                    html += '</div>';
+                    html += `</div>`;
+                } else {
+                    html += `<div style="flex: 1;"></div>`;
                 }
-                
-                html += `<div style="display: flex; justify-content: space-between; align-items: flex-start; margin-top: 1rem; padding-top: 1rem; border-top: 2px solid var(--accent-emerald); gap: 1.5rem;">`;
-                html += `<div style="flex: 1;"></div>`;
-                html += `<div style="text-align: right; flex: 0 0 auto;">`;
+                html += `<div style="text-align: right; flex: 0 0 auto; align-self: flex-start;">`;
                 html += `<div style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Total Paid Orders:</div>`;
                 html += `<div style="font-family: 'JetBrains Mono', monospace; font-size: 1.5rem; font-weight: 700; color: var(--accent-emerald);">₱${paidTotal.toLocaleString('en-PH', {minimumFractionDigits: 2})}</div>`;
                 html += `</div>`;
