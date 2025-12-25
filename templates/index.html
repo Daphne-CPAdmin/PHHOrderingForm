@@ -3837,13 +3837,25 @@
                         }
                     }
                 }
-                // Fallback: load all orders and show in table format
+                // Fallback: load all orders but filter by telegram for privacy
                 const response = await fetch('/api/orders');
                 if (!response.ok) {
                     throw new Error(`Failed to load orders: ${response.status}`);
                 }
                 const allOrders = await response.json();
-                updateCustomerSummary(allOrders);
+                // Filter orders by telegram username to only show current user's orders
+                const currentTelegram = document.getElementById('telegram')?.value.trim().toLowerCase().replace('@', '') || '';
+                const filteredOrders = allOrders.filter(order => {
+                    const orderTelegram = (order.telegram || '').toLowerCase().replace('@', '');
+                    return currentTelegram && orderTelegram && orderTelegram === currentTelegram;
+                });
+                // Store mailing_address status before removing for privacy
+                filteredOrders.forEach(order => {
+                    order._hasShippingDetails = !!(order.mailing_address && order.mailing_address.trim() !== '');
+                    // Remove mailing_address to protect privacy
+                    delete order.mailing_address;
+                });
+                updateCustomerSummary(filteredOrders);
             } catch (error) {
                 console.error('Error loading all orders for summary:', error);
                 summaryContent.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--text-muted);"><p>Error loading orders. Please refresh the page.</p></div>';
@@ -3894,7 +3906,7 @@
             tableHtml += '<tr style="background: rgba(192, 132, 252, 0.1); border-bottom: 2px solid var(--border);">';
             tableHtml += '<th style="padding: 0.75rem; text-align: left; font-weight: 600; color: var(--text-primary);">Order Number</th>';
             tableHtml += '<th style="padding: 0.75rem; text-align: left; font-weight: 600; color: var(--text-primary);">Payment Status</th>';
-            tableHtml += '<th style="padding: 0.75rem; text-align: left; font-weight: 600; color: var(--text-primary);">Action</th>';
+            tableHtml += '<th style="padding: 0.75rem; text-align: center; font-weight: 600; color: var(--text-primary);">Action</th>';
             tableHtml += '</tr>';
             tableHtml += '</thead>';
             tableHtml += '<tbody>';
@@ -3905,25 +3917,25 @@
                 const statusColor = isPaid ? '#10b981' : '#f59e0b';
                 const statusBg = isPaid ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)';
                 
-                // Check if shipping details are missing (mailing_address is empty or null)
-                const hasShippingDetails = order.mailing_address && order.mailing_address.trim() !== '';
+                // Check if shipping details exist (using stored flag from before removing mailing_address for privacy)
+                const hasShippingDetails = order._hasShippingDetails === true;
                 
                 tableHtml += '<tr style="border-bottom: 1px solid var(--border);">';
                 tableHtml += `<td style="padding: 0.75rem; font-family: "JetBrains Mono", monospace; color: var(--accent-primary); font-weight: 600;">${order.order_id || 'N/A'}</td>`;
                 tableHtml += `<td style="padding: 0.75rem;"><span style="display: inline-block; padding: 0.35rem 0.85rem; border-radius: 20px; font-size: 0.75rem; font-weight: 700; background: ${statusBg}; color: ${statusColor};">${isPaid ? '✅ PAID' : '⏳ UNPAID'}</span></td>`;
                 if (!isPaid) {
                     const escapedOrderId = escapeJS(order.order_id);
-                    tableHtml += `<td style="padding: 0.75rem;"><button type="button" class="btn btn-emerald" onclick="payOrderById('${escapedOrderId}')" style="padding: 0.5rem 1rem; font-size: 0.85rem;">💳 Pay Order</button></td>`;
+                    tableHtml += `<td style="padding: 0.75rem; text-align: center;"><button type="button" class="btn btn-emerald" onclick="payOrderByIdFromSummary('${escapedOrderId}')" style="padding: 0.5rem 1rem; font-size: 0.85rem;">💳 Pay Order</button></td>`;
                 } else if (isPaid && !hasShippingDetails) {
                     // Show "Add Shipping Details" button for paid orders without shipping details
                     const escapedOrderId = escapeJS(order.order_id);
                     const escapedFullName = escapeJS(order.full_name || '');
-                    tableHtml += `<td style="padding: 0.75rem;"><button type="button" class="btn btn-violet" onclick="openMailingAddressModal('${escapedOrderId}', '${escapedFullName}')" style="padding: 0.5rem 1rem; font-size: 0.85rem;">📬 Add Shipping Details</button></td>`;
+                    tableHtml += `<td style="padding: 0.75rem; text-align: center;"><button type="button" class="btn btn-violet" onclick="openMailingAddressModal('${escapedOrderId}', '${escapedFullName}')" style="padding: 0.5rem 1rem; font-size: 0.85rem;" title="Contact @deejay1992 for shipping details updates">📬 Add Shipping Details</button></td>`;
                 } else if (isPaid && hasShippingDetails) {
-                    // Show note when shipping details have been added
-                    tableHtml += '<td style="padding: 0.75rem;"><span style="color: var(--accent-emerald); font-size: 0.85rem; font-weight: 600;">✅ Shipping Details has been added</span></td>';
+                    // Show note when shipping details have been added with tooltip
+                    tableHtml += '<td style="padding: 0.75rem; text-align: center;"><span style="color: var(--accent-emerald); font-size: 0.85rem; font-weight: 600; cursor: help;" title="Shipping details added. No further action required. For updates, contact PepHaul Admin @deejay1992">✅ Shipping details added. No further action required.</span></td>';
                 } else {
-                    tableHtml += '<td style="padding: 0.75rem;"></td>';
+                    tableHtml += '<td style="padding: 0.75rem; text-align: center;"></td>';
                 }
                 tableHtml += '</tr>';
             });
@@ -4304,8 +4316,40 @@
             }
         }
         
+        // Function to pay order by ID from Customer Summary (fetches order if not in memory)
+        async function payOrderByIdFromSummary(orderId) {
+            // First check if order is in existingCustomerOrders
+            const order = existingCustomerOrders.find(o => o.order_id === orderId);
+            if (order) {
+                showPaymentModal(order);
+                return;
+            }
+            
+            // If not found, fetch order details from API
+            try {
+                const response = await fetch(`/api/orders/${orderId}`);
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch order: ${response.status}`);
+                }
+                const orderData = await response.json();
+                if (orderData) {
+                    // Add to existingCustomerOrders for future use
+                    if (!existingCustomerOrders.find(o => o.order_id === orderId)) {
+                        existingCustomerOrders.push(orderData);
+                    }
+                    showPaymentModal(orderData);
+                } else {
+                    showToast('Order not found', 3000);
+                }
+            } catch (error) {
+                console.error('Error fetching order:', error);
+                showToast('Error loading order. Please try again.', 3000);
+            }
+        }
+        
         // Expose to global scope
         window.payOrderById = payOrderById;
+        window.payOrderByIdFromSummary = payOrderByIdFromSummary;
         
         function showPaymentModal(order) {
             const modal = document.getElementById('payment-modal');
