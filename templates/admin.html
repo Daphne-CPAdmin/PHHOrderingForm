@@ -527,7 +527,15 @@
                 </div>
                 <div style="margin-top: 1rem; display: none;" id="lock-message-container">
                     <label style="display: block; font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem;">Lock Message (shown to customers)</label>
-                    <textarea id="lock-message" class="form-input" rows="2" style="resize: vertical;" placeholder="Orders are currently closed. Thank you for your patience!"></textarea>
+                    <div style="display: flex; gap: 0.75rem; align-items: flex-start;">
+                        <textarea id="lock-message" class="form-input" rows="2" style="resize: vertical; flex: 1;" placeholder="Orders are currently closed. Thank you for your patience!"></textarea>
+                        <button id="save-lock-message-btn" class="btn" style="padding: 0.75rem 1.5rem; background: var(--accent-violet); white-space: nowrap; margin-top: 0;">
+                            💾 Save Message
+                        </button>
+                    </div>
+                    <div id="lock-message-save-status" style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--accent-violet); display: none;">
+                        ✓ Message saved successfully!
+                    </div>
                 </div>
             </div>
 
