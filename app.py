@@ -2142,6 +2142,7 @@ def index():
         incomplete_kits.sort(key=lambda p: p.get('pending_vials', 10))
         
         order_goal = get_order_goal()
+        current_theme = get_theme()
         
         return render_template('index.html', 
                              products=products, 
