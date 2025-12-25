@@ -1054,6 +1054,57 @@
             }
         });
 
+        // Save Lock Message button
+        document.getElementById('save-lock-message-btn').addEventListener('click', async () => {
+            const btn = document.getElementById('save-lock-message-btn');
+            const statusEl = document.getElementById('lock-message-save-status');
+            const message = document.getElementById('lock-message').value.trim();
+            
+            if (!message) {
+                showToast('Please enter a lock message');
+                return;
+            }
+            
+            btn.disabled = true;
+            btn.textContent = 'Saving...';
+            statusEl.style.display = 'none';
+            
+            try {
+                const response = await fetch('/api/admin/lock-order-form', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ is_locked: orderFormLocked, message: message })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    statusEl.style.display = 'block';
+                    statusEl.style.color = '#7c3aed';
+                    statusEl.textContent = '✓ Message saved successfully!';
+                    showToast('Lock message saved successfully!');
+                    
+                    // Hide status message after 3 seconds
+                    setTimeout(() => {
+                        statusEl.style.display = 'none';
+                    }, 3000);
+                } else {
+                    statusEl.style.display = 'block';
+                    statusEl.style.color = '#dc2626';
+                    statusEl.textContent = '✗ Failed to save message';
+                    showToast('Failed to save lock message');
+                }
+            } catch (error) {
+                console.error('Error saving lock message:', error);
+                statusEl.style.display = 'block';
+                statusEl.style.color = '#dc2626';
+                statusEl.textContent = '✗ Error saving message';
+                showToast('Error saving lock message');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '💾 Save Message';
+            }
+        });
+
         // Load Products
         async function loadProducts() {
             try {
