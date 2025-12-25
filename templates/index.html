@@ -3992,6 +3992,9 @@
                 html += '<div style="margin-bottom: 2rem;">';
                 html += '<h3 style="font-size: 1.1rem; font-weight: 700; color: var(--accent-emerald); margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;"><span>🔒</span> Paid Orders (Locked)</h3>';
                 
+                // Track shipping details for display
+                let shippingDetailsHtml = '';
+                
                 paidOrders.forEach(order => {
                     const items = order.items || [];
                     const itemsPreview = items.map(i => `${i.product_name || i.product_code} (${i.order_type || 'Vial'} x${i.qty || 0})`).join(', ');
@@ -3999,6 +4002,12 @@
                     // Calculate subtotal and admin fee for display
                     const itemsTotal = items.reduce((sum, i) => sum + (i.line_total_php || 0), 0);
                     const adminFee = (order.grand_total_php || 0) - itemsTotal;
+                    
+                    // Check if shipping details exist
+                    const hasShippingDetails = order.mailing_address && order.mailing_address.trim() !== '';
+                    const mailingName = order.contact_number && order.mailing_address ? (order.full_name || '') : '';
+                    const mailingPhone = order.contact_number || '';
+                    const mailingAddress = order.mailing_address || '';
                     
                     html += `
                         <div class="card" style="cursor: pointer; padding: 1.5rem; border: 2px solid var(--accent-emerald); background: rgba(16, 185, 129, 0.05); margin-bottom: 1rem;" onclick="viewOrder('${escapeJS(order.order_id)}')">
@@ -4028,13 +4037,49 @@
                                     <span>₱${order.grand_total_php.toLocaleString('en-PH', {minimumFractionDigits: 2})}</span>
                                 </div>
                             </div>
+                            ${!hasShippingDetails ? `
+                                <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid rgba(16, 185, 129, 0.2);">
+                                    <button type="button" class="btn btn-violet" onclick="event.stopPropagation(); openMailingAddressModal('${escapeJS(order.order_id)}', '${escapeJS(order.full_name || '')}')" style="width: 100%; padding: 0.75rem 1rem; font-size: 0.9rem;" title="Contact @deejay1992 for shipping details updates">📬 Add Shipping Details</button>
+                                </div>
+                            ` : ''}
                         </div>
                     `;
+                    
+                    // Collect shipping details for summary card
+                    if (hasShippingDetails) {
+                        shippingDetailsHtml += `
+                            <div class="card" style="padding: 1.25rem; border: 2px solid var(--accent-violet); background: rgba(192, 132, 252, 0.05); margin-bottom: 1rem;">
+                                <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;">
+                                    <span style="font-size: 1.1rem;">📬</span>
+                                    <h4 style="font-size: 1rem; font-weight: 600; color: var(--accent-violet); margin: 0;">Shipping Details - ${order.order_id}</h4>
+                                </div>
+                                <div style="font-size: 0.9rem; color: var(--text-primary); line-height: 1.6;">
+                                    ${mailingName ? `<div style="font-weight: 600; margin-bottom: 0.25rem;">${escapeJS(mailingName)}</div>` : ''}
+                                    ${mailingPhone ? `<div style="color: var(--text-secondary); margin-bottom: 0.25rem;">${escapeJS(mailingPhone)}</div>` : ''}
+                                    <div style="color: var(--text-secondary); white-space: pre-wrap;">${escapeJS(mailingAddress)}</div>
+                                </div>
+                                <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid rgba(192, 132, 252, 0.2); font-size: 0.8rem; color: var(--text-muted);">
+                                    <span>💡 Need to update address? Contact PepHaul Admin @deejay1992</span>
+                                </div>
+                            </div>
+                        `;
+                    }
                 });
                 
-                html += `<div style="text-align: right; margin-top: 1rem; padding-top: 1rem; border-top: 2px solid var(--accent-emerald);">`;
+                // Add shipping details cards before total
+                if (shippingDetailsHtml) {
+                    html += '<div style="margin-top: 1.5rem; margin-bottom: 1rem;">';
+                    html += '<h3 style="font-size: 1rem; font-weight: 600; color: var(--accent-violet); margin-bottom: 0.75rem;">📬 Shipping Details</h3>';
+                    html += shippingDetailsHtml;
+                    html += '</div>';
+                }
+                
+                html += `<div style="display: flex; justify-content: space-between; align-items: flex-start; margin-top: 1rem; padding-top: 1rem; border-top: 2px solid var(--accent-emerald); gap: 1.5rem;">`;
+                html += `<div style="flex: 1;"></div>`;
+                html += `<div style="text-align: right; flex: 0 0 auto;">`;
                 html += `<div style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Total Paid Orders:</div>`;
                 html += `<div style="font-family: 'JetBrains Mono', monospace; font-size: 1.5rem; font-weight: 700; color: var(--accent-emerald);">₱${paidTotal.toLocaleString('en-PH', {minimumFractionDigits: 2})}</div>`;
+                html += `</div>`;
                 html += `</div>`;
                 html += '</div>';
             }
