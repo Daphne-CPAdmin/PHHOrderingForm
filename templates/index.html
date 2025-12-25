@@ -2012,22 +2012,29 @@
                     {% endif %}
 
                 </div>
-
-                <!-- Customer Summary Section (shown when order form is closed) -->
-                {% if order_form_locked %}
-                <div class="card" style="margin-top: 1rem;" id="customer-summary-section">
-                    <h2 class="card-title"><span class="icon">📊</span> Customer Summary</h2>
-                    <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: -0.5rem; margin-bottom: 1.5rem;">Your order overview</p>
-                    
-                    <div id="customer-summary-content" style="min-height: 100px;">
-                        <div style="text-align: center; padding: 2rem; color: var(--text-muted);">
-                            <p>Loading orders...</p>
-                        </div>
-                    </div>
-                </div>
-                {% endif %}
             </div>
         </div>
+
+        <!-- Customer Summary Section (shown when order form is closed) - Full Width -->
+        {% if order_form_locked %}
+        <div class="orders-summary-section" id="customer-summary-section">
+            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+                <div style="background: linear-gradient(135deg, #e879a9, #c084fc); padding: 0.75rem; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                    <span style="font-size: 1.5rem;">📊</span>
+                </div>
+                <div>
+                    <h3 class="orders-summary-title" style="margin: 0;">Customer Summary</h3>
+                    <p style="color: var(--text-muted); font-size: 0.85rem; margin: 0;">Your order overview</p>
+                </div>
+            </div>
+            
+            <div id="customer-summary-content" style="min-height: 100px;">
+                <div style="text-align: center; padding: 2rem; color: var(--text-muted);">
+                    <p>Loading orders...</p>
+                </div>
+            </div>
+        </div>
+        {% endif %}
 
         <!-- View My Orders Section -->
         <div id="my-orders-section" class="orders-summary-section" style="display: none;">
@@ -2524,8 +2531,9 @@
                     <p style="color: #1e40af; font-size: 0.85rem; font-weight: 600; margin: 0;">⚠️ Please review and make sure everything added is accurate before saving.</p>
                 </div>
                 <div class="form-group" style="margin-bottom: 1rem;">
-                    <label class="form-label">Full Name (Receiver)</label>
-                    <input type="text" class="form-input" id="mailing-name" placeholder="Juan Dela Cruz">
+                    <label class="form-label">Full Name (Receiver) <span style="color: #ef4444;">*</span></label>
+                    <input type="text" class="form-input" id="mailing-name" placeholder="Enter your full name (required for shipping)">
+                    <small style="color: var(--text-muted); font-size: 0.75rem; display: block; margin-top: 0.25rem;">⚠️ Full Name is required for shipping address</small>
                 </div>
                 <div class="form-group" style="margin-bottom: 1rem;">
                     <label class="form-label">Contact Number</label>
@@ -3841,11 +3849,14 @@
                             existingCustomerOrders = userOrders;
                             // Show orders with Pay Order buttons in My Orders section
                             showMyOrdersSection(userOrders);
-                            // Also update customer summary content to show orders
-                            const summaryContent = document.getElementById('customer-summary-content');
-                            if (summaryContent) {
-                                summaryContent.innerHTML = '<p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem;">Your orders are displayed below. Click "Pay Order" on any unpaid order to make payment.</p>';
-                            }
+                            // Store mailing_address status before removing for privacy
+                            userOrders.forEach(order => {
+                                order._hasShippingDetails = !!(order.mailing_address && order.mailing_address.trim() !== '');
+                                // Remove mailing_address to protect privacy
+                                delete order.mailing_address;
+                            });
+                            // Update customer summary with the orders table
+                            updateCustomerSummary(userOrders);
                             return;
                         }
                     }
