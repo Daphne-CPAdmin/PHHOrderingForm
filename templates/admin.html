@@ -1794,6 +1794,41 @@
             }
         }
 
+        // Shared color assignment function for Pep Haulers (consistent across all sections)
+        function getColorForUsername(username) {
+            // Extended color palette with distinct colors
+            const colorPalette = [
+                { bg: 'rgba(124, 58, 237, 0.4)', text: '#ffffff', shadow: '0 0 8px rgba(124, 58, 237, 0.5)' }, // Dark purple
+                { bg: 'rgba(139, 92, 246, 0.4)', text: '#ffffff', shadow: '0 0 8px rgba(139, 92, 246, 0.5)' }, // Deep purple
+                { bg: 'rgba(168, 85, 247, 0.4)', text: '#ffffff', shadow: '0 0 8px rgba(168, 85, 247, 0.5)' }, // Rich purple
+                { bg: 'rgba(219, 39, 119, 0.4)', text: '#ffffff', shadow: '0 0 8px rgba(219, 39, 119, 0.5)' }, // Dark rose
+                { bg: 'rgba(236, 72, 153, 0.4)', text: '#ffffff', shadow: '0 0 8px rgba(236, 72, 153, 0.5)' }, // Deep pink
+                { bg: 'rgba(190, 24, 93, 0.4)', text: '#ffffff', shadow: '0 0 8px rgba(190, 24, 93, 0.5)' }, // Dark pink
+                { bg: 'rgba(147, 51, 234, 0.4)', text: '#ffffff', shadow: '0 0 8px rgba(147, 51, 234, 0.5)' }, // Violet
+                { bg: 'rgba(107, 33, 168, 0.4)', text: '#ffffff', shadow: '0 0 8px rgba(107, 33, 168, 0.5)' }, // Dark violet
+                { bg: 'rgba(79, 70, 229, 0.4)', text: '#ffffff', shadow: '0 0 8px rgba(79, 70, 229, 0.5)' }, // Indigo
+                { bg: 'rgba(99, 102, 241, 0.4)', text: '#ffffff', shadow: '0 0 8px rgba(99, 102, 241, 0.5)' }, // Blue-purple
+                { bg: 'rgba(59, 130, 246, 0.4)', text: '#ffffff', shadow: '0 0 8px rgba(59, 130, 246, 0.5)' }, // Blue
+                { bg: 'rgba(37, 99, 235, 0.4)', text: '#ffffff', shadow: '0 0 8px rgba(37, 99, 235, 0.5)' }, // Dark blue
+                { bg: 'rgba(16, 185, 129, 0.4)', text: '#ffffff', shadow: '0 0 8px rgba(16, 185, 129, 0.5)' }, // Emerald
+                { bg: 'rgba(5, 150, 105, 0.4)', text: '#ffffff', shadow: '0 0 8px rgba(5, 150, 105, 0.5)' }, // Dark emerald
+                { bg: 'rgba(245, 158, 11, 0.4)', text: '#ffffff', shadow: '0 0 8px rgba(245, 158, 11, 0.5)' }, // Amber
+                { bg: 'rgba(217, 119, 6, 0.4)', text: '#ffffff', shadow: '0 0 8px rgba(217, 119, 6, 0.5)' }, // Dark amber
+                { bg: 'rgba(239, 68, 68, 0.4)', text: '#ffffff', shadow: '0 0 8px rgba(239, 68, 68, 0.5)' }, // Red
+                { bg: 'rgba(220, 38, 38, 0.4)', text: '#ffffff', shadow: '0 0 8px rgba(220, 38, 38, 0.5)' }, // Dark red
+                { bg: 'rgba(251, 146, 60, 0.4)', text: '#ffffff', shadow: '0 0 8px rgba(251, 146, 60, 0.5)' }, // Orange
+                { bg: 'rgba(234, 88, 12, 0.4)', text: '#ffffff', shadow: '0 0 8px rgba(234, 88, 12, 0.5)' }, // Dark orange
+            ];
+            
+            // Hash username to get consistent color assignment
+            let hash = 0;
+            for (let i = 0; i < username.length; i++) {
+                hash = username.charCodeAt(i) + ((hash << 5) - hash);
+            }
+            const index = Math.abs(hash) % colorPalette.length;
+            return colorPalette[index];
+        }
+
         // Load Incomplete Kits
         function loadIncompleteKits(products) {
             const incompleteKits = products.filter(product => {
@@ -1861,31 +1896,7 @@
                     badgeTextColor = '#be185d';
                 }
                 
-                // Color palette for username badges (darker, more contrasting colors with glow effect)
-                const colorPalette = [
-                    { bg: 'rgba(124, 58, 237, 0.4)', text: '#ffffff', shadow: '0 0 8px rgba(124, 58, 237, 0.5)' }, // Dark purple with glow
-                    { bg: 'rgba(139, 92, 246, 0.4)', text: '#ffffff', shadow: '0 0 8px rgba(139, 92, 246, 0.5)' }, // Deep purple with glow
-                    { bg: 'rgba(168, 85, 247, 0.4)', text: '#ffffff', shadow: '0 0 8px rgba(168, 85, 247, 0.5)' }, // Rich purple with glow
-                    { bg: 'rgba(219, 39, 119, 0.4)', text: '#ffffff', shadow: '0 0 8px rgba(219, 39, 119, 0.5)' }, // Dark rose with glow
-                    { bg: 'rgba(236, 72, 153, 0.4)', text: '#ffffff', shadow: '0 0 8px rgba(236, 72, 153, 0.5)' }, // Deep pink with glow
-                    { bg: 'rgba(190, 24, 93, 0.4)', text: '#ffffff', shadow: '0 0 8px rgba(190, 24, 93, 0.5)' }, // Dark pink with glow
-                    { bg: 'rgba(147, 51, 234, 0.4)', text: '#ffffff', shadow: '0 0 8px rgba(147, 51, 234, 0.5)' }, // Violet with glow
-                    { bg: 'rgba(107, 33, 168, 0.4)', text: '#ffffff', shadow: '0 0 8px rgba(107, 33, 168, 0.5)' }, // Dark violet with glow
-                    { bg: 'rgba(79, 70, 229, 0.4)', text: '#ffffff', shadow: '0 0 8px rgba(79, 70, 229, 0.5)' }, // Indigo with glow
-                    { bg: 'rgba(99, 102, 241, 0.4)', text: '#ffffff', shadow: '0 0 8px rgba(99, 102, 241, 0.5)' }, // Blue-purple with glow
-                ];
-                
-                // Assign color based on username hash for consistency
-                const getColorForUsername = (username) => {
-                    let hash = 0;
-                    for (let i = 0; i < username.length; i++) {
-                        hash = username.charCodeAt(i) + ((hash << 5) - hash);
-                    }
-                    const index = Math.abs(hash) % colorPalette.length;
-                    return colorPalette[index];
-                };
-                
-                // Format pep haulers as badges with unique colors
+                // Format pep haulers as badges with unique colors (using shared function)
                 const pepHaulersHtml = pepHaulers.length > 0 
                     ? pepHaulers.map(username => {
                         const color = getColorForUsername(username);
@@ -2038,15 +2049,27 @@
                 const vialOrders = breakdown.filter(u => (u.vials || 0) > 0);
                 const kitOrders = breakdown.filter(u => (u.kits || 0) > 0);
 
-                // Format vial orders: one line per user
+                // Format vial orders: one line per user with smaller font and unique colors
                 const vialOrdersHtml = vialOrders.length > 0
-                    ? vialOrders.map(u => `<div style="padding: 0.25rem 0; line-height: 1.5;">@${escapeHtml(u.username)} (${u.vials} vial${u.vials !== 1 ? 's' : ''})</div>`).join('')
-                    : '<div style="color: var(--text-muted); font-size: 0.85rem;">—</div>';
+                    ? vialOrders.map(u => {
+                        const color = getColorForUsername(u.username);
+                        return `<div style="padding: 0.2rem 0; line-height: 1.4; font-size: 0.75rem;">
+                            <span style="display: inline-block; padding: 0.2rem 0.4rem; border-radius: 8px; background: ${color.bg}; color: ${color.text}; font-weight: 600; margin-right: 0.3rem;">@${escapeHtml(u.username)}</span>
+                            <span style="color: var(--text-secondary);">(${u.vials} vial${u.vials !== 1 ? 's' : ''})</span>
+                        </div>`;
+                    }).join('')
+                    : '<div style="color: var(--text-muted); font-size: 0.75rem;">—</div>';
 
-                // Format kit orders: one line per user
+                // Format kit orders: one line per user with smaller font and unique colors
                 const kitOrdersHtml = kitOrders.length > 0
-                    ? kitOrders.map(u => `<div style="padding: 0.25rem 0; line-height: 1.5;">@${escapeHtml(u.username)} (${u.kits} kit${u.kits !== 1 ? 's' : ''})</div>`).join('')
-                    : '<div style="color: var(--text-muted); font-size: 0.85rem;">—</div>';
+                    ? kitOrders.map(u => {
+                        const color = getColorForUsername(u.username);
+                        return `<div style="padding: 0.2rem 0; line-height: 1.4; font-size: 0.75rem;">
+                            <span style="display: inline-block; padding: 0.2rem 0.4rem; border-radius: 8px; background: ${color.bg}; color: ${color.text}; font-weight: 600; margin-right: 0.3rem;">@${escapeHtml(u.username)}</span>
+                            <span style="color: var(--text-secondary);">(${u.kits} kit${u.kits !== 1 ? 's' : ''})</span>
+                        </div>`;
+                    }).join('')
+                    : '<div style="color: var(--text-muted); font-size: 0.75rem;">—</div>';
 
                 return `
                     <tr>
