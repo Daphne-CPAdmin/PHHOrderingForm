@@ -912,10 +912,33 @@
                                 <th style="text-align: center;">Code</th>
                                 <th style="text-align: center;">Kits Generated</th>
                                 <th style="text-align: center;">Total Vials</th>
-                                <th style="text-align: center;">Pep Hauler/s (Vials vs Kits)</th>
                             </tr>
                         </thead>
                         <tbody id="completed-kits-tbody">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Shared Products Section -->
+            <div class="card" style="margin-bottom: 2rem; border: 2px solid #10b981;">
+                <h2 class="card-title" style="text-align: left; margin-bottom: 1rem;">🤝 Shared Products</h2>
+                <p style="color: var(--text-muted); margin-bottom: 1.5rem;">
+                    Products with active orders showing all Pep Haulers sharing each product, with breakdown of vial orders and kit orders per user.
+                </p>
+
+                <div class="table-container" style="background: rgba(16, 185, 129, 0.1); padding: 1rem; border-radius: 12px;">
+                    <table class="products-table" id="shared-products-table">
+                        <thead>
+                            <tr>
+                                <th style="text-align: center;">Product Name</th>
+                                <th style="text-align: center;">Vial Orders</th>
+                                <th style="text-align: center;">Kit Orders</th>
+                                <th style="text-align: center;">Total Completed Kits</th>
+                            </tr>
+                        </thead>
+                        <tbody id="shared-products-tbody">
                             <!-- Populated by JS -->
                         </tbody>
                     </table>
@@ -1680,6 +1703,9 @@
                 // Load completed kits
                 loadCompletedKits(products);
                 
+                // Load shared products
+                loadSharedProducts(products);
+                
                 // Render table
                 const tbody = document.getElementById('products-tbody');
                 tbody.innerHTML = products.map(product => {
@@ -1900,7 +1926,7 @@
 
             if (completedKits.length === 0) {
                 const tbody = document.getElementById('completed-kits-tbody');
-                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 2rem; color: var(--text-muted);">No completed kits yet</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 2rem; color: var(--text-muted);">No completed kits yet</td></tr>';
                 return;
             }
 
@@ -1933,37 +1959,20 @@
             tbody.innerHTML = sortedProducts.map((product, index) => {
                 const kitsGenerated = product.kits_generated || 0;
                 const totalVials = product.total_vials || 0;
-                const breakdown = Array.isArray(product.pep_hauler_breakdown) ? product.pep_hauler_breakdown : [];
-                const totalPepHaulers = breakdown.length;
-
-                const formatUserParts = (u) => {
-                    const parts = [];
-                    if (u.vials) parts.push(`${u.vials} vial${u.vials !== 1 ? 's' : ''}`);
-                    if (u.kits) parts.push(`${u.kits} kit${u.kits !== 1 ? 's' : ''}`);
-                    return parts.join(', ');
-                };
-
-                const preview = breakdown.slice(0, 3).map(u => `@${u.username} (${formatUserParts(u)})`).join(', ');
-                const previewHtml = totalPepHaulers
-                    ? `<div style="font-size:0.85rem; color:${textColor}; line-height:1.3; white-space: normal;">
-                           ${escapeHtml(preview)}${totalPepHaulers > 3 ? ` <span style="opacity:0.85;">… +${totalPepHaulers - 3} more</span>` : ''}
-                       </div>
-                       <button onclick="openPepHaulersModal('${escapeJS(product.code)}')" style="margin-top:0.5rem; padding: 0.35rem 0.6rem; background: rgba(255,255,255,0.35); color:${textColor}; border: 1px solid rgba(255,255,255,0.35); border-radius: 999px; cursor:pointer; font-size:0.75rem; font-weight:700;">View</button>`
-                    : `<span style="color:${textColor}; opacity:0.85;">—</span>`;
                 
                 // Calculate gradient intensity (0 to 1) based on kits_generated
-                // Darker gradient for more kits
+                // Light gradient for better readability
                 const intensity = Math.min(kitsGenerated / maxKits, 1);
                 
-                // Create gradient from light purple to dark purple/pink
-                // More kits = darker color
-                const r = Math.floor(167 - (intensity * 50)); // Start at 167 (light purple), go darker
-                const g = Math.floor(139 - (intensity * 30)); // Start at 139, go darker
-                const b = Math.floor(250 - (intensity * 80)); // Start at 250, go darker
+                // Create light gradient from light purple to slightly darker purple
+                // Light background for easy copying
+                const r = Math.floor(221 - (intensity * 20)); // Start at 221 (very light purple), go slightly darker
+                const g = Math.floor(214 - (intensity * 15)); // Start at 214, go slightly darker
+                const b = Math.floor(254 - (intensity * 20)); // Start at 254, go slightly darker
                 
-                // Background gradient - darker for more kits
-                const bgColor = `rgba(${r}, ${g}, ${b}, ${0.3 + intensity * 0.3})`; // 0.3 to 0.6 opacity
-                const textColor = intensity > 0.6 ? '#ffffff' : '#7c3aed'; // White text for dark backgrounds
+                // Background gradient - light for easy copying
+                const bgColor = `rgba(${r}, ${g}, ${b}, 0.3)`; // Light opacity
+                const textColor = '#7c3aed'; // Consistent purple text
                 
                 // Check if this is a BAC Water product (for visual separation)
                 const isBacWater = bacWaterCodes.includes(product.code);
@@ -1990,9 +1999,6 @@
                                 ${totalVials}
                             </span>
                         </td>
-                        <td style="text-align: center;">
-                            ${previewHtml}
-                        </td>
                     </tr>
                 `;
             }).join('');
@@ -2004,6 +2010,64 @@
                 // Add title attribute for copy hint
                 table.title = 'Click and drag to select rows, then copy (Ctrl+C / Cmd+C) to paste into spreadsheet';
             }
+        }
+
+        // Load Shared Products
+        function loadSharedProducts(products) {
+            // Filter products with active orders (total_vials > 0)
+            const sharedProducts = products.filter(product => {
+                const totalVials = product.total_vials || 0;
+                return totalVials > 0;
+            });
+
+            if (sharedProducts.length === 0) {
+                const tbody = document.getElementById('shared-products-tbody');
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 2rem; color: var(--text-muted);">No products with active orders</td></tr>';
+                return;
+            }
+
+            // Sort by total completed kits (descending)
+            sharedProducts.sort((a, b) => (b.kits_generated || 0) - (a.kits_generated || 0));
+
+            const tbody = document.getElementById('shared-products-tbody');
+            tbody.innerHTML = sharedProducts.map(product => {
+                const breakdown = Array.isArray(product.pep_hauler_breakdown) ? product.pep_hauler_breakdown : [];
+                const kitsGenerated = product.kits_generated || 0;
+
+                // Separate vial orders and kit orders
+                const vialOrders = breakdown.filter(u => (u.vials || 0) > 0);
+                const kitOrders = breakdown.filter(u => (u.kits || 0) > 0);
+
+                // Format vial orders: one line per user
+                const vialOrdersHtml = vialOrders.length > 0
+                    ? vialOrders.map(u => `<div style="padding: 0.25rem 0; line-height: 1.5;">@${escapeHtml(u.username)} (${u.vials} vial${u.vials !== 1 ? 's' : ''})</div>`).join('')
+                    : '<div style="color: var(--text-muted); font-size: 0.85rem;">—</div>';
+
+                // Format kit orders: one line per user
+                const kitOrdersHtml = kitOrders.length > 0
+                    ? kitOrders.map(u => `<div style="padding: 0.25rem 0; line-height: 1.5;">@${escapeHtml(u.username)} (${u.kits} kit${u.kits !== 1 ? 's' : ''})</div>`).join('')
+                    : '<div style="color: var(--text-muted); font-size: 0.85rem;">—</div>';
+
+                return `
+                    <tr>
+                        <td style="font-weight: 500; text-align: center; vertical-align: top; padding: 1rem;">
+                            <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.25rem;">${product.name}</div>
+                            <div style="font-family: 'JetBrains Mono', monospace; color: var(--accent-violet); font-size: 0.85rem;">${product.code}</div>
+                        </td>
+                        <td style="text-align: left; vertical-align: top; padding: 1rem;">
+                            ${vialOrdersHtml}
+                        </td>
+                        <td style="text-align: left; vertical-align: top; padding: 1rem;">
+                            ${kitOrdersHtml}
+                        </td>
+                        <td style="text-align: center; vertical-align: top; padding: 1rem;">
+                            <span style="font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 1.1rem; color: var(--accent-violet);">
+                                ${kitsGenerated}
+                            </span>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
         }
 
         // Pep haulers modal (used by Completed Kits)
