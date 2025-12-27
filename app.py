@@ -414,6 +414,151 @@ def set_product_lock(product_code, is_locked, max_kits=None, admin_name='Admin')
 _order_form_locked = False
 _order_form_lock_message = ""
 
+# --- Rich text sanitization (used for lock message) ---
+# We store formatted lock messages as *sanitized HTML* so the public page can render safely.
+from html.parser import HTMLParser
+from html import escape as _html_escape
+import re as _re
+
+_ALLOWED_LOCK_TAGS = {
+    'b', 'strong', 'i', 'em', 'u', 'br',
+    'p', 'div', 'span',
+    'h1', 'h2', 'h3', 'h4',
+    'ul', 'ol', 'li'
+}
+
+_ALLOWED_STYLE_PROPS = {'text-align', 'color', 'font-family', 'font-size', 'font-weight'}
+_ALLOWED_TEXT_ALIGN = {'left', 'center', 'right', 'justify'}
+_ALLOWED_FONTS = {
+    'Outfit', 'Inter', 'Poppins', 'Arial', 'Helvetica', 'Georgia', 'Times New Roman', 'Courier New',
+    'JetBrains Mono', 'Verdana', 'Tahoma'
+}
+
+_COLOR_RE = _re.compile(r'^(#[0-9a-fA-F]{3,8}|rgba?\([0-9\s.,%]+\)|hsla?\([0-9\s.,%]+\)|[a-zA-Z]+)$')
+_FONTSIZE_RE = _re.compile(r'^([0-9]{1,3})(px|em|rem|%)$')
+
+
+def _sanitize_style_value(prop: str, val: str) -> str:
+    v = (val or '').strip()
+    if not v:
+        return ''
+    vl = v.lower()
+    # Block CSS injection primitives
+    if 'url(' in vl or 'expression(' in vl or '@import' in vl:
+        return ''
+    if prop == 'text-align':
+        return vl if vl in _ALLOWED_TEXT_ALIGN else ''
+    if prop == 'color':
+        return v if _COLOR_RE.match(v.strip()) else ''
+    if prop == 'font-family':
+        # Take the first font in the list, strip quotes
+        first = v.split(',')[0].strip().strip('"').strip("'")
+        return first if first in _ALLOWED_FONTS else ''
+    if prop == 'font-size':
+        m = _FONTSIZE_RE.match(vl)
+        if not m:
+            return ''
+        num = int(m.group(1))
+        unit = m.group(2)
+        # Reasonable bounds to avoid giant banners
+        if unit == 'px' and (num < 10 or num > 72):
+            return ''
+        if unit != 'px' and (num < 50 or num > 200):
+            return ''
+        return f"{num}{unit}"
+    if prop == 'font-weight':
+        if vl in {'normal', 'bold', 'bolder', 'lighter'}:
+            return vl
+        if vl.isdigit():
+            n = int(vl)
+            return str(n) if 100 <= n <= 900 and n % 100 == 0 else ''
+        return ''
+    return ''
+
+
+def sanitize_lock_message_html(raw_html: str) -> str:
+    """Sanitize lock message HTML (admin-controlled but rendered publicly)."""
+    raw_html = str(raw_html or '').strip()
+    if not raw_html:
+        return ''
+
+    class _Sanitizer(HTMLParser):
+        def __init__(self):
+            super().__init__(convert_charrefs=True)
+            self.out = []
+            self.stack = []
+
+        def handle_starttag(self, tag, attrs):
+            t = (tag or '').lower()
+            if t not in _ALLOWED_LOCK_TAGS:
+                return
+
+            if t == 'br':
+                self.out.append('<br/>')
+                return
+
+            clean_style = None
+            for (k, v) in (attrs or []):
+                kk = (k or '').lower()
+                if kk != 'style':
+                    continue
+                style = v or ''
+                parts = []
+                for decl in style.split(';'):
+                    if ':' not in decl:
+                        continue
+                    prop, val = decl.split(':', 1)
+                    prop = prop.strip().lower()
+                    if prop not in _ALLOWED_STYLE_PROPS:
+                        continue
+                    safe_val = _sanitize_style_value(prop, val)
+                    if safe_val:
+                        parts.append(f"{prop}: {safe_val}")
+                if parts:
+                    clean_style = '; '.join(parts)
+                break
+
+            if clean_style:
+                attr_str = f' style="{_html_escape(clean_style, quote=True)}"'
+            else:
+                attr_str = ''
+            self.out.append(f"<{t}{attr_str}>")
+            self.stack.append(t)
+
+        def handle_endtag(self, tag):
+            t = (tag or '').lower()
+            if t not in _ALLOWED_LOCK_TAGS or t == 'br':
+                return
+            if t in self.stack:
+                while self.stack:
+                    top = self.stack.pop()
+                    self.out.append(f"</{top}>")
+                    if top == t:
+                        break
+
+        def handle_data(self, data):
+            if data:
+                self.out.append(_html_escape(data))
+
+        def handle_entityref(self, name):
+            self.out.append(f"&{name};")
+
+        def handle_charref(self, name):
+            self.out.append(f"&#{name};")
+
+    s = _Sanitizer()
+    try:
+        s.feed(raw_html)
+        s.close()
+    except Exception:
+        return _html_escape(raw_html)
+
+    while s.stack:
+        top = s.stack.pop()
+        s.out.append(f"</{top}>")
+
+    return ''.join(s.out).strip()
+
 # In-memory theme (persists while server runs, or use Google Sheets for persistence)
 _current_theme = "default"
 
@@ -442,7 +587,7 @@ def _fetch_order_form_lock():
                 if record.get('Setting') == 'Order Form Locked':
                     _order_form_locked = str(record.get('Value', '')).lower() == 'yes'
                 if record.get('Setting') == 'Lock Message':
-                    _order_form_lock_message = record.get('Value', '')
+                    _order_form_lock_message = sanitize_lock_message_html(record.get('Value', ''))
                     
         except Exception as e:
             print(f"Error getting order form lock: {e}")
@@ -457,7 +602,7 @@ def set_order_form_lock(is_locked, message=''):
     """Set order form lock status"""
     global _order_form_locked, _order_form_lock_message
     _order_form_locked = is_locked
-    _order_form_lock_message = message
+    _order_form_lock_message = sanitize_lock_message_html(message)
     
     if sheets_client:
         try:
@@ -492,7 +637,7 @@ def set_order_form_lock(is_locked, message=''):
             # Update values
             worksheet.update_cell(lock_row, 2, 'Yes' if is_locked else 'No')
             worksheet.update_cell(lock_row, 3, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
-            worksheet.update_cell(message_row, 2, message)
+            worksheet.update_cell(message_row, 2, _order_form_lock_message)
             worksheet.update_cell(message_row, 3, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
             
             # Clear cache since settings changed
@@ -2338,17 +2483,29 @@ def api_admin_products():
     locks = get_product_locks()
     orders = get_orders_from_sheets()
     
-    # Build a map of product code to telegram usernames
-    product_telegram_map = {}
+    # Build a map of product code to telegram usernames and a per-user breakdown (vials vs kits)
+    from collections import defaultdict
+    product_telegram_map = defaultdict(set)
+    product_telegram_breakdown = defaultdict(lambda: defaultdict(lambda: {'vials': 0, 'kits': 0}))
     for order in orders:
         product_code = order.get('Product Code', '')
         if not product_code:
             continue
+
+        # Skip items with 0 quantity
+        try:
+            qty = int(float(order.get('QTY', 0) or 0))
+        except Exception:
+            qty = 0
+        if qty <= 0:
+            continue
+
+        order_type = str(order.get('Order Type', 'Vial') or 'Vial').strip()
         
         # Get telegram username
         telegram_value = None
         for key in order.keys():
-            if 'telegram' in key.lower():
+            if 'telegram' in str(key).lower():
                 value = order.get(key, None)
                 if value is not None:
                     value_str = str(value).strip()
@@ -2367,9 +2524,11 @@ def api_admin_products():
                         break
         
         if telegram_value:
-            if product_code not in product_telegram_map:
-                product_telegram_map[product_code] = set()
             product_telegram_map[product_code].add(telegram_value)
+            if order_type.lower() == 'kit':
+                product_telegram_breakdown[product_code][telegram_value]['kits'] += qty
+            else:
+                product_telegram_breakdown[product_code][telegram_value]['vials'] += qty
     
     for product in products:
         code = product['code']
@@ -2381,17 +2540,19 @@ def api_admin_products():
         product['max_kits'] = lock.get('max_kits', MAX_KITS_DEFAULT)
         product['is_locked'] = lock.get('is_locked', False) or inv.get('kits_generated', 0) >= lock.get('max_kits', MAX_KITS_DEFAULT)
         
-        # Add pep_haulers for incomplete kits
-        vials_per_kit = product.get('vials_per_kit', VIALS_PER_KIT)
-        total_vials = inv.get('total_vials', 0)
-        remaining_vials = total_vials % vials_per_kit
-        if remaining_vials > 0:  # Has incomplete kit
-            product_code = product.get('code', '')
-            telegram_usernames = sorted(list(product_telegram_map.get(product_code, set())))
-            product['pep_haulers'] = telegram_usernames
-        # Add telegram usernames for this product
         telegram_usernames = sorted(list(product_telegram_map.get(code, set())))
         product['pep_haulers'] = telegram_usernames
+
+        breakdown = []
+        for username in telegram_usernames:
+            stats = product_telegram_breakdown.get(code, {}).get(username, {'vials': 0, 'kits': 0})
+            breakdown.append({
+                'username': username,
+                'vials': int(stats.get('vials', 0) or 0),
+                'kits': int(stats.get('kits', 0) or 0),
+            })
+        breakdown.sort(key=lambda x: (-(x.get('vials', 0) + x.get('kits', 0)), x.get('username', '')))
+        product['pep_hauler_breakdown'] = breakdown
     
     return jsonify(products)
 
@@ -2507,7 +2668,7 @@ def api_lock_order_form():
     
     data = request.json
     is_locked = data.get('is_locked', True)
-    message = data.get('message', 'Orders are currently closed. Thank you for your patience!')
+    message = sanitize_lock_message_html(data.get('message', 'Orders are currently closed. Thank you for your patience!'))
     
     if set_order_form_lock(is_locked, message):
         return jsonify({'success': True, 'is_locked': is_locked, 'message': message})
@@ -2644,6 +2805,38 @@ def delete_timeline_entry(entry_id):
     
     return False
 
+
+def update_timeline_entry(entry_id, date, time, details):
+    """Update a timeline entry in sheets"""
+    if sheets_client:
+        try:
+            spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
+            worksheet = spreadsheet.worksheet('Timeline')
+
+            all_values = worksheet.get_all_values()
+            if not all_values or len(all_values) < 2:
+                return False
+
+            # Locate ID in first column only (avoid matching in details)
+            target_row = None
+            for idx, row in enumerate(all_values[1:], start=2):
+                if row and len(row) >= 1 and str(row[0]).strip() == str(entry_id).strip():
+                    target_row = idx
+                    break
+
+            if not target_row:
+                return False
+
+            worksheet.update(f'B{target_row}:D{target_row}', [[date, time, details]])
+            clear_cache('timeline_entries')
+            return True
+        except Exception as e:
+            print(f"Error updating timeline entry: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+    return False
+
 @app.route('/api/admin/timeline')
 def api_get_timeline():
     """Get timeline entries"""
@@ -2679,6 +2872,26 @@ def api_delete_timeline(entry_id):
         return jsonify({'success': True})
     
     return jsonify({'error': 'Failed to delete timeline entry'}), 500
+
+
+@app.route('/api/admin/timeline/<entry_id>', methods=['PUT', 'PATCH'])
+def api_update_timeline(entry_id):
+    """Update timeline entry"""
+    if not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    data = request.json or {}
+    date = (data.get('date') or '').strip()
+    time = (data.get('time') or '').strip()
+    details = (data.get('details') or '').strip()
+
+    if not date or not details:
+        return jsonify({'error': 'Date and details are required'}), 400
+
+    if update_timeline_entry(entry_id, date, time, details):
+        return jsonify({'success': True})
+
+    return jsonify({'error': 'Failed to update timeline entry'}), 500
 
 @app.route('/api/timeline')
 def api_public_timeline():

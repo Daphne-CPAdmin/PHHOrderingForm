@@ -1799,9 +1799,13 @@
         <div class="locked-banner" style="background: linear-gradient(135deg, #fecaca 0%, #fca5a5 100%); border: 2px solid #ef4444; border-radius: 16px; padding: 2rem; margin-bottom: 2rem; text-align: center;">
             <div style="font-size: 3rem; margin-bottom: 1rem;">🔒</div>
             <h2 style="color: #991b1b; margin-bottom: 0.75rem; font-size: 1.5rem;">Orders Currently Closed</h2>
-            <p style="color: #7f1d1d; font-size: 1rem; max-width: 500px; margin: 0 auto;">
-                {{ order_form_lock_message or 'The order form is currently locked. New orders cannot be submitted at this time. Please check back later!' }}
-            </p>
+            <div style="color: #7f1d1d; font-size: 1rem; max-width: 650px; margin: 0 auto;">
+                {% if order_form_lock_message %}
+                    {{ order_form_lock_message|safe }}
+                {% else %}
+                    The order form is currently locked. New orders cannot be submitted at this time. Please check back later!
+                {% endif %}
+            </div>
         </div>
         {% endif %}
 
