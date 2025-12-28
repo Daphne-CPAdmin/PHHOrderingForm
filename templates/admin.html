@@ -2152,7 +2152,9 @@
                 return kitsGenerated > 0;
             });
 
-            const tbody = document.querySelector(`.completed-kits-tbody[data-supplier="${supplier}"]`);
+            // Escape supplier for safe use in template literal
+            const supplierEscaped = escapeJS(supplier || '');
+            const tbody = document.querySelector(`.completed-kits-tbody[data-supplier="${supplierEscaped}"]`);
             if (!tbody) return;
             
             if (completedKits.length === 0) {
@@ -2252,7 +2254,7 @@
             }).join('');
 
             // Make table easy to copy (add copy functionality hint)
-            const table = document.querySelector(`.completed-kits-table[data-supplier="${supplier}"]`);
+            const table = document.querySelector(`.completed-kits-table[data-supplier="${supplierEscaped}"]`);
             if (table) {
                 table.style.cursor = 'default';
                 // Add title attribute for copy hint
