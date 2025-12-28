@@ -2166,7 +2166,8 @@
             const bacWaterProducts = [];
 
             completedKits.forEach(product => {
-                if (bacWaterCodes.includes(product.code)) {
+                const productCode = product && product.code ? String(product.code) : '';
+                if (productCode && bacWaterCodes.includes(productCode)) {
                     bacWaterProducts.push(product);
                 } else {
                     regularProducts.push(product);
@@ -2183,9 +2184,14 @@
             const sortedProducts = [...regularProducts, ...bacWaterProducts];
 
             // Find max kits for gradient calculation
-            const maxKits = Math.max(...sortedProducts.map(p => p.kits_generated || 0), 1);
+            const maxKits = sortedProducts.length > 0 
+                ? Math.max(...sortedProducts.map(p => p.kits_generated || 0), 1)
+                : 1;
 
             tbody.innerHTML = sortedProducts.map((product, index) => {
+                // Safety check - skip if product is invalid
+                if (!product) return '';
+                
                 const kitsGenerated = product.kits_generated || 0;
                 const totalVials = product.total_vials || 0;
                 
@@ -2199,8 +2205,8 @@
                 const g = Math.floor(214 - (intensity * 15)); // Start at 214, go slightly darker
                 const b = Math.floor(254 - (intensity * 20)); // Start at 254, go slightly darker
                 
-                // Background gradient - light for easy copying
-                const bgColor = `rgba(${r}, ${g}, ${b}, 0.3)`; // Light opacity
+                // Background gradient - light for easy copying (construct as string, not template literal)
+                const bgColor = 'rgba(' + r + ', ' + g + ', ' + b + ', 0.3)'; // Light opacity
                 const textColor = '#7c3aed'; // Consistent purple text
                 
                 // Safely get product code and name with null checks
