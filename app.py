@@ -5821,16 +5821,16 @@ def api_admin_create_pephaul_tab():
         # Create new tab name (e.g., "PepHaul Entry-01")
         new_tab_name = f"PepHaul Entry-{next_num:02d}"
         
-        # Create new worksheet with headers
+        # Create new worksheet with headers (Supplier in column E)
         worksheet = spreadsheet.add_worksheet(title=new_tab_name, rows=1000, cols=25)
         headers = [
-            'Order ID', 'Order Date', 'Name', 'Telegram Username',
+            'Order ID', 'Order Date', 'Name', 'Telegram Username', 'Supplier',
             'Product Code', 'Product Name', 'Order Type', 'QTY', 'Unit Price USD',
             'Line Total USD', 'Exchange Rate', 'Line Total PHP', 'Admin Fee PHP',
             'Grand Total PHP', 'Order Status', 'Locked', 'Payment Status', 
             'Remarks', 'Link to Payment', 'Payment Date', 'Full Name', 'Contact Number', 'Mailing Address', 'Tracking Number'
         ]
-        worksheet.update('A1:X1', [headers])
+        worksheet.update('A1:Y1', [headers])
         
         print(f"✅ Created new PepHaul Entry tab: {new_tab_name}")
         
