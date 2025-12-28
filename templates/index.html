@@ -2375,6 +2375,7 @@
                                 <th style="text-align: center;">YIWU Kit Price</th>
                                 <th style="text-align: center;">WWB Kit Price</th>
                                 <th style="text-align: center;">Price Difference</th>
+                                <th style="text-align: center;">Remarks</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -2403,6 +2404,20 @@
                                             +${{ "%.2f"|format(diff) }}
                                         {% else %}
                                             $0.00
+                                        {% endif %}
+                                    {% else %}
+                                        <span style="color: var(--text-muted);">—</span>
+                                    {% endif %}
+                                </td>
+                                <td style="text-align: center;">
+                                    {% if item.available_in_wwb %}
+                                        {% set diff = item.yiwu_kit_price - item.wwb_kit_price %}
+                                        {% if diff < 0 %}
+                                            <span style="display: inline-block; width: 16px; height: 16px; border-radius: 50%; background-color: var(--accent-emerald);" title="YIWU is cheaper"></span>
+                                        {% elif diff > 0 %}
+                                            <span style="display: inline-block; width: 16px; height: 16px; border-radius: 50%; background-color: var(--accent-rose);" title="YIWU is more expensive"></span>
+                                        {% else %}
+                                            <span style="display: inline-block; width: 16px; height: 16px; border-radius: 50%; background-color: var(--text-muted);" title="Same price"></span>
                                         {% endif %}
                                     {% else %}
                                         <span style="color: var(--text-muted);">—</span>
