@@ -2251,7 +2251,7 @@
                         </td>
                     </tr>
                 `;
-            }).join('');
+            }}).join('');  // Close arrow function body with }, then close map() with ), then join
 
             // Make table easy to copy (add copy functionality hint)
             const table = document.querySelector(`.completed-kits-table[data-supplier="${supplierEscaped}"]`);
