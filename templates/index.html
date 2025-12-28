@@ -664,11 +664,20 @@
             align-items: start;
             margin-bottom: 500px; /* Extra spacing to allow product dropdown to show at least 7 items */
         }
+        .supplier-carts-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-top: 2rem;
+        }
         @media (max-width: 1024px) { 
             .main-grid { 
                 grid-template-columns: 1fr;
                 margin-bottom: 500px; /* Same spacing on mobile */
-            } 
+            }
+            .supplier-carts-grid {
+                grid-template-columns: 1fr;
+            }
         }
 
         /* Cards - Glass Morphism */
@@ -1850,109 +1859,109 @@
 
         <!-- View: New / Update Order -->
         <div id="view-new-order" class="view-content">
-            <div class="main-grid">
-                <!-- Order Form -->
-                <div class="card">
-                    <h2 class="card-title"><span class="icon">📦</span> Customer Order Section</h2>
-                    <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: -0.5rem; margin-bottom: 1.5rem;">💡 Enter your Name and Telegram username and your existing orders will auto-populate in the Order Summary</p>
+            <!-- Order Form - Full Width -->
+            <div class="card" style="margin-bottom: 2rem;">
+                <h2 class="card-title"><span class="icon">📦</span> Customer Order Section</h2>
+                <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: -0.5rem; margin-bottom: 1.5rem;">💡 Enter your Name and Telegram username and your existing orders will auto-populate in the Order Summary</p>
 
-                    <div class="form-row" style="margin-bottom: 1.5rem;">
-                        <div class="form-group">
-                            <label class="form-label">Name <span style="color: #ef4444;">*</span></label>
-                            <input type="text" class="form-input" id="full-name" placeholder="Juan Dela Cruz" required>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Telegram Username <span style="color: #ef4444;">*</span></label>
-                            <input type="text" class="form-input" id="telegram" placeholder="@username" required>
-                        </div>
+                <div class="form-row" style="margin-bottom: 1.5rem;">
+                    <div class="form-group">
+                        <label class="form-label">Name <span style="color: #ef4444;">*</span></label>
+                        <input type="text" class="form-input" id="full-name" placeholder="Juan Dela Cruz" required>
                     </div>
-
-                    <div class="form-group product-search-container">
-                        <label class="form-label">Select Product</label>
-                        <input type="text" class="form-input" id="product-search" placeholder="Please enter your Name and Telegram username first..." autocomplete="off" disabled>
-                        <div class="product-dropdown" id="product-dropdown">
-                            <!-- Products loaded dynamically via JavaScript -->
-                        </div>
-                        <small id="product-search-hint" style="color: #ef4444; font-size: 0.85rem; margin-top: 0.5rem; display: block; font-weight: 500;">⚠️ Name and Telegram username are required before selecting products</small>
-                    </div>
-
-                    <div id="selected-product" style="display: none;">
-                        <div class="form-group">
-                            <label class="form-label">Selected</label>
-                            <div class="form-input" style="background: rgba(20, 184, 166, 0.1); border-color: var(--accent-teal);">
-                                <span id="selected-name"></span>
-                                <span id="selected-code" style="float: right; font-family: 'JetBrains Mono', monospace; color: var(--accent-teal);"></span>
-                            </div>
-                        </div>
-
-                        <div class="inventory-stats">
-                            <div class="inventory-title">📊 Inventory</div>
-                            <div class="inventory-grid">
-                                <div class="inventory-item">
-                                    <div class="inventory-value" id="inv-total-vials">0</div>
-                                    <div class="inventory-label">Total Vials</div>
-                                </div>
-                                <div class="inventory-item">
-                                    <div class="inventory-value" id="inv-kits">0</div>
-                                    <div class="inventory-label">Kits Generated</div>
-                                </div>
-                                <div class="inventory-item">
-                                    <div class="inventory-value" id="inv-remaining">0</div>
-                                    <div class="inventory-label">Extra Vials</div>
-                                </div>
-                                <div class="inventory-item">
-                                    <div class="inventory-value highlight" id="inv-slots">0</div>
-                                    <div class="inventory-label">Slots Left</div>
-                                </div>
-                            </div>
-                            <div class="kit-progress">
-                                <div class="kit-progress-label">
-                                    <span>Progress to Next Kit</span>
-                                    <span id="progress-text">0/{{ vials_per_kit }}</span>
-                                </div>
-                                <div class="kit-progress-bar">
-                                    <div class="kit-progress-fill" id="progress-fill" style="width: 0%"></div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="form-group" style="margin-top: 1.25rem;">
-                            <label class="form-label">Order Type</label>
-                            <div class="order-type-toggle">
-                                <button type="button" class="toggle-btn" data-type="Kit">Kit ({{ vials_per_kit }} vials)</button>
-                                <button type="button" class="toggle-btn active" data-type="Vial">Per Vial</button>
-                            </div>
-                        </div>
-
-                        <div class="form-group">
-                            <label class="form-label">Quantity</label>
-                            <div class="qty-input-group">
-                                <button type="button" class="qty-btn" id="qty-minus">−</button>
-                                <input type="number" class="form-input qty-input" id="quantity" value="1" min="1">
-                                <button type="button" class="qty-btn" id="qty-plus">+</button>
-                            </div>
-                        </div>
-
-                        <div class="price-display">
-                            <div class="price-row">
-                                <span class="price-label">Unit Price (USD)</span>
-                                <span class="price-value" id="unit-price-usd">$0.00</span>
-                            </div>
-                            <div class="price-row">
-                                <span class="price-label">Line Total (USD)</span>
-                                <span class="price-value" id="line-total-usd">$0.00</span>
-                            </div>
-                            <div class="price-row">
-                                <span class="price-label">Line Total (PHP)</span>
-                                <span class="price-value" id="line-total-php">₱0.00</span>
-                            </div>
-                        </div>
-
-                        <button type="button" class="btn btn-primary btn-full" style="margin-top: 1.5rem;" id="add-to-cart">Add to Order</button>
+                    <div class="form-group">
+                        <label class="form-label">Telegram Username <span style="color: #ef4444;">*</span></label>
+                        <input type="text" class="form-input" id="telegram" placeholder="@username" required>
                     </div>
                 </div>
 
-                <!-- Cart - One per Supplier -->
+                <div class="form-group product-search-container">
+                    <label class="form-label">Select Product</label>
+                    <input type="text" class="form-input" id="product-search" placeholder="Please enter your Name and Telegram username first..." autocomplete="off" disabled>
+                    <div class="product-dropdown" id="product-dropdown">
+                        <!-- Products loaded dynamically via JavaScript -->
+                    </div>
+                    <small id="product-search-hint" style="color: #ef4444; font-size: 0.85rem; margin-top: 0.5rem; display: block; font-weight: 500;">⚠️ Name and Telegram username are required before selecting products</small>
+                </div>
+
+                <div id="selected-product" style="display: none;">
+                    <div class="form-group">
+                        <label class="form-label">Selected</label>
+                        <div class="form-input" style="background: rgba(20, 184, 166, 0.1); border-color: var(--accent-teal);">
+                            <span id="selected-name"></span>
+                            <span id="selected-code" style="float: right; font-family: 'JetBrains Mono', monospace; color: var(--accent-teal);"></span>
+                        </div>
+                    </div>
+
+                    <div class="inventory-stats">
+                        <div class="inventory-title">📊 Inventory</div>
+                        <div class="inventory-grid">
+                            <div class="inventory-item">
+                                <div class="inventory-value" id="inv-total-vials">0</div>
+                                <div class="inventory-label">Total Vials</div>
+                            </div>
+                            <div class="inventory-item">
+                                <div class="inventory-value" id="inv-kits">0</div>
+                                <div class="inventory-label">Kits Generated</div>
+                            </div>
+                            <div class="inventory-item">
+                                <div class="inventory-value" id="inv-remaining">0</div>
+                                <div class="inventory-label">Extra Vials</div>
+                            </div>
+                            <div class="inventory-item">
+                                <div class="inventory-value highlight" id="inv-slots">0</div>
+                                <div class="inventory-label">Slots Left</div>
+                            </div>
+                        </div>
+                        <div class="kit-progress">
+                            <div class="kit-progress-label">
+                                <span>Progress to Next Kit</span>
+                                <span id="progress-text">0/{{ vials_per_kit }}</span>
+                            </div>
+                            <div class="kit-progress-bar">
+                                <div class="kit-progress-fill" id="progress-fill" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group" style="margin-top: 1.25rem;">
+                        <label class="form-label">Order Type</label>
+                        <div class="order-type-toggle">
+                            <button type="button" class="toggle-btn" data-type="Kit">Kit ({{ vials_per_kit }} vials)</button>
+                            <button type="button" class="toggle-btn active" data-type="Vial">Per Vial</button>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Quantity</label>
+                        <div class="qty-input-group">
+                            <button type="button" class="qty-btn" id="qty-minus">−</button>
+                            <input type="number" class="form-input qty-input" id="quantity" value="1" min="1">
+                            <button type="button" class="qty-btn" id="qty-plus">+</button>
+                        </div>
+                    </div>
+
+                    <div class="price-display">
+                        <div class="price-row">
+                            <span class="price-label">Unit Price (USD)</span>
+                            <span class="price-value" id="unit-price-usd">$0.00</span>
+                        </div>
+                        <div class="price-row">
+                            <span class="price-label">Line Total (USD)</span>
+                            <span class="price-value" id="line-total-usd">$0.00</span>
+                        </div>
+                        <div class="price-row">
+                            <span class="price-label">Line Total (PHP)</span>
+                            <span class="price-value" id="line-total-php">₱0.00</span>
+                        </div>
+                    </div>
+
+                    <button type="button" class="btn btn-primary btn-full" style="margin-top: 1.5rem;" id="add-to-cart">Add to Order</button>
+                </div>
+            </div>
+
+            <!-- Cart - One per Supplier - Side by Side -->
+            <div class="supplier-carts-grid">
                 {% for supplier in suppliers %}
                 <div class="card supplier-cart" data-supplier="{{ supplier }}">
                     <h2 class="card-title"><span class="icon">🛒</span> Order Summary - {{ supplier }}</h2>
@@ -2924,19 +2933,21 @@
         // Quantity Controls
         const qtyMinusBtn = document.getElementById('qty-minus');
         const qtyPlusBtn = document.getElementById('qty-plus');
-        if (qtyMinusBtn) {
+        if (qtyMinusBtn && quantityInput) {
             qtyMinusBtn.addEventListener('click', () => {
                 const current = parseInt(quantityInput.value) || 1;
                 if (current > 1) { quantityInput.value = current - 1; updatePricePreview(); }
             });
         }
-        if (qtyPlusBtn) {
+        if (qtyPlusBtn && quantityInput) {
             qtyPlusBtn.addEventListener('click', () => {
                 quantityInput.value = (parseInt(quantityInput.value) || 1) + 1;
                 updatePricePreview();
             });
         }
-        quantityInput.addEventListener('input', updatePricePreview);
+        if (quantityInput) {
+            quantityInput.addEventListener('input', updatePricePreview);
+        }
 
         function updatePricePreview() {
             if (!selectedProduct) {
@@ -2949,14 +2960,17 @@
                 return;
             }
             
-            const qty = parseInt(quantityInput.value) || 1;
+            const qty = quantityInput ? (parseInt(quantityInput.value) || 1) : 1;
             const unitPrice = orderType === 'Kit' ? selectedProduct.kit_price : selectedProduct.vial_price;
             const lineTotalUsd = unitPrice * qty;
             const lineTotalPhp = lineTotalUsd * EXCHANGE_RATE;
             
-            document.getElementById('unit-price-usd').textContent = `$${unitPrice.toFixed(2)}`;
-            document.getElementById('line-total-usd').textContent = `$${lineTotalUsd.toFixed(2)}`;
-            document.getElementById('line-total-php').textContent = `₱${lineTotalPhp.toFixed(2)}`;
+            const unitPriceEl = document.getElementById('unit-price-usd');
+            const lineTotalUsdEl = document.getElementById('line-total-usd');
+            const lineTotalPhpEl = document.getElementById('line-total-php');
+            if (unitPriceEl) unitPriceEl.textContent = `$${unitPrice.toFixed(2)}`;
+            if (lineTotalUsdEl) lineTotalUsdEl.textContent = `$${lineTotalUsd.toFixed(2)}`;
+            if (lineTotalPhpEl) lineTotalPhpEl.textContent = `₱${lineTotalPhp.toFixed(2)}`;
             
             // Disable add-to-cart button if product is locked
             const addToCartBtn = document.getElementById('add-to-cart');
@@ -2994,7 +3008,7 @@
                 return;
             }
             
-            const qty = parseInt(quantityInput.value) || 1;
+            const qty = quantityInput ? (parseInt(quantityInput.value) || 1) : 1;
             if (qty <= 0) {
                 showToast('Please enter a quantity greater than 0');
                 return;
@@ -3087,11 +3101,12 @@
 
         function resetSelection() {
             selectedProduct = null;
-            selectedProductDiv.style.display = 'none';
-            productSearch.value = '';
-            quantityInput.value = 1;
+            if (selectedProductDiv) selectedProductDiv.style.display = 'none';
+            if (productSearch) productSearch.value = '';
+            if (quantityInput) quantityInput.value = 1;
             document.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
-            document.querySelector('.toggle-btn[data-type="Vial"]').classList.add('active');
+            const vialToggleBtn = document.querySelector('.toggle-btn[data-type="Vial"]');
+            if (vialToggleBtn) vialToggleBtn.classList.add('active');
             orderType = 'Vial';
         }
 
