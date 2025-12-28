@@ -2375,7 +2375,14 @@
                         </thead>
                         <tbody>
                             {% for item in price_comparison %}
-                            <tr style="{% if item.available_in_wwb %}background: rgba(192, 132, 252, 0.05);{% else %}background: rgba(239, 68, 68, 0.05);{% endif %}">
+                            {% if item.available_in_wwb %}
+                                {% set diff = item.yiwu_kit_price - item.wwb_kit_price %}
+                                {% set has_checkmark = diff < 0 %}
+                            {% else %}
+                                {% set diff = 0 %}
+                                {% set has_checkmark = False %}
+                            {% endif %}
+                            <tr style="{% if has_checkmark %}background: rgba(192, 132, 252, 0.15);{% elif item.available_in_wwb %}background: rgba(192, 132, 252, 0.05);{% else %}background: rgba(239, 68, 68, 0.05);{% endif %}">
                                 <td style="font-family: 'JetBrains Mono', monospace; font-weight: 600; color: var(--accent-violet);">
                                     {{ item.code }}
                                 </td>
@@ -2390,9 +2397,8 @@
                                         <span style="color: var(--text-muted);">—</span>
                                     {% endif %}
                                 </td>
-                                <td style="text-align: center; font-weight: 700; {% if item.available_in_wwb %}{% set diff = item.yiwu_kit_price - item.wwb_kit_price %}{% if diff < 0 %}color: var(--accent-emerald);{% elif diff > 0 %}color: var(--accent-rose);{% else %}color: var(--text-primary);{% endif %}{% else %}color: var(--text-muted);{% endif %}">
+                                <td style="text-align: center; font-weight: 700; {% if item.available_in_wwb %}{% if diff < 0 %}color: var(--accent-emerald);{% elif diff > 0 %}color: var(--accent-rose);{% else %}color: var(--text-primary);{% endif %}{% else %}color: var(--text-muted);{% endif %}">
                                     {% if item.available_in_wwb %}
-                                        {% set diff = item.yiwu_kit_price - item.wwb_kit_price %}
                                         {% if diff < 0 %}
                                             -${{ "%.2f"|format(-diff) }}
                                         {% elif diff > 0 %}
@@ -2406,7 +2412,6 @@
                                 </td>
                                 <td style="text-align: center;">
                                     {% if item.available_in_wwb %}
-                                        {% set diff = item.yiwu_kit_price - item.wwb_kit_price %}
                                         {% if diff < 0 %}
                                             <span style="color: var(--accent-violet); font-size: 1.2rem; font-weight: bold;" title="YIWU is cheaper">✓</span>
                                         {% elif diff > 0 %}
