@@ -2199,14 +2199,16 @@
                     ? 'border-top: 3px solid rgba(167, 139, 250, 0.5);' 
                     : '';
 
+                const productCode = escapeHtml(product.code || '');
+                const productName = escapeHtml(product.name || '');
                 return `
-                    <tr class="completed-kit-row" style="background: ${bgColor}; ${separatorStyle}" data-kits="${kitsGenerated}" data-code="${escapeHtml(product.code || '')}">
+                    <tr class="completed-kit-row" style="background: ${bgColor}; ${separatorStyle}" data-kits="${kitsGenerated}" data-code="${productCode}">
                         <td style="font-weight: 500; text-align: center; color: ${textColor};">
-                            ${escapeHtml(product.name || '')}
+                            ${productName}
                             ${isBacWater ? '<span style="font-size: 0.75rem; opacity: 0.8;"> (BAC Water)</span>' : ''}
                         </td>
                         <td style="text-align: center;">
-                            <span class="product-code" style="color: ${textColor};">${escapeHtml(product.code || '')}</span>
+                            <span class="product-code" style="color: ${textColor};">${productCode}</span>
                         </td>
                         <td style="text-align: center;">
                             <span style="font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 1.1rem; color: ${textColor};">
