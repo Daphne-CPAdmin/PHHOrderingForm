@@ -2411,6 +2411,7 @@ def index():
         suppliers = sorted(suppliers_with_orders) if suppliers_with_orders else sorted(set(products_by_supplier.keys()))
         
         # Add supplier names to product names when same product code exists for multiple suppliers
+        # Also add supplier name to all YIWU-only products
         # First, find all product codes that appear in multiple suppliers
         product_code_counts = {}
         for product in products:
@@ -2420,57 +2421,44 @@ def index():
                     product_code_counts[code] = []
                 product_code_counts[code].append(product.get('supplier', 'Default'))
         
-        # Update product names to include supplier if code appears in multiple suppliers
-        for product in products:
+        def add_supplier_to_name(product, supplier):
+            """Add supplier name to product name if needed"""
             code = product.get('code', '')
-            supplier = product.get('supplier', 'Default')
-            if code and code in product_code_counts:
+            if not code:
+                return
+            
+            # Check if this code appears in multiple suppliers
+            if code in product_code_counts:
                 suppliers_with_code = set(product_code_counts[code])
-                if len(suppliers_with_code) > 1:
-                    # Multiple suppliers have this code, add supplier name
-                    product['name'] = f"{product.get('name', '')} ({supplier})"
+                # Add supplier name if: multiple suppliers have this code OR supplier is YIWU
+                if len(suppliers_with_code) > 1 or supplier == 'YIWU':
+                    name = product.get('name', '')
+                    # Remove existing supplier suffix if present
+                    if f' ({supplier})' not in name:
+                        product['name'] = f"{name} ({supplier})"
         
-        # Also update products_with_orders and incomplete_kits
+        # Update all products
+        for product in products:
+            add_supplier_to_name(product, product.get('supplier', 'Default'))
+        
         for product in products_with_orders:
-            code = product.get('code', '')
-            supplier = product.get('supplier', 'Default')
-            if code and code in product_code_counts:
-                suppliers_with_code = set(product_code_counts[code])
-                if len(suppliers_with_code) > 1:
-                    product['name'] = f"{product.get('name', '')} ({supplier})"
+            add_supplier_to_name(product, product.get('supplier', 'Default'))
         
         for product in incomplete_kits:
-            code = product.get('code', '')
-            supplier = product.get('supplier', 'Default')
-            if code and code in product_code_counts:
-                suppliers_with_code = set(product_code_counts[code])
-                if len(suppliers_with_code) > 1:
-                    product['name'] = f"{product.get('name', '')} ({supplier})"
+            add_supplier_to_name(product, product.get('supplier', 'Default'))
         
         # Also update products_by_supplier, products_with_orders_by_supplier, incomplete_kits_by_supplier
         for supplier in products_by_supplier:
             for product in products_by_supplier[supplier]:
-                code = product.get('code', '')
-                if code and code in product_code_counts:
-                    suppliers_with_code = set(product_code_counts[code])
-                    if len(suppliers_with_code) > 1:
-                        product['name'] = f"{product.get('name', '').replace(f' ({supplier})', '')} ({supplier})"
+                add_supplier_to_name(product, supplier)
         
         for supplier in products_with_orders_by_supplier:
             for product in products_with_orders_by_supplier[supplier]:
-                code = product.get('code', '')
-                if code and code in product_code_counts:
-                    suppliers_with_code = set(product_code_counts[code])
-                    if len(suppliers_with_code) > 1:
-                        product['name'] = f"{product.get('name', '').replace(f' ({supplier})', '')} ({supplier})"
+                add_supplier_to_name(product, supplier)
         
         for supplier in incomplete_kits_by_supplier:
             for product in incomplete_kits_by_supplier[supplier]:
-                code = product.get('code', '')
-                if code and code in product_code_counts:
-                    suppliers_with_code = set(product_code_counts[code])
-                    if len(suppliers_with_code) > 1:
-                        product['name'] = f"{product.get('name', '').replace(f' ({supplier})', '')} ({supplier})"
+                add_supplier_to_name(product, supplier)
         
         # Generate price comparison data for products available from both suppliers
         price_comparison = []
