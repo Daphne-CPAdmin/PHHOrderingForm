@@ -1886,43 +1886,43 @@
                     if (!tbody) return;
                     
                     tbody.innerHTML = supplierProducts.map(product => {
-                    const kitsPercent = product.max_kits > 0 ? (product.kits_generated / product.max_kits) * 100 : 0;
-                    let badgeClass = 'normal';
-                    if (kitsPercent >= 90) badgeClass = 'danger';
-                    else if (kitsPercent >= 70) badgeClass = 'warning';
-                    
-                    // Check if incomplete kit
-                    const vialsPerKit = product.vials_per_kit || 10;
-                    const remainingVials = (product.total_vials || 0) % vialsPerKit;
-                    const isIncomplete = remainingVials > 0 && product.total_vials > 0;
-                    
-                    // Escape product code and name for safe use in template literal
-                    const prodCode = escapeJS(String(product.code || ''));
-                    const prodName = escapeHtml(String(product.name || ''));
-                    const prodCodeHtml = escapeHtml(String(product.code || ''));
-                    return `
-                        <tr data-code="${prodCode}" class="${isIncomplete ? 'incomplete-kit' : ''}">
-                            <td>${prodName}</td>
-                            <td><span class="product-code">${prodCodeHtml}</span></td>
-                            <td><span class="kits-badge ${badgeClass}">${product.kits_generated} / ${product.max_kits}</span></td>
-                            <td>${product.total_vials}</td>
-                            <td>
-                                <input type="number" class="max-kits-input" 
-                                       value="${product.max_kits}" 
-                                       onchange="updateMaxKits('${prodCode}', this.value)"
-                                       min="1">
-                            </td>
-                            <td>
-                                <label class="toggle-switch">
-                                    <input type="checkbox" 
-                                           ${product.is_locked ? 'checked' : ''} 
-                                           onchange="toggleLock('${prodCode}', this.checked)">
-                                    <span class="toggle-slider"></span>
-                                </label>
-                            </td>
-                        </tr>
-                    `;
-                    }).join('');
+                        const kitsPercent = product.max_kits > 0 ? (product.kits_generated / product.max_kits) * 100 : 0;
+                        let badgeClass = 'normal';
+                        if (kitsPercent >= 90) badgeClass = 'danger';
+                        else if (kitsPercent >= 70) badgeClass = 'warning';
+                        
+                        // Check if incomplete kit
+                        const vialsPerKit = product.vials_per_kit || 10;
+                        const remainingVials = (product.total_vials || 0) % vialsPerKit;
+                        const isIncomplete = remainingVials > 0 && product.total_vials > 0;
+                        
+                        // Escape product code and name for safe use in template literal
+                        const prodCode = escapeJS(String(product.code || ''));
+                        const prodName = escapeHtml(String(product.name || ''));
+                        const prodCodeHtml = escapeHtml(String(product.code || ''));
+                        return `
+                            <tr data-code="${prodCode}" class="${isIncomplete ? 'incomplete-kit' : ''}">
+                                <td>${prodName}</td>
+                                <td><span class="product-code">${prodCodeHtml}</span></td>
+                                <td><span class="kits-badge ${badgeClass}">${product.kits_generated} / ${product.max_kits}</span></td>
+                                <td>${product.total_vials}</td>
+                                <td>
+                                    <input type="number" class="max-kits-input" 
+                                           value="${product.max_kits}" 
+                                           onchange="updateMaxKits('${prodCode}', this.value)"
+                                           min="1">
+                                </td>
+                                <td>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" 
+                                               ${product.is_locked ? 'checked' : ''} 
+                                               onchange="toggleLock('${prodCode}', this.checked)">
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </td>
+                            </tr>
+                        `;
+                    }).join('');  // Close arrow function body, map(), and join
                 });
                 
             } catch (error) {
