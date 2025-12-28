@@ -2184,9 +2184,12 @@
             const sortedProducts = [...regularProducts, ...bacWaterProducts];
 
             // Find max kits for gradient calculation
-            const maxKits = sortedProducts.length > 0 
-                ? Math.max(...sortedProducts.map(p => p.kits_generated || 0), 1)
-                : 1;
+            // Safety: Ensure sortedProducts is an array and has items before using spread operator
+            let maxKits = 1;
+            if (Array.isArray(sortedProducts) && sortedProducts.length > 0) {
+                const kitsValues = sortedProducts.map(p => p && p.kits_generated ? p.kits_generated : 0);
+                maxKits = Math.max(...kitsValues, 1);
+            }
 
             tbody.innerHTML = sortedProducts.map((product, index) => {
                 // Safety check - skip if product is invalid
@@ -2223,8 +2226,10 @@
                 const productCode = escapeHtml(productCodeValue);
                 const productName = escapeHtml(productNameValue);
                 const productCodeAttr = escapeJS(productCodeValue); // For HTML attributes in template literal
+                // Escape separatorStyle for safe insertion into template literal (though it should be safe CSS)
+                const separatorStyleSafe = separatorStyle ? separatorStyle.replace(/`/g, '\\`').replace(/\${/g, '\\${') : '';
                 return `
-                    <tr class="completed-kit-row" style="background: ${bgColor}; ${separatorStyle}" data-kits="${kitsGenerated}" data-code="${productCodeAttr}">
+                    <tr class="completed-kit-row" style="background: ${bgColor}; ${separatorStyleSafe}" data-kits="${kitsGenerated}" data-code="${productCodeAttr}">
                         <td style="font-weight: 500; text-align: center; color: ${textColor};">
                             ${productName}
                             ${isBacWater ? '<span style="font-size: 0.75rem; opacity: 0.8;"> (BAC Water)</span>' : ''}
