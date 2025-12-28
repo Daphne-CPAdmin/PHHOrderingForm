@@ -1978,31 +1978,31 @@
                     }
                     
                     tbody.innerHTML = supplierCustomers.map(customer => {
-                    // Determine payment status badge color
-                    let paymentStatusClass = 'unpaid';
-                    let paymentStatusIcon = '⏳';
-                    if (customer.payment_status === 'Paid') {
-                        paymentStatusClass = 'paid';
-                        paymentStatusIcon = '✅';
-                    } else if (customer.payment_status === 'Partially Paid') {
-                        paymentStatusClass = 'partial';
-                        paymentStatusIcon = '🔄';
-                    } else if (customer.payment_status === 'Waiting for Confirmation') {
-                        paymentStatusClass = 'waiting';
-                        paymentStatusIcon = '⏳';
-                    }
-                    
-                    return `
-                        <tr>
-                            <td style="font-weight: 500;">${customer.customer_name}</td>
-                            <td style="font-family: 'JetBrains Mono', monospace; color: #c084fc; font-weight: 600; cursor: pointer; user-select: all; position: relative;" onclick="navigator.clipboard.writeText('${customer.order_numbers}').then(() => { const el = event.target; const original = el.textContent; el.textContent = 'Copied!'; el.style.color = '#10b981'; setTimeout(() => { el.textContent = original; el.style.color = '#c084fc'; }, 1000); })" title="Click to copy order numbers">${customer.order_numbers}</td>
-                            <td><span class="payment-badge ${paymentStatusClass}" style="font-size: 0.85rem;">${paymentStatusIcon} ${customer.payment_status}</span></td>
-                            <td style="font-family: 'JetBrains Mono', monospace; color: #c084fc; font-weight: 600;">${customer.order_count}</td>
-                            <td style="font-family: 'JetBrains Mono', monospace; color: #a78bfa; font-weight: 600;">${customer.total_vials}</td>
-                            <td style="font-family: 'JetBrains Mono', monospace; color: #7c3aed; font-weight: 700; font-size: 1.1rem;">₱${customer.total_grand_total_php.toLocaleString('en-PH', {minimumFractionDigits: 2})}</td>
-                        </tr>
-                    `;
-                }).join('');  // Close map callback and join
+                        // Determine payment status badge color
+                        let paymentStatusClass = 'unpaid';
+                        let paymentStatusIcon = '⏳';
+                        if (customer.payment_status === 'Paid') {
+                            paymentStatusClass = 'paid';
+                            paymentStatusIcon = '✅';
+                        } else if (customer.payment_status === 'Partially Paid') {
+                            paymentStatusClass = 'partial';
+                            paymentStatusIcon = '🔄';
+                        } else if (customer.payment_status === 'Waiting for Confirmation') {
+                            paymentStatusClass = 'waiting';
+                            paymentStatusIcon = '⏳';
+                        }
+                        
+                        return `
+                            <tr>
+                                <td style="font-weight: 500;">${customer.customer_name}</td>
+                                <td style="font-family: 'JetBrains Mono', monospace; color: #c084fc; font-weight: 600; cursor: pointer; user-select: all; position: relative;" onclick="navigator.clipboard.writeText('${customer.order_numbers}').then(() => { const el = event.target; const original = el.textContent; el.textContent = 'Copied!'; el.style.color = '#10b981'; setTimeout(() => { el.textContent = original; el.style.color = '#c084fc'; }, 1000); })" title="Click to copy order numbers">${customer.order_numbers}</td>
+                                <td><span class="payment-badge ${paymentStatusClass}" style="font-size: 0.85rem;">${paymentStatusIcon} ${customer.payment_status}</span></td>
+                                <td style="font-family: 'JetBrains Mono', monospace; color: #c084fc; font-weight: 600;">${customer.order_count}</td>
+                                <td style="font-family: 'JetBrains Mono', monospace; color: #a78bfa; font-weight: 600;">${customer.total_vials}</td>
+                                <td style="font-family: 'JetBrains Mono', monospace; color: #7c3aed; font-weight: 700; font-size: 1.1rem;">₱${customer.total_grand_total_php.toLocaleString('en-PH', {minimumFractionDigits: 2})}</td>
+                            </tr>
+                        `;
+                    }).join('');  // Close arrow function body, map(), and join
                 
             } catch (error) {
                 console.error('Error loading customer summary:', error);
