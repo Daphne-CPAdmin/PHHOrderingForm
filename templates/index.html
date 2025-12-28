@@ -2691,6 +2691,8 @@
             const telegram = telegramInput.value.trim();
             const isFilled = fullName && telegram;
             
+            if (!productSearch) return;
+            
             if (isFilled) {
                 productSearch.disabled = false;
                 productSearch.placeholder = 'Search products...';
@@ -2702,7 +2704,7 @@
                 if (productSearchHint) productSearchHint.style.display = 'block';
                 productSearch.style.cursor = 'not-allowed';
                 // Hide dropdown if shown
-                productDropdown.classList.remove('show');
+                if (productDropdown) productDropdown.classList.remove('show');
             }
         }
         
@@ -2833,12 +2835,14 @@
                         }
                     };
                     
-                    document.getElementById('selected-name').textContent = selectedProduct.name;
-                    document.getElementById('selected-code').textContent = selectedProduct.code;
-                    selectedProductDiv.style.display = 'block';
-                    productSearch.value = selectedProduct.name;
+                    const selectedNameEl = document.getElementById('selected-name');
+                    const selectedCodeEl = document.getElementById('selected-code');
+                    if (selectedNameEl) selectedNameEl.textContent = selectedProduct.name;
+                    if (selectedCodeEl) selectedCodeEl.textContent = selectedProduct.code;
+                    if (selectedProductDiv) selectedProductDiv.style.display = 'block';
+                    if (productSearch) productSearch.value = selectedProduct.name;
                     // Hide dropdown after selection
-                    productDropdown.classList.remove('show');
+                    if (productDropdown) productDropdown.classList.remove('show');
                     
                     updateInventoryDisplay();
                     updatePricePreview();
@@ -2850,35 +2854,40 @@
         loadProducts();
 
         // Product Search - Show dropdown when typing (only if fields are filled)
-        productSearch.addEventListener('focus', () => {
+        if (productSearch) {
+            productSearch.addEventListener('focus', () => {
             // Check if required fields are filled
             const fullName = fullNameInput.value.trim();
             const telegram = telegramInput.value.trim();
             
             if (!fullName || !telegram) {
                 showToast('Please enter your Name and Telegram username first', 3000);
-                productSearch.blur();
+                if (productSearch) productSearch.blur();
                 return;
             }
             
             // Show all products when user focuses on search
-            if (allProducts.length > 0) {
+            if (allProducts.length > 0 && productDropdown) {
                 productDropdown.classList.add('show');
                 productDropdown.querySelectorAll('.product-option').forEach(option => {
                     option.style.display = 'block';
                 });
             }
-        });
+            });
+        }
         
-        productSearch.addEventListener('input', (e) => {
+        if (productSearch) {
+            productSearch.addEventListener('input', (e) => {
             // Check if required fields are filled
             const fullName = fullNameInput.value.trim();
             const telegram = telegramInput.value.trim();
             
             if (!fullName || !telegram) {
-                productDropdown.classList.remove('show');
+                if (productDropdown) productDropdown.classList.remove('show');
                 return;
             }
+            
+            if (!productDropdown) return;
             
             const query = e.target.value.toLowerCase().trim();
             console.log('Search query:', query);
@@ -2897,11 +2906,12 @@
                     option.style.display = match ? 'block' : 'none';
                 }
             });
-        });
+            });
+        }
         
         // Hide dropdown when clicking outside
         document.addEventListener('click', (e) => {
-            if (!e.target.closest('.product-search-container')) {
+            if (!e.target.closest('.product-search-container') && productDropdown) {
                 productDropdown.classList.remove('show');
             }
         });
