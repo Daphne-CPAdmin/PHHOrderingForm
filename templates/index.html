@@ -1864,7 +1864,6 @@
                         <div class="form-group">
                             <label class="form-label">Telegram Username <span style="color: #ef4444;">*</span></label>
                             <input type="text" class="form-input" id="telegram" placeholder="@username" required>
-                            <small style="color: var(--accent-violet); font-size: 0.9rem; margin-top: 0.5rem; display: block; font-weight: 600; background: rgba(192, 132, 252, 0.1); padding: 0.5rem; border-radius: 6px; border-left: 3px solid var(--accent-violet);">📱 <strong>Important:</strong> Message @pephaul_bot to receive order notifications</small>
                         </div>
                     </div>
 
@@ -2923,14 +2922,20 @@
         });
 
         // Quantity Controls
-        document.getElementById('qty-minus').addEventListener('click', () => {
-            const current = parseInt(quantityInput.value) || 1;
-            if (current > 1) { quantityInput.value = current - 1; updatePricePreview(); }
-        });
-        document.getElementById('qty-plus').addEventListener('click', () => {
-            quantityInput.value = (parseInt(quantityInput.value) || 1) + 1;
-            updatePricePreview();
-        });
+        const qtyMinusBtn = document.getElementById('qty-minus');
+        const qtyPlusBtn = document.getElementById('qty-plus');
+        if (qtyMinusBtn) {
+            qtyMinusBtn.addEventListener('click', () => {
+                const current = parseInt(quantityInput.value) || 1;
+                if (current > 1) { quantityInput.value = current - 1; updatePricePreview(); }
+            });
+        }
+        if (qtyPlusBtn) {
+            qtyPlusBtn.addEventListener('click', () => {
+                quantityInput.value = (parseInt(quantityInput.value) || 1) + 1;
+                updatePricePreview();
+            });
+        }
         quantityInput.addEventListener('input', updatePricePreview);
 
         function updatePricePreview() {
@@ -2972,7 +2977,9 @@
         }
 
         // Add to Cart
-        document.getElementById('add-to-cart').addEventListener('click', () => {
+        const addToCartBtn = document.getElementById('add-to-cart');
+        if (addToCartBtn) {
+            addToCartBtn.addEventListener('click', () => {
             console.log('Add to Order button clicked');
             console.log('Selected product:', selectedProduct);
             
@@ -3035,7 +3042,8 @@
             updateCart();
             saveCart();
             resetSelection();
-        });
+            });
+        }
 
         function saveCart() {
             try {
@@ -4412,7 +4420,9 @@
 
         // Submit Order - Show confirmation modal first
         // Create New Order button handler (for adding items to paid orders)
-        document.getElementById('create-new-order-btn').addEventListener('click', () => {
+        const createNewOrderBtn = document.getElementById('create-new-order-btn');
+        if (createNewOrderBtn) {
+            createNewOrderBtn.addEventListener('click', () => {
             const fullName = document.getElementById('full-name').value.trim();
             const telegram = document.getElementById('telegram').value.trim();
             
@@ -4431,7 +4441,8 @@
             
             // Show confirmation modal with only new items
             showOrderConfirmationModal();
-        });
+            });
+        }
         
         // Handle supplier-specific submit buttons using event delegation
         document.addEventListener('click', (e) => {
