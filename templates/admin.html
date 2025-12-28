@@ -2002,7 +2002,7 @@
                             <td style="font-family: 'JetBrains Mono', monospace; color: #7c3aed; font-weight: 700; font-size: 1.1rem;">₱${customer.total_grand_total_php.toLocaleString('en-PH', {minimumFractionDigits: 2})}</td>
                         </tr>
                     `;
-                }).join('');
+                }).join('');  // Close map callback and join
                 
             } catch (error) {
                 console.error('Error loading customer summary:', error);
