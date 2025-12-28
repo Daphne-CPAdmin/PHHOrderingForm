@@ -2410,6 +2410,33 @@ def index():
         # Only show suppliers that have actual orders
         suppliers = sorted(suppliers_with_orders) if suppliers_with_orders else sorted(set(products_by_supplier.keys()))
         
+        # Generate price comparison data for products available from both suppliers
+        price_comparison = []
+        yiwu_products = products_by_supplier.get('YIWU', [])
+        wwb_products = products_by_supplier.get('WWB', [])
+        
+        # Create maps for quick lookup
+        wwb_by_code = {p['code']: p for p in wwb_products}
+        
+        # Compare all YIWU products with WWB
+        for yiwu_product in yiwu_products:
+            product_code = yiwu_product['code']
+            wwb_product = wwb_by_code.get(product_code)
+            
+            comparison_item = {
+                'code': product_code,
+                'name': yiwu_product['name'],
+                'yiwu_kit_price': yiwu_product.get('kit_price', 0),
+                'yiwu_vial_price': yiwu_product.get('vial_price', 0),
+                'wwb_kit_price': wwb_product.get('kit_price', 0) if wwb_product else None,
+                'wwb_vial_price': wwb_product.get('vial_price', 0) if wwb_product else None,
+                'available_in_wwb': wwb_product is not None
+            }
+            price_comparison.append(comparison_item)
+        
+        # Sort by product code
+        price_comparison.sort(key=lambda x: x['code'])
+        
         order_goal = get_order_goal()
         current_theme = get_theme()
         
@@ -2429,7 +2456,8 @@ def index():
                              telegram_bot_username=TELEGRAM_BOT_USERNAME,
                              order_stats=order_stats,
                              order_goal=order_goal,
-                             current_theme=current_theme)
+                             current_theme=current_theme,
+                             price_comparison=price_comparison)
     except Exception as e:
         app.logger.error(f"Error loading index page: {str(e)}")
         import traceback

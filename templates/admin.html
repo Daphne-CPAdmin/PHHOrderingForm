@@ -1118,8 +1118,8 @@
     <script>
         let isLoggedIn = false;
 
-        // Login
-        async function login() {
+        // Login - Make it globally accessible
+        window.login = async function() {
             const password = document.getElementById('admin-password').value;
             
             try {
@@ -1151,7 +1151,7 @@
                 document.getElementById('login-error').textContent = 'Login error';
                 document.getElementById('login-error').style.display = 'block';
             }
-        }
+        };
 
         // Boot: if session is already authenticated, show admin content and load data.
         async function bootAdmin() {
