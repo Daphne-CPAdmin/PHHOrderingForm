@@ -2401,8 +2401,14 @@ def index():
                 incomplete_kits_by_supplier[supplier] = []
             incomplete_kits_by_supplier[supplier].append(product)
         
-        # Get unique suppliers
-        suppliers = sorted(set(products_by_supplier.keys()))
+        # Get unique suppliers - only include suppliers that have orders (completed kits or incomplete vials)
+        suppliers_with_orders = set()
+        # Add suppliers that have completed kits
+        for supplier, stats in order_stats.get('by_supplier', {}).items():
+            if stats.get('total_completed_kits_count', 0) > 0 or stats.get('total_incomplete_vials_count', 0) > 0:
+                suppliers_with_orders.add(supplier)
+        # Only show suppliers that have actual orders
+        suppliers = sorted(suppliers_with_orders) if suppliers_with_orders else sorted(set(products_by_supplier.keys()))
         
         order_goal = get_order_goal()
         current_theme = get_theme()
