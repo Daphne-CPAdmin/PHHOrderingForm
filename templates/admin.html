@@ -2193,7 +2193,8 @@
                 maxKits = Math.max(...kitsValues, 1);
             }
 
-            tbody.innerHTML = sortedProducts.map((product, index) => {
+            // Build HTML array using map, then join
+            const htmlArray = sortedProducts.map((product, index) => {
                 // Safety check - skip if product is invalid
                 if (!product) return '';
                 
@@ -2251,7 +2252,8 @@
                         </td>
                     </tr>
                 `;
-            }}).join('');  // Close arrow function body with }, then close map() with ), then join
+            });  // Close arrow function body and map() call
+            tbody.innerHTML = htmlArray.join('');  // Join the array into a single string
 
             // Make table easy to copy (add copy functionality hint)
             const table = document.querySelector(`.completed-kits-table[data-supplier="${supplierEscaped}"]`);
