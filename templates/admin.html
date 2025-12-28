@@ -1738,8 +1738,14 @@
         window.deleteTimelineEntry = deleteTimelineEntry;
         
         function escapeJS(str) {
-            if (!str) return '';
-            return String(str).replace(/[\\"']/g, '\\$&').replace(/\u0000/g, '\\0');
+            if (str === null || str === undefined) return '';
+            return String(str)
+                .replace(/\\/g, '\\\\')  // Escape backslashes first
+                .replace(/`/g, '\\`')    // Escape backticks
+                .replace(/\${/g, '\\${') // Escape ${ in template literals
+                .replace(/"/g, '\\"')     // Escape double quotes
+                .replace(/'/g, "\\'")     // Escape single quotes
+                .replace(/\u0000/g, '\\0'); // Escape null characters
         }
 
         function escapeHtml(str) {
@@ -2197,18 +2203,20 @@
                 const bgColor = `rgba(${r}, ${g}, ${b}, 0.3)`; // Light opacity
                 const textColor = '#7c3aed'; // Consistent purple text
                 
+                // Safely get product code and name with null checks
+                const productCodeValue = product && product.code ? String(product.code) : '';
+                const productNameValue = product && product.name ? String(product.name) : '';
+                
                 // Check if this is a BAC Water product (for visual separation)
-                const isBacWater = bacWaterCodes.includes(product.code);
+                const isBacWater = productCodeValue && bacWaterCodes.includes(productCodeValue);
                 const separatorStyle = isBacWater && index === regularProducts.length 
                     ? 'border-top: 3px solid rgba(167, 139, 250, 0.5);' 
                     : '';
 
                 // Escape for both JavaScript template literal and HTML
-                const productCodeRaw = String(product.code || '');
-                const productNameRaw = String(product.name || '');
-                const productCode = escapeHtml(productCodeRaw);
-                const productName = escapeHtml(productNameRaw);
-                const productCodeAttr = escapeJS(productCodeRaw); // For HTML attributes in template literal
+                const productCode = escapeHtml(productCodeValue);
+                const productName = escapeHtml(productNameValue);
+                const productCodeAttr = escapeJS(productCodeValue); // For HTML attributes in template literal
                 return `
                     <tr class="completed-kit-row" style="background: ${bgColor}; ${separatorStyle}" data-kits="${kitsGenerated}" data-code="${productCodeAttr}">
                         <td style="font-weight: 500; text-align: center; color: ${textColor};">
