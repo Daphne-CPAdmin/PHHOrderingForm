@@ -2427,15 +2427,32 @@ def index():
                 'code': product_code,
                 'name': yiwu_product['name'],
                 'yiwu_kit_price': yiwu_product.get('kit_price', 0),
-                'yiwu_vial_price': yiwu_product.get('vial_price', 0),
                 'wwb_kit_price': wwb_product.get('kit_price', 0) if wwb_product else None,
-                'wwb_vial_price': wwb_product.get('vial_price', 0) if wwb_product else None,
                 'available_in_wwb': wwb_product is not None
             }
             price_comparison.append(comparison_item)
         
-        # Sort by product code
-        price_comparison.sort(key=lambda x: x['code'])
+        # Sort: Products not in WWB first (LEMBOT, then SP332, then others), then products available in both
+        def sort_key(item):
+            code = item['code']
+            available = item['available_in_wwb']
+            
+            # Products not in WWB come first
+            if not available:
+                # LEMBOT first
+                if code == 'LEMBOT':
+                    return (0, 0)
+                # SP332 second
+                elif code == 'SP332':
+                    return (0, 1)
+                # Other products not in WWB
+                else:
+                    return (0, 2)
+            # Products available in both suppliers
+            else:
+                return (1, code)
+        
+        price_comparison.sort(key=sort_key)
         
         order_goal = get_order_goal()
         current_theme = get_theme()

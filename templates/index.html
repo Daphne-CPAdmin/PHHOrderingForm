@@ -2060,97 +2060,6 @@
         </div>
         {% endif %}
 
-        <!-- Price Comparison Section -->
-        {% if price_comparison|length > 0 %}
-        <div class="orders-summary-section" style="margin-top: 2rem;">
-            <div class="card">
-                <h2 class="card-title"><span class="icon">💰</span> Price Comparison: YIWU vs WWB</h2>
-                <p style="color: var(--text-muted); margin-bottom: 1.5rem; font-size: 0.9rem;">
-                    Compare prices for products available from both suppliers. All YIWU products shown below.
-                </p>
-                
-                <div class="table-container" style="overflow-x: auto;">
-                    <table class="products-table" style="width: 100%;">
-                        <thead>
-                            <tr>
-                                <th style="text-align: left;">Product Code</th>
-                                <th style="text-align: left;">Product Name</th>
-                                <th style="text-align: center;">YIWU Kit Price</th>
-                                <th style="text-align: center;">YIWU Vial Price</th>
-                                <th style="text-align: center;">WWB Kit Price</th>
-                                <th style="text-align: center;">WWB Vial Price</th>
-                                <th style="text-align: center;">Kit Price Difference</th>
-                                <th style="text-align: center;">Vial Price Difference</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for item in price_comparison %}
-                            <tr style="{% if item.available_in_wwb %}background: rgba(192, 132, 252, 0.05);{% else %}background: rgba(239, 68, 68, 0.05);{% endif %}">
-                                <td style="font-family: 'JetBrains Mono', monospace; font-weight: 600; color: var(--accent-violet);">
-                                    {{ item.code }}
-                                </td>
-                                <td>{{ item.name }}</td>
-                                <td style="text-align: center; font-weight: 600;">
-                                    ${{ "%.2f"|format(item.yiwu_kit_price) }}
-                                </td>
-                                <td style="text-align: center; font-weight: 600;">
-                                    ${{ "%.2f"|format(item.yiwu_vial_price) }}
-                                </td>
-                                <td style="text-align: center; font-weight: 600; {% if item.available_in_wwb %}color: var(--accent-emerald);{% else %}color: var(--text-muted);{% endif %}">
-                                    {% if item.available_in_wwb %}
-                                        ${{ "%.2f"|format(item.wwb_kit_price) }}
-                                    {% else %}
-                                        <span style="color: var(--text-muted);">—</span>
-                                    {% endif %}
-                                </td>
-                                <td style="text-align: center; font-weight: 600; {% if item.available_in_wwb %}color: var(--accent-emerald);{% else %}color: var(--text-muted);{% endif %}">
-                                    {% if item.available_in_wwb %}
-                                        ${{ "%.2f"|format(item.wwb_vial_price) }}
-                                    {% else %}
-                                        <span style="color: var(--text-muted);">—</span>
-                                    {% endif %}
-                                </td>
-                                <td style="text-align: center; font-weight: 700; {% if item.available_in_wwb %}{% set diff = item.yiwu_kit_price - item.wwb_kit_price %}{% if diff < 0 %}color: var(--accent-emerald);{% elif diff > 0 %}color: var(--accent-rose);{% else %}color: var(--text-primary);{% endif %}{% else %}color: var(--text-muted);{% endif %}">
-                                    {% if item.available_in_wwb %}
-                                        {% set diff = item.yiwu_kit_price - item.wwb_kit_price %}
-                                        {% if diff < 0 %}
-                                            -${{ "%.2f"|format(-diff) }}
-                                        {% elif diff > 0 %}
-                                            +${{ "%.2f"|format(diff) }}
-                                        {% else %}
-                                            $0.00
-                                        {% endif %}
-                                    {% else %}
-                                        <span style="color: var(--text-muted);">—</span>
-                                    {% endif %}
-                                </td>
-                                <td style="text-align: center; font-weight: 700; {% if item.available_in_wwb %}{% set diff = item.yiwu_vial_price - item.wwb_vial_price %}{% if diff < 0 %}color: var(--accent-emerald);{% elif diff > 0 %}color: var(--accent-rose);{% else %}color: var(--text-primary);{% endif %}{% else %}color: var(--text-muted);{% endif %}">
-                                    {% if item.available_in_wwb %}
-                                        {% set diff = item.yiwu_vial_price - item.wwb_vial_price %}
-                                        {% if diff < 0 %}
-                                            -${{ "%.2f"|format(-diff) }}
-                                        {% elif diff > 0 %}
-                                            +${{ "%.2f"|format(diff) }}
-                                        {% else %}
-                                            $0.00
-                                        {% endif %}
-                                    {% else %}
-                                        <span style="color: var(--text-muted);">—</span>
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                
-                <div style="margin-top: 1rem; padding: 0.75rem; background: rgba(192, 132, 252, 0.1); border-radius: 8px; font-size: 0.85rem; color: var(--text-muted);">
-                    <strong>Note:</strong> Green indicates YIWU is cheaper, red indicates YIWU is more expensive. Products not available in WWB are marked with "—".
-                </div>
-            </div>
-        </div>
-        {% endif %}
-
         <!-- View My Orders Section -->
         <div id="my-orders-section" class="orders-summary-section" style="display: none;">
             <div class="card">
@@ -2447,6 +2356,70 @@
             </div>
         </div>
         {% endfor %}
+
+        <!-- Price Comparison Section - At Bottom -->
+        {% if price_comparison|length > 0 %}
+        <div class="orders-summary-section" style="margin-top: 2rem;">
+            <div class="card">
+                <h2 class="card-title"><span class="icon">💰</span> Price Comparison: YIWU vs WWB</h2>
+                <p style="color: var(--text-muted); margin-bottom: 1.5rem; font-size: 0.9rem;">
+                    Compare kit prices for products available from both suppliers. All YIWU products shown below.
+                </p>
+                
+                <div class="table-container" style="overflow-x: auto;">
+                    <table class="products-table" style="width: 100%;">
+                        <thead>
+                            <tr>
+                                <th style="text-align: left;">Product Code</th>
+                                <th style="text-align: left;">Product Name</th>
+                                <th style="text-align: center;">YIWU Kit Price</th>
+                                <th style="text-align: center;">WWB Kit Price</th>
+                                <th style="text-align: center;">Price Difference</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in price_comparison %}
+                            <tr style="{% if item.available_in_wwb %}background: rgba(192, 132, 252, 0.05);{% else %}background: rgba(239, 68, 68, 0.05);{% endif %}">
+                                <td style="font-family: 'JetBrains Mono', monospace; font-weight: 600; color: var(--accent-violet);">
+                                    {{ item.code }}
+                                </td>
+                                <td>{{ item.name }}</td>
+                                <td style="text-align: center; font-weight: 600;">
+                                    ${{ "%.2f"|format(item.yiwu_kit_price) }}
+                                </td>
+                                <td style="text-align: center; font-weight: 600; {% if item.available_in_wwb %}color: var(--accent-emerald);{% else %}color: var(--text-muted);{% endif %}">
+                                    {% if item.available_in_wwb %}
+                                        ${{ "%.2f"|format(item.wwb_kit_price) }}
+                                    {% else %}
+                                        <span style="color: var(--text-muted);">—</span>
+                                    {% endif %}
+                                </td>
+                                <td style="text-align: center; font-weight: 700; {% if item.available_in_wwb %}{% set diff = item.yiwu_kit_price - item.wwb_kit_price %}{% if diff < 0 %}color: var(--accent-emerald);{% elif diff > 0 %}color: var(--accent-rose);{% else %}color: var(--text-primary);{% endif %}{% else %}color: var(--text-muted);{% endif %}">
+                                    {% if item.available_in_wwb %}
+                                        {% set diff = item.yiwu_kit_price - item.wwb_kit_price %}
+                                        {% if diff < 0 %}
+                                            -${{ "%.2f"|format(-diff) }}
+                                        {% elif diff > 0 %}
+                                            +${{ "%.2f"|format(diff) }}
+                                        {% else %}
+                                            $0.00
+                                        {% endif %}
+                                    {% else %}
+                                        <span style="color: var(--text-muted);">—</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div style="margin-top: 1rem; padding: 0.75rem; background: rgba(192, 132, 252, 0.1); border-radius: 8px; font-size: 0.85rem; color: var(--text-muted);">
+                    <strong>Note:</strong> <span style="color: var(--accent-emerald); font-weight: 600;">Green</span> indicates YIWU is cheaper, <span style="color: var(--accent-rose); font-weight: 600;">Red</span> indicates YIWU is more expensive. Products not available in WWB are marked with "—".
+                </div>
+            </div>
+        </div>
+        {% endif %}
 
     </div>
 
