@@ -1135,13 +1135,14 @@ def save_order_to_sheets(order_data, order_id=None):
                 '',                                 # Column T: Payment Date (only first row)
                 order_data.get('full_name', '') if i == 0 else '',         # Column U: Full Name (only first row)
                 order_data.get('contact_number', '') if i == 0 else '',    # Column V: Contact Number (only first row)
-                order_data.get('mailing_address', '') if i == 0 else ''    # Column W: Mailing Address (only first row)
+                order_data.get('mailing_address', '') if i == 0 else '',    # Column W: Mailing Address (only first row)
+                item.get('supplier', '')            # Column X: Supplier
             ]
             rows_to_add.append(row)
         
         if rows_to_add:
             end_row = next_row + len(rows_to_add) - 1
-            worksheet.update(f'A{next_row}:W{end_row}', rows_to_add)
+            worksheet.update(f'A{next_row}:X{end_row}', rows_to_add)
         
         # Clear cache since orders changed
         clear_cache('orders')
@@ -2187,8 +2188,61 @@ def _fetch_consolidated_order_stats():
         suppliers = sorted(set([p.get('supplier', 'Default') for p in products]))
         stats_by_supplier = {}
         
+        # Build a map of product_code -> supplier for products with unique codes
+        # For duplicate codes, we'll use supplier from orders
+        code_to_supplier_map = {}
+        code_to_suppliers_map = defaultdict(set)
+        for p in products:
+            code = p['code']
+            supplier = p.get('supplier', 'Default')
+            code_to_suppliers_map[code].add(supplier)
+            if code not in code_to_supplier_map:
+                code_to_supplier_map[code] = supplier
+        
+        # Calculate stats per supplier by filtering orders
         for supplier in suppliers:
             supplier_products = [p for p in products if (p.get('supplier', 'Default') == supplier)]
+            
+            # Filter orders for this supplier
+            supplier_orders = []
+            for order in orders:
+                if order.get('Order Status') == 'Cancelled':
+                    continue
+                order_supplier = order.get('Supplier', '') or order.get('supplier', '')
+                product_code = order.get('Product Code', '')
+                
+                # If order has supplier, use it; otherwise infer from products
+                if order_supplier:
+                    if order_supplier == supplier:
+                        supplier_orders.append(order)
+                else:
+                    # Infer supplier: if code is unique to this supplier, include it
+                    if product_code in code_to_supplier_map and code_to_supplier_map[product_code] == supplier:
+                        supplier_orders.append(order)
+                    # If code exists in multiple suppliers, default to first one (usually WWB)
+                    elif product_code in code_to_suppliers_map:
+                        default_supplier = sorted(code_to_suppliers_map[product_code])[0]
+                        if default_supplier == supplier:
+                            supplier_orders.append(order)
+            
+            # Calculate inventory stats for this supplier's orders
+            supplier_product_stats = defaultdict(lambda: {'total_vials': 0, 'kit_orders': 0, 'vial_orders': 0})
+            for order in supplier_orders:
+                product_code = order.get('Product Code', '')
+                if not product_code:
+                    continue
+                order_type = order.get('Order Type', 'Vial')
+                qty = int(order.get('QTY', 0) or 0)
+                if qty <= 0:
+                    continue
+                vials_per_kit = product_vials_map.get(product_code, VIALS_PER_KIT)
+                
+                if order_type == 'Kit':
+                    supplier_product_stats[product_code]['total_vials'] += qty * vials_per_kit
+                    supplier_product_stats[product_code]['kit_orders'] += qty
+                else:
+                    supplier_product_stats[product_code]['total_vials'] += qty
+                    supplier_product_stats[product_code]['vial_orders'] += qty
             
             # Calculate total completed kits value (kits_generated)
             total_completed_kits_usd = 0.0
@@ -2196,8 +2250,10 @@ def _fetch_consolidated_order_stats():
             
             for product in supplier_products:
                 product_code = product['code']
-                if product_code in inventory:
-                    kits_generated = inventory[product_code].get('kits_generated', 0)
+                if product_code in supplier_product_stats:
+                    stats = supplier_product_stats[product_code]
+                    vials_per_kit = product_vials_map.get(product_code, VIALS_PER_KIT)
+                    kits_generated = stats['total_vials'] // vials_per_kit
                     if kits_generated > 0:
                         kit_price = product.get('kit_price', 0)
                         total_completed_kits_usd += kit_price * kits_generated
@@ -2209,8 +2265,11 @@ def _fetch_consolidated_order_stats():
             
             for product in supplier_products:
                 product_code = product['code']
-                if product_code in inventory:
-                    remaining_vials = inventory[product_code].get('remaining_vials', 0)
+                if product_code in supplier_product_stats:
+                    stats = supplier_product_stats[product_code]
+                    vials_per_kit = product_vials_map.get(product_code, VIALS_PER_KIT)
+                    total_vials = stats['total_vials']
+                    remaining_vials = total_vials % vials_per_kit
                     if remaining_vials > 0:
                         vial_price = product.get('vial_price', 0)
                         total_incomplete_vials_usd += vial_price * remaining_vials
@@ -3566,16 +3625,19 @@ def api_submit_order():
             print(f"⚠️ Error checking inventory: {e}")
             # Continue without inventory check if it fails
         
-        # Consolidate items with same product_code + order_type
+        # Consolidate items with same product_code + order_type + supplier
         consolidated = {}
         for item in data.get('items', []):
-            key = (item['product_code'], item.get('order_type', 'Vial'))
+            # Include supplier in key to handle duplicate codes across suppliers
+            supplier = item.get('supplier') or data.get('supplier') or None
+            key = (item['product_code'], item.get('order_type', 'Vial'), supplier)
             if key in consolidated:
                 consolidated[key]['qty'] += item['qty']
             else:
                 consolidated[key] = {
                     'product_code': item['product_code'],
                     'order_type': item.get('order_type', 'Vial'),
+                    'supplier': supplier,
                     'qty': item['qty']
                 }
         
@@ -3592,12 +3654,27 @@ def api_submit_order():
             }), 500
         
         for key, item in consolidated.items():
-            product = next((p for p in products if p['code'] == item['product_code']), None)
+            # Match product by code AND supplier if supplier is provided
+            supplier = item.get('supplier')
+            if supplier:
+                # Try to find product with matching code AND supplier
+                product = next((p for p in products if p['code'] == item['product_code'] and p.get('supplier', 'Default') == supplier), None)
+                # Fallback: if not found, try without supplier match (for backward compatibility)
+                if not product:
+                    product = next((p for p in products if p['code'] == item['product_code']), None)
+            else:
+                # No supplier specified, match by code only (will take first match)
+                product = next((p for p in products if p['code'] == item['product_code']), None)
+            
             if not product:
                 return jsonify({
                     'success': False,
-                    'error': f'Product {item["product_code"]} not found'
+                    'error': f'Product {item["product_code"]} not found' + (f' for supplier {supplier}' if supplier else '')
                 }), 404
+            
+            # Use supplier from product if not already set
+            if not supplier:
+                supplier = product.get('supplier', 'Default')
             
             try:
                 unit_price = product['kit_price'] if item.get('order_type') == 'Kit' else product['vial_price']
@@ -3614,6 +3691,7 @@ def api_submit_order():
                     'product_code': item['product_code'],
                     'product_name': product['name'],
                     'order_type': item.get('order_type', 'Vial'),
+                    'supplier': supplier,
                     'qty': item['qty'],
                     'unit_price_usd': unit_price,
                     'line_total_usd': line_total_usd,
