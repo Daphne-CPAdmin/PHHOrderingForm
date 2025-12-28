@@ -549,7 +549,7 @@
                     <input type="password" class="form-input" id="admin-password" placeholder="Enter admin password">
                 </div>
                 <div id="login-error" class="error-msg" style="display: none;"></div>
-                <button class="btn btn-violet" onclick="login()">Login</button>
+                <button class="btn btn-violet" id="admin-login-btn">Login</button>
             </div>
         </div>
 
@@ -1118,8 +1118,8 @@
     <script>
         let isLoggedIn = false;
 
-        // Login - Make it globally accessible
-        window.login = async function() {
+        // Login function - will be attached via addEventListener
+        async function handleLogin() {
             const password = document.getElementById('admin-password').value;
             
             try {
@@ -1151,7 +1151,15 @@
                 document.getElementById('login-error').textContent = 'Login error';
                 document.getElementById('login-error').style.display = 'block';
             }
-        };
+        }
+        
+        // Attach login handler when DOM is ready
+        document.addEventListener('DOMContentLoaded', () => {
+            const loginBtn = document.getElementById('admin-login-btn');
+            if (loginBtn) {
+                loginBtn.addEventListener('click', handleLogin);
+            }
+        });
 
         // Boot: if session is already authenticated, show admin content and load data.
         async function bootAdmin() {
@@ -1735,7 +1743,8 @@
         }
 
         function escapeHtml(str) {
-            return String(str ?? '')
+            if (str === null || str === undefined) return '';
+            return String(str)
                 .replace(/&/g, '&amp;')
                 .replace(/</g, '&lt;')
                 .replace(/>/g, '&gt;')
