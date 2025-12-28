@@ -1723,64 +1723,69 @@
             <p class="header-subtitle">Your access to high purity (99%) affordable peptide reservations</p>
         </header>
 
-        <!-- Consolidated Order Stats Banner -->
+        <!-- Consolidated Order Stats Banner - Per Supplier -->
         {% if not order_form_locked %}
-        <div class="stats-banner">
+        {% for supplier in suppliers %}
+        {% set supplier_stats = order_stats.get('by_supplier', {}).get(supplier, {}) %}
+        <div class="stats-banner supplier-stats" data-supplier="{{ supplier }}" style="margin-bottom: 1.5rem;">
+            <div style="margin-bottom: 0.75rem; font-weight: 600; color: var(--text-primary); font-size: 1.1rem;">
+                📊 Order Statistics - {{ supplier }}
+            </div>
             <div class="stats-grid">
                 <div class="stat-item">
-                    <div class="stat-label">📦 Total Kits Value</div>
-                    <div class="stat-value">${{ "%.2f"|format(order_stats.total_kits_usd) }}</div>
-                    <div class="stat-count">{{ order_stats.total_kits_count }} kits ordered</div>
-                    <!-- Progress to Goal for Kits -->
+                    <div class="stat-label">✅ Total Completed Kits Value</div>
+                    <div class="stat-value">${{ "%.2f"|format(supplier_stats.get('total_completed_kits_usd', 0.0)) }}</div>
+                    <div class="stat-count">{{ supplier_stats.get('total_completed_kits_count', 0) }} kit{{ 's' if supplier_stats.get('total_completed_kits_count', 0) != 1 else '' }} completed</div>
+                    <!-- Progress to Goal for Completed Kits -->
                     <div class="stat-progress">
                         <div class="stat-progress-label">
-                            <span>Progress to Goal <span class="stat-progress-percentage-label">{% if order_goal > 0 %}{% set kits_progress = (order_stats.total_kits_usd / order_goal * 100) %}{% set kits_progress_pct = kits_progress if kits_progress < 100 else 100 %}{{ kits_progress_pct|round(1) }}%{% else %}0.0%{% endif %}</span></span>
-                            <span>${{ "%.2f"|format(order_stats.total_kits_usd) }} / ${{ "%.0f"|format(order_goal) }}</span>
+                            <span>Progress to Goal <span class="stat-progress-percentage-label">{% if order_goal > 0 %}{% set completed_kits_progress = (supplier_stats.get('total_completed_kits_usd', 0.0) / order_goal * 100) %}{% set completed_kits_progress_pct = completed_kits_progress if completed_kits_progress < 100 else 100 %}{{ completed_kits_progress_pct|round(1) }}%{% else %}0.0%{% endif %}</span></span>
+                            <span>${{ "%.2f"|format(supplier_stats.get('total_completed_kits_usd', 0.0)) }} / ${{ "%.0f"|format(order_goal) }}</span>
                         </div>
                         {% if order_goal > 0 %}
-                            {% set kits_progress = (order_stats.total_kits_usd / order_goal * 100) %}
-                            {% set kits_progress_pct = kits_progress if kits_progress < 100 else 100 %}
+                            {% set completed_kits_progress = (supplier_stats.get('total_completed_kits_usd', 0.0) / order_goal * 100) %}
+                            {% set completed_kits_progress_pct = completed_kits_progress if completed_kits_progress < 100 else 100 %}
                         {% else %}
-                            {% set kits_progress_pct = 0 %}
+                            {% set completed_kits_progress_pct = 0 %}
                         {% endif %}
                         <div class="stat-progress-bar">
-                            <div class="stat-progress-fill{% if kits_progress_pct >= 100 %} goal-reached{% endif %}" style="width: {{ kits_progress_pct|round(1) }}%;"></div>
+                            <div class="stat-progress-fill{% if completed_kits_progress_pct >= 100 %} goal-reached{% endif %}" style="width: {{ completed_kits_progress_pct|round(1) }}%;"></div>
                         </div>
                     </div>
                 </div>
                 <div class="stat-item">
-                    <div class="stat-label">🧪 Total Vials Value</div>
-                    <div class="stat-value">${{ "%.2f"|format(order_stats.total_vials_usd) }}</div>
-                    <div class="stat-count">{{ order_stats.total_vials_count }} vials ordered</div>
-                    <!-- Progress to Goal for Vials -->
+                    <div class="stat-label">⚠️ Total Incomplete Kits Vial Value</div>
+                    <div class="stat-value">${{ "%.2f"|format(supplier_stats.get('total_incomplete_vials_usd', 0.0)) }}</div>
+                    <div class="stat-count">{{ supplier_stats.get('total_incomplete_vials_count', 0) }} vial{{ 's' if supplier_stats.get('total_incomplete_vials_count', 0) != 1 else '' }} (incomplete)</div>
+                    <!-- Progress to Goal for Incomplete Vials -->
                     <div class="stat-progress">
                         <div class="stat-progress-label">
-                            <span>Progress to Goal <span class="stat-progress-percentage-label">{% if order_goal > 0 %}{% set vials_progress = (order_stats.total_vials_usd / order_goal * 100) %}{% set vials_progress_pct = vials_progress if vials_progress < 100 else 100 %}{{ vials_progress_pct|round(1) }}%{% else %}0.0%{% endif %}</span></span>
-                            <span>${{ "%.2f"|format(order_stats.total_vials_usd) }} / ${{ "%.0f"|format(order_goal) }}</span>
+                            <span>Progress to Goal <span class="stat-progress-percentage-label">{% if order_goal > 0 %}{% set incomplete_vials_progress = (supplier_stats.get('total_incomplete_vials_usd', 0.0) / order_goal * 100) %}{% set incomplete_vials_progress_pct = incomplete_vials_progress if incomplete_vials_progress < 100 else 100 %}{{ incomplete_vials_progress_pct|round(1) }}%{% else %}0.0%{% endif %}</span></span>
+                            <span>${{ "%.2f"|format(supplier_stats.get('total_incomplete_vials_usd', 0.0)) }} / ${{ "%.0f"|format(order_goal) }}</span>
                         </div>
                         {% if order_goal > 0 %}
-                            {% set vials_progress = (order_stats.total_vials_usd / order_goal * 100) %}
-                            {% set vials_progress_pct = vials_progress if vials_progress < 100 else 100 %}
+                            {% set incomplete_vials_progress = (supplier_stats.get('total_incomplete_vials_usd', 0.0) / order_goal * 100) %}
+                            {% set incomplete_vials_progress_pct = incomplete_vials_progress if incomplete_vials_progress < 100 else 100 %}
                         {% else %}
-                            {% set vials_progress_pct = 0 %}
+                            {% set incomplete_vials_progress_pct = 0 %}
                         {% endif %}
                         <div class="stat-progress-bar">
-                            <div class="stat-progress-fill{% if vials_progress_pct >= 100 %} goal-reached{% endif %}" style="width: {{ vials_progress_pct|round(1) }}%;"></div>
+                            <div class="stat-progress-fill{% if incomplete_vials_progress_pct >= 100 %} goal-reached{% endif %}" style="width: {{ incomplete_vials_progress_pct|round(1) }}%;"></div>
                         </div>
                     </div>
                 </div>
                 <div class="stat-item">
                     <div class="stat-label">💎 Combined Total</div>
-                    <div class="stat-value">${{ "%.2f"|format(order_stats.combined_total_usd) }}</div>
-                    <div class="stat-count">All active orders</div>
+                    <div class="stat-value">${{ "%.2f"|format(supplier_stats.get('combined_total_usd', 0.0)) }}</div>
+                    <div class="stat-count">Completed Kits + Incomplete Vials</div>
                     <!-- Progress to Goal for Combined -->
                     <div class="stat-progress">
                         <div class="stat-progress-label">
-                            <span>Progress to Goal <span class="stat-progress-percentage-label">{% if order_goal > 0 %}{% set combined_progress = (order_stats.combined_total_usd / order_goal * 100) %}{% set combined_progress_pct = combined_progress if combined_progress < 100 else 100 %}{{ combined_progress_pct|round(1) }}%{% else %}0.0%{% endif %}</span></span>
-                            <span>${{ "%.2f"|format(order_stats.combined_total_usd) }} / ${{ "%.0f"|format(order_goal) }}</span>
+                            <span>Progress to Goal <span class="stat-progress-percentage-label">{% if order_goal > 0 %}{% set combined_progress = (supplier_stats.get('combined_total_usd', 0.0) / order_goal * 100) %}{% set combined_progress_pct = combined_progress if combined_progress < 100 else 100 %}{{ combined_progress_pct|round(1) }}%{% else %}0.0%{% endif %}</span></span>
+                            <span>${{ "%.2f"|format(supplier_stats.get('combined_total_usd', 0.0)) }} / ${{ "%.0f"|format(order_goal) }}</span>
                         </div>
                         {% if order_goal > 0 %}
-                            {% set combined_progress = (order_stats.combined_total_usd / order_goal * 100) %}
+                            {% set combined_progress = (supplier_stats.get('combined_total_usd', 0.0) / order_goal * 100) %}
                             {% set combined_progress_pct = combined_progress if combined_progress < 100 else 100 %}
                         {% else %}
                             {% set combined_progress_pct = 0 %}
@@ -1792,6 +1797,7 @@
                 </div>
             </div>
         </div>
+        {% endfor %}
         {% endif %}
 
         {% if order_form_locked %}
@@ -1809,7 +1815,8 @@
         </div>
         {% endif %}
 
-        <!-- Timeline Section -->
+        <!-- Timeline Section - Only show when form is locked -->
+        {% if order_form_locked %}
         <div id="timeline-section" style="display: none; margin-bottom: 2rem;">
             <div class="card" style="border: 2px solid #fbbf24; background: linear-gradient(135deg, rgba(251, 191, 36, 0.05) 0%, rgba(251, 191, 36, 0.02) 100%);">
                 <h2 style="font-size: 1.5rem; font-weight: 700; color: var(--text-primary); margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
@@ -1821,6 +1828,7 @@
                 </div>
             </div>
         </div>
+        {% endif %}
 
         <!-- Rate Banner -->
         <div class="rate-banner">
@@ -1943,48 +1951,49 @@
                     </div>
                 </div>
 
-                <!-- Cart -->
-                <div class="card">
-                    <h2 class="card-title"><span class="icon">🛒</span> Order Summary</h2>
+                <!-- Cart - One per Supplier -->
+                {% for supplier in suppliers %}
+                <div class="card supplier-cart" data-supplier="{{ supplier }}">
+                    <h2 class="card-title"><span class="icon">🛒</span> Order Summary - {{ supplier }}</h2>
                     
                     <!-- Status Tags Container -->
-                    <div id="order-summary-status-tags" style="margin-bottom: 1rem;"></div>
+                    <div class="order-summary-status-tags" data-supplier="{{ supplier }}" style="margin-bottom: 1rem;"></div>
 
                     <!-- Paid Order Section (Locked) -->
-                    <div id="paid-order-section" style="display: none; margin-bottom: 1.5rem; padding: 1rem; background: rgba(16, 185, 129, 0.05); border: 2px solid var(--accent-emerald); border-radius: 12px;">
+                    <div class="paid-order-section" data-supplier="{{ supplier }}" style="display: none; margin-bottom: 1.5rem; padding: 1rem; background: rgba(16, 185, 129, 0.05); border: 2px solid var(--accent-emerald); border-radius: 12px;">
                         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem;">
                             <h3 style="font-size: 1rem; font-weight: 700; color: var(--accent-emerald); display: flex; align-items: center; gap: 0.5rem;">
                                 <span>🔒</span> Paid Order (Locked)
                             </h3>
-                            <div id="paid-order-id" style="font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--text-muted);"></div>
+                            <div class="paid-order-id" data-supplier="{{ supplier }}" style="font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--text-muted);"></div>
                         </div>
-                        <div id="paid-order-items" style="margin-bottom: 0.75rem;"></div>
-                        <div id="paid-order-summary" class="cart-summary" style="border-top: 1px solid rgba(16, 185, 129, 0.2); padding-top: 0.75rem;"></div>
+                        <div class="paid-order-items" data-supplier="{{ supplier }}" style="margin-bottom: 0.75rem;"></div>
+                        <div class="paid-order-summary cart-summary" data-supplier="{{ supplier }}" style="border-top: 1px solid rgba(16, 185, 129, 0.2); padding-top: 0.75rem;"></div>
                     </div>
 
-                    <div id="cart-empty" class="cart-empty">
+                    <div class="cart-empty" data-supplier="{{ supplier }}">
                         <p>No items yet</p>
                     </div>
 
                     <!-- New Order Section (for items added after payment) -->
-                    <div id="new-order-section" style="display: none; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 2px solid var(--accent-amber);">
+                    <div class="new-order-section" data-supplier="{{ supplier }}" style="display: none; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 2px solid var(--accent-amber);">
                         <h3 style="font-size: 1rem; font-weight: 700; color: var(--accent-amber); margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
                             <span>➕</span> New Order
                         </h3>
-                        <div id="new-order-items" class="cart-items" style="display: none;"></div>
-                        <div id="new-order-summary" class="cart-summary" style="display: none;"></div>
+                        <div class="new-order-items cart-items" data-supplier="{{ supplier }}" style="display: none;"></div>
+                        <div class="new-order-summary cart-summary" data-supplier="{{ supplier }}" style="display: none;"></div>
                     </div>
 
-                    <div id="cart-items" class="cart-items" style="display: none;"></div>
+                    <div class="cart-items" data-supplier="{{ supplier }}" style="display: none;"></div>
 
-                    <div id="cart-summary" class="cart-summary" style="display: none;">
+                    <div class="cart-summary" data-supplier="{{ supplier }}" style="display: none;">
                         <div class="summary-row">
                             <span class="summary-label">Subtotal (USD)</span>
-                            <span class="summary-value" id="summary-usd">$0.00</span>
+                            <span class="summary-value summary-usd" data-supplier="{{ supplier }}">$0.00</span>
                         </div>
                         <div class="summary-row">
                             <span class="summary-label">Subtotal (PHP)</span>
-                            <span class="summary-value" id="summary-php">₱0.00</span>
+                            <span class="summary-value summary-php" data-supplier="{{ supplier }}">₱0.00</span>
                         </div>
                         <div class="summary-row">
                             <span class="summary-label">Admin Fee</span>
@@ -1992,22 +2001,22 @@
                         </div>
                         <div class="summary-row grand-total">
                             <span class="summary-label">Grand Total</span>
-                            <span class="summary-value" id="grand-total">₱0.00</span>
+                            <span class="summary-value grand-total-value" data-supplier="{{ supplier }}">₱0.00</span>
                         </div>
                     </div>
 
                     <!-- Shipping Details Button (shown for paid orders) -->
-                    <div id="shipping-details-button-container" style="margin-top: 1rem; display: none;">
-                        <button type="button" class="btn btn-primary btn-full" id="add-shipping-details-btn">📬 Add Shipping Details</button>
+                    <div class="shipping-details-button-container" data-supplier="{{ supplier }}" style="margin-top: 1rem; display: none;">
+                        <button type="button" class="btn btn-primary btn-full add-shipping-details-btn" data-supplier="{{ supplier }}">📬 Add Shipping Details</button>
                     </div>
 
                     <!-- Button container for dynamic buttons (always visible, buttons controlled by JS) -->
-                    <div id="order-action-buttons" style="margin-top: 1rem; display: flex; flex-direction: column; gap: 0.5rem;">
-                        <button type="button" class="btn btn-violet btn-full" id="submit-order" disabled>Submit Order</button>
-                        <button type="button" class="btn btn-amber btn-full" id="create-new-order-btn" style="display: none;">➕ Create New Order</button>
-                        <button type="button" class="btn btn-violet btn-full" id="update-order-btn" style="display: none;">Update Order</button>
-                        <button type="button" class="btn btn-emerald btn-full" id="pay-order-btn" style="display: none;">💳 Pay Order</button>
-                        <button type="button" class="btn btn-rose btn-full" id="cancel-order-btn" style="display: none;">🗑️ Cancel Order</button>
+                    <div class="order-action-buttons" data-supplier="{{ supplier }}" style="margin-top: 1rem; display: flex; flex-direction: column; gap: 0.5rem;">
+                        <button type="button" class="btn btn-violet btn-full submit-order" data-supplier="{{ supplier }}" disabled>Submit Order - {{ supplier }}</button>
+                        <button type="button" class="btn btn-amber btn-full create-new-order-btn" data-supplier="{{ supplier }}" style="display: none;">➕ Create New Order</button>
+                        <button type="button" class="btn btn-violet btn-full update-order-btn" data-supplier="{{ supplier }}" style="display: none;">Update Order</button>
+                        <button type="button" class="btn btn-emerald btn-full pay-order-btn" data-supplier="{{ supplier }}" style="display: none;">💳 Pay Order</button>
+                        <button type="button" class="btn btn-rose btn-full cancel-order-btn" data-supplier="{{ supplier }}" style="display: none;">🗑️ Cancel Order</button>
                     </div>
                     {% if order_form_locked %}
                     <div style="margin-top: 0.75rem; padding: 0.75rem; background: rgba(156, 163, 175, 0.1); border-radius: 8px; text-align: center; color: var(--text-muted); font-size: 0.9rem;">
@@ -2016,6 +2025,7 @@
                     {% endif %}
 
                 </div>
+                {% endfor %}
             </div>
         </div>
 
@@ -2060,19 +2070,21 @@
             </div>
         </div>
 
-        <!-- Incomplete Kits Section -->
+        <!-- Incomplete Kits Section - One per Supplier -->
         {% if not order_form_locked %}
-        <div class="orders-summary-section" style="border: 2px solid #f472b6;">
+        {% for supplier in suppliers %}
+        <div class="orders-summary-section supplier-incomplete-kits" data-supplier="{{ supplier }}" style="border: 2px solid #f472b6;">
             <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
                 <div style="background: linear-gradient(135deg, #f472b6, #c084fc); padding: 0.75rem; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
                     <span style="font-size: 1.5rem;">⚠️</span>
                 </div>
                 <div>
-                    <h3 class="orders-summary-title" style="margin: 0;">Incomplete Kits</h3>
+                    <h3 class="orders-summary-title" style="margin: 0;">Incomplete Kits - {{ supplier }}</h3>
                     <p style="color: var(--text-muted); font-size: 0.85rem; margin: 0;">Products needing more vials to complete a kit (1 kit = 10 vials)</p>
                 </div>
             </div>
-            {% if incomplete_kits and incomplete_kits|length > 0 %}
+            {% set supplier_incomplete_kits = incomplete_kits_by_supplier.get(supplier, []) %}
+            {% if supplier_incomplete_kits and supplier_incomplete_kits|length > 0 %}
             <div class="table-container" style="margin-top: 1rem; background: rgba(255, 255, 255, 0.4); padding: 1rem; border-radius: 12px;">
                 <table class="products-table" style="width: 100%;">
                     <thead>
@@ -2087,7 +2099,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {% for product in incomplete_kits %}
+                        {% for product in supplier_incomplete_kits %}
                         {% set total_vials = product.inventory.total_vials %}
                         {% set vials_per_kit = product.vials_per_kit or 10 %}
                         {% set kits_generated = product.inventory.kits_generated %}
@@ -2194,13 +2206,15 @@
         </div>
         {% endif %}
 
-        <!-- Products with Active Orders Summary -->
+        <!-- Products with Active Orders Summary - One per Supplier -->
         {% if not order_form_locked %}
-        <div class="orders-summary-section">
-            <h3 class="orders-summary-title">🛒 Products with Active Orders</h3>
-            {% if products_with_orders and products_with_orders|length > 0 %}
+        {% for supplier in suppliers %}
+        <div class="orders-summary-section supplier-active-orders" data-supplier="{{ supplier }}">
+            <h3 class="orders-summary-title">🛒 Products with Active Orders - {{ supplier }}</h3>
+            {% set supplier_products = products_with_orders_by_supplier.get(supplier, []) %}
+            {% if supplier_products and supplier_products|length > 0 %}
             <div class="orders-product-grid">
-                {% for product in products_with_orders %}
+                {% for product in supplier_products %}
                 {% set total_vials = product.inventory.total_vials %}
                 {% set kits_generated = product.inventory.kits_generated %}
                 {% set slots_needed = product.inventory.slots_to_next_kit %}
@@ -2242,29 +2256,32 @@
             </div>
             {% endif %}
         </div>
+        {% endfor %}
         {% endif %}
 
-        <!-- Live Product Inventory Section -->
-        <div class="orders-summary-section">
+        <!-- Live Product Inventory Section - One per Supplier -->
+        {% for supplier in suppliers %}
+        <div class="orders-summary-section supplier-inventory" data-supplier="{{ supplier }}">
             <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
                 <div style="background: linear-gradient(135deg, #ec4899, #8b5cf6); padding: 0.75rem; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
                     <span style="font-size: 1.5rem;">📊</span>
                 </div>
                 <div>
-                    <h3 class="orders-summary-title" style="margin: 0;">Live Product Inventory</h3>
+                    <h3 class="orders-summary-title" style="margin: 0;">Live Product Inventory - {{ supplier }}</h3>
                     <p style="color: var(--text-muted); font-size: 0.85rem; margin: 0;">Real-time tracking of peptide reservations and kit availability</p>
                 </div>
             </div>
 
             <div class="inventory-search" style="max-width: 400px; margin-bottom: 1.5rem;">
-                <input type="text" class="form-input" id="inventory-search" placeholder="🔍 Search products by name or code...">
+                <input type="text" class="form-input inventory-search-input" data-supplier="{{ supplier }}" placeholder="🔍 Search products by name or code...">
             </div>
 
             <div class="inventory-grid">
-                {% for product in products %}
+                {% for product in products_by_supplier.get(supplier, []) %}
                 <div class="inventory-card {% if product.inventory.total_vials > 0 %}has-orders{% endif %} {% if product.inventory.is_locked %}card-locked{% endif %}"
                      data-code="{{ product.code }}"
                      data-name="{{ product.name }}"
+                     data-supplier="{{ supplier }}"
                      data-kit-price="{{ product.kit_price }}"
                      data-vial-price="{{ product.vial_price }}">
                     <div class="inv-card-header">
@@ -2318,7 +2335,7 @@
                         {% if product.inventory.is_locked %}
                         <span class="inv-lock-badge locked">🔒 Locked</span>
                         {% else %}
-                        <button class="btn-click-to-add" onclick="quickAddToCart('{{ product.code }}', '{{ product.name }}')">
+                        <button class="btn-click-to-add" onclick="quickAddToCart('{{ product.code }}', '{{ product.name }}', '{{ supplier }}')">
                             ✨ Click to Add
                         </button>
                         {% endif %}
@@ -2327,6 +2344,7 @@
                 {% endfor %}
             </div>
         </div>
+        {% endfor %}
 
     </div>
 
@@ -2593,6 +2611,51 @@
         const EXCHANGE_RATE = {{ exchange_rate|default(59.0)|tojson }};
         const ADMIN_FEE = {{ admin_fee|default(300.0)|tojson }};
         const VIALS_PER_KIT = {{ vials_per_kit|default(10)|tojson }};
+        const SUPPLIERS = {{ suppliers|tojson|safe }};
+        
+        // Supplier filter state
+        let supplierFilter = localStorage.getItem('supplierFilter') || 'all';
+        
+        // Listen for supplier filter changes from admin panel
+        window.addEventListener('message', (event) => {
+            if (event.data && event.data.type === 'supplierFilter') {
+                supplierFilter = event.data.filter;
+                localStorage.setItem('supplierFilter', supplierFilter);
+                applySupplierFilterToPage();
+            }
+            // Listen for tab switch messages to reload timeline
+            if (event.data && event.data.type === 'tabSwitched') {
+                const orderFormLocked = {{ order_form_locked|tojson }};
+                if (orderFormLocked) {
+                    loadTimeline(); // Reload timeline for new tab
+                }
+            }
+        });
+        
+        // Apply supplier filter on page load
+        function applySupplierFilterToPage() {
+            if (!SUPPLIERS || SUPPLIERS.length === 0) return;
+            
+            // Show/hide supplier sections based on filter
+            document.querySelectorAll('.supplier-cart, .supplier-inventory, .supplier-active-orders, .supplier-incomplete-kits, .supplier-stats').forEach(section => {
+                const sectionSupplier = section.getAttribute('data-supplier');
+                let shouldShow = false;
+                
+                if (supplierFilter === 'all') {
+                    shouldShow = true;
+                } else {
+                    // Filter matches supplier name exactly
+                    shouldShow = sectionSupplier === supplierFilter;
+                }
+                
+                section.style.display = shouldShow ? 'block' : 'none';
+            });
+        }
+        
+        // Apply filter on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            applySupplierFilterToPage();
+        });
         
         // State
         let selectedProduct = null;
@@ -3022,19 +3085,6 @@
         }
 
         function updateCart() {
-            const empty = document.getElementById('cart-empty');
-            const items = document.getElementById('cart-items');
-            const summary = document.getElementById('cart-summary');
-            const submit = document.getElementById('submit-order');
-            const paidOrderSection = document.getElementById('paid-order-section');
-            const paidOrderItems = document.getElementById('paid-order-items');
-            const paidOrderSummary = document.getElementById('paid-order-summary');
-            const paidOrderId = document.getElementById('paid-order-id');
-            const newOrderSection = document.getElementById('new-order-section');
-            const newOrderItems = document.getElementById('new-order-items');
-            const newOrderSummary = document.getElementById('new-order-summary');
-            const createNewOrderBtn = document.getElementById('create-new-order-btn');
-            
             // Find paid order
             const paidOrder = existingCustomerOrders.find(o => 
                 o.status !== 'Cancelled' && 
@@ -3042,9 +3092,53 @@
                 o.payment_status.toLowerCase() === 'paid'
             );
             
-            // Separate paid order items from new items
-            const paidOrderItemsList = paidOrder ? (paidOrder.items || []) : [];
-            const newItems = cartItems.filter(item => !item.isExisting || item.isNewOrder);
+            // Update each supplier's cart separately
+            if (!SUPPLIERS || SUPPLIERS.length === 0) {
+                console.warn('No suppliers found');
+                return;
+            }
+            
+            SUPPLIERS.forEach(supplier => {
+                updateSupplierCart(supplier, paidOrder);
+            });
+            
+            // Update status tags and editing controls
+            updateOrderSummaryStatusTags();
+            updateEditingControls();
+            
+            // Save updated cart items with corrected prices
+            saveCart();
+            updateSubmitButtonText();
+        }
+        
+        function updateSupplierCart(supplier, paidOrder) {
+            // Get supplier-specific cart elements
+            const cartSection = document.querySelector(`.supplier-cart[data-supplier="${supplier}"]`);
+            if (!cartSection) return;
+            
+            const empty = cartSection.querySelector(`.cart-empty[data-supplier="${supplier}"]`);
+            const items = cartSection.querySelector(`.cart-items[data-supplier="${supplier}"]`);
+            const summary = cartSection.querySelector(`.cart-summary[data-supplier="${supplier}"]`);
+            const submitBtn = cartSection.querySelector(`.submit-order[data-supplier="${supplier}"]`);
+            const paidOrderSection = cartSection.querySelector(`.paid-order-section[data-supplier="${supplier}"]`);
+            const paidOrderItems = cartSection.querySelector(`.paid-order-items[data-supplier="${supplier}"]`);
+            const paidOrderSummary = cartSection.querySelector(`.paid-order-summary[data-supplier="${supplier}"]`);
+            const paidOrderId = cartSection.querySelector(`.paid-order-id[data-supplier="${supplier}"]`);
+            const newOrderSection = cartSection.querySelector(`.new-order-section[data-supplier="${supplier}"]`);
+            const newOrderItems = cartSection.querySelector(`.new-order-items[data-supplier="${supplier}"]`);
+            const newOrderSummary = cartSection.querySelector(`.new-order-summary[data-supplier="${supplier}"]`);
+            const createNewOrderBtn = cartSection.querySelector(`.create-new-order-btn[data-supplier="${supplier}"]`);
+            
+            // Filter cart items by supplier
+            const supplierCartItems = cartItems.filter(item => (item.supplier || 'Default') === supplier);
+            
+            // Separate paid order items from new items for this supplier
+            const paidOrderItemsList = paidOrder ? (paidOrder.items || []).filter(item => {
+                // Try to match by product code and supplier
+                const product = allProducts?.find(p => p.code === item.product_code);
+                return product && (product.supplier || 'Default') === supplier;
+            }) : [];
+            const newItems = supplierCartItems.filter(item => !item.isExisting || item.isNewOrder);
             const hasNewItems = newItems.length > 0;
             
             // Show/hide paid order section
@@ -3176,15 +3270,12 @@
                 if (newOrderSection) newOrderSection.style.display = 'none';
             }
             
-            // Handle empty cart
-            if (cartItems.length === 0 && !paidOrder) {
+            // Handle empty cart for this supplier
+            if (supplierCartItems.length === 0 && paidOrderItemsList.length === 0) {
                 if (empty) empty.style.display = 'block';
                 if (items) items.style.display = 'none';
                 if (summary) summary.style.display = 'none';
-                if (submit) submit.disabled = true;
-                updateSubmitButtonText();
-                updateOrderSummaryStatusTags();
-                updateEditingControls();
+                if (submitBtn) submitBtn.disabled = true;
                 return;
             }
             
@@ -3193,15 +3284,16 @@
                 if (empty) empty.style.display = 'none';
                 if (items) items.style.display = 'block';
                 if (summary) summary.style.display = 'block';
-                if (submit) submit.disabled = false;
+                if (submitBtn) submitBtn.disabled = supplierCartItems.length === 0;
                 
                 // Check if order is editable
                 const pendingOrder = existingCustomerOrders.find(o => o.status !== 'Cancelled');
                 const isEditable = !pendingOrder || (!pendingOrder.locked && pendingOrder.payment_status !== 'Paid' && pendingOrder.payment_status !== 'Waiting for Confirmation');
                 
-                // Display all items together with + - X buttons
+                // Display all items together with + - X buttons (filtered by supplier)
                 if (items) {
-                    items.innerHTML = cartItems.map((item, i) => {
+                    items.innerHTML = supplierCartItems.map((item, i) => {
+                        const itemIndex = cartItems.indexOf(item);
                         const isExisting = item.isExisting === true;
                         const hasChanged = item.originalQty !== undefined && item.qty !== item.originalQty;
                         const orderFormLocked = {{ order_form_locked|tojson }};
@@ -3217,19 +3309,19 @@
                             'width: 28px; height: 28px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: not-allowed; display: flex; align-items: center; justify-content: center; color: var(--accent-teal); font-size: 1.2rem; font-weight: 600; line-height: 1; pointer-events: none; z-index: 10; position: relative; opacity: 0.5;';
                         return `
                             <div class="cart-item" style="${isExisting ? 'border-left: 3px solid var(--accent-amber);' : ''}">
-                                <button class="cart-item-remove" onclick="removeItem(${i})" ${!canRemove ? 'disabled' : ''} style="${removeBtnStyle}" ${isExisting && orderFormLocked ? 'title="Cannot remove items from existing orders when order form is locked"' : ''}>×</button>
+                                <button class="cart-item-remove" onclick="removeItem(${itemIndex})" ${!canRemove ? 'disabled' : ''} style="${removeBtnStyle}" ${isExisting && orderFormLocked ? 'title="Cannot remove items from existing orders when order form is locked"' : ''}>×</button>
                                 <div class="cart-item-header">
                                     <span class="cart-item-name">${item.product_name}${hasChanged ? ' <span style="font-size: 0.75rem; color: var(--accent-teal);">(Updated)</span>' : ''}</span>
                                     <span class="cart-item-code">${item.product_code}</span>
                                 </div>
                                 <div class="cart-item-details" style="display: flex; align-items: center; gap: 0.75rem;">
-                                    <span style="flex: 1;">${item.order_type} × <span id="qty-${i}">${item.qty}</span></span>
+                                    <span style="flex: 1;">${item.order_type} × <span id="qty-${itemIndex}">${item.qty}</span></span>
                                     <div style="display: flex; align-items: center; gap: 0.5rem; background: var(--bg-input); border-radius: 8px; padding: 0.25rem;">
-                                        <button type="button" class="qty-btn-minus" data-index="${i}" data-action="decrease" ${!isEditable ? 'disabled' : ''} style="${qtyBtnStyle}">−</button>
-                                        <span id="qty-display-${i}" style="min-width: 30px; text-align: center; font-weight: 600; color: var(--text-primary);">${item.qty}</span>
-                                        <button type="button" class="qty-btn-plus" data-index="${i}" data-action="increase" ${!isEditable ? 'disabled' : ''} style="${qtyBtnPlusStyle}">+</button>
+                                        <button type="button" class="qty-btn-minus" data-index="${itemIndex}" data-action="decrease" ${!isEditable ? 'disabled' : ''} style="${qtyBtnStyle}">−</button>
+                                        <span id="qty-display-${itemIndex}" style="min-width: 30px; text-align: center; font-weight: 600; color: var(--text-primary);">${item.qty}</span>
+                                        <button type="button" class="qty-btn-plus" data-index="${itemIndex}" data-action="increase" ${!isEditable ? 'disabled' : ''} style="${qtyBtnPlusStyle}">+</button>
                                     </div>
-                                    <span class="cart-item-price">₱<span id="price-${i}">${(item.line_total_php || 0).toFixed(2)}</span></span>
+                                    <span class="cart-item-price">₱<span id="price-${itemIndex}">${(item.line_total_php || 0).toFixed(2)}</span></span>
                                 </div>
                             </div>
                         `;
@@ -3259,10 +3351,10 @@
                     });
                 }
                 
-                // Calculate totals
+                // Calculate totals for this supplier
                 let totalUsd = 0;
                 let totalPhp = 0;
-                cartItems.forEach(item => {
+                supplierCartItems.forEach(item => {
                     let itemUsd = parseFloat(item.line_total_usd);
                     let itemPhp = parseFloat(item.line_total_php);
                     
@@ -3307,34 +3399,27 @@
                 
                 const grandTotal = totalPhp + ADMIN_FEE;
                 
-                // Update summary displays
-                const summaryUsdEl = document.getElementById('summary-usd');
-                const summaryPhpEl = document.getElementById('summary-php');
-                const grandTotalEl = document.getElementById('grand-total');
+                // Update summary displays for this supplier
+                const summaryUsdEl = cartSection.querySelector(`.summary-usd[data-supplier="${supplier}"]`);
+                const summaryPhpEl = cartSection.querySelector(`.summary-php[data-supplier="${supplier}"]`);
+                const grandTotalEl = cartSection.querySelector(`.grand-total-value[data-supplier="${supplier}"]`);
                 
                 if (summaryUsdEl) summaryUsdEl.textContent = `$${totalUsd.toFixed(2)}`;
                 if (summaryPhpEl) summaryPhpEl.textContent = `₱${totalPhp.toFixed(2)}`;
                 if (grandTotalEl) grandTotalEl.textContent = `₱${grandTotal.toFixed(2)}`;
             }
             
-            // Update button visibility
+            // Update button visibility for this supplier
             if (paidOrder && hasNewItems) {
                 if (createNewOrderBtn) {
                     createNewOrderBtn.style.display = 'block';
                     createNewOrderBtn.disabled = false;
                 }
-                if (submit) submit.style.display = 'none';
+                if (submitBtn) submitBtn.style.display = 'none';
             } else {
                 if (createNewOrderBtn) createNewOrderBtn.style.display = 'none';
+                if (submitBtn && supplierCartItems.length > 0) submitBtn.disabled = false;
             }
-            
-            // Update status tags and editing controls
-            updateOrderSummaryStatusTags();
-            updateEditingControls();
-            
-            // Save updated cart items with corrected prices
-            saveCart();
-            updateSubmitButtonText();
         }
 
         function removeItem(index) {
@@ -4345,22 +4430,32 @@
             showOrderConfirmationModal();
         });
         
-        document.getElementById('submit-order').addEventListener('click', () => {
-            const fullName = document.getElementById('full-name').value.trim();
-            const telegram = document.getElementById('telegram').value.trim();
-            
-            if (!fullName || !telegram) {
-                showToast('Please fill in name and telegram username');
-                return;
+        // Handle supplier-specific submit buttons using event delegation
+        document.addEventListener('click', (e) => {
+            if (e.target.classList.contains('submit-order')) {
+                const supplier = e.target.getAttribute('data-supplier');
+                const fullName = document.getElementById('full-name').value.trim();
+                const telegram = document.getElementById('telegram').value.trim();
+                
+                if (!fullName || !telegram) {
+                    showToast('Please fill in name and telegram username');
+                    return;
+                }
+                
+                // Filter cart items by supplier
+                const supplierCartItems = cartItems.filter(item => (item.supplier || 'Default') === supplier);
+                
+                if (supplierCartItems.length === 0) {
+                    showToast(`Your cart is empty for ${supplier}`);
+                    return;
+                }
+                
+                // Store supplier for confirmation modal
+                window.currentSubmitSupplier = supplier;
+                
+                // Show confirmation modal
+                showOrderConfirmationModal(supplier);
             }
-            
-            if (cartItems.length === 0) {
-                showToast('Your cart is empty');
-                return;
-            }
-            
-            // Show confirmation modal
-            showOrderConfirmationModal();
         });
         
         // Update Order button - Show confirmation modal first
@@ -4562,9 +4657,14 @@
         }
         
         // Show order confirmation modal
-        function showOrderConfirmationModal() {
+        function showOrderConfirmationModal(supplier = null) {
             const modal = document.getElementById('order-confirmation-modal');
             const itemsList = document.getElementById('confirmation-items-list');
+            
+            // Filter items by supplier if provided
+            let filteredCartItems = supplier 
+                ? cartItems.filter(item => (item.supplier || 'Default') === supplier)
+                : cartItems;
             
             // Check if there's a paid order - if so, only show new items
             const paidOrder = existingCustomerOrders.find(o => 
@@ -4574,8 +4674,8 @@
             );
             
             const itemsToShow = paidOrder ? 
-                cartItems.filter(item => !item.isExisting || item.isNewOrder) : 
-                cartItems;
+                filteredCartItems.filter(item => !item.isExisting || item.isNewOrder) : 
+                filteredCartItems;
             
             // Render cart items with remove buttons
             itemsList.innerHTML = itemsToShow.map((item, i) => {
@@ -4863,10 +4963,15 @@
                         o.payment_status.toLowerCase() === 'paid'
                     );
                     
-                    let itemsToSubmit = cartItems;
+                    // Filter items by supplier if submitting supplier-specific order
+                    const supplier = window.currentSubmitSupplier || null;
+                    let itemsToSubmit = supplier 
+                        ? cartItems.filter(item => (item.supplier || 'Default') === supplier)
+                        : cartItems;
+                    
                     if (paidOrder) {
                         // Filter only new items (not from paid order)
-                        itemsToSubmit = cartItems.filter(item => !item.isExisting || item.isNewOrder);
+                        itemsToSubmit = itemsToSubmit.filter(item => !item.isExisting || item.isNewOrder);
                         
                         if (itemsToSubmit.length === 0) {
                             showToast('❌ Please add new items to create a new order', 3000);
@@ -4880,7 +4985,12 @@
                     response = await fetch('/api/submit-order', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ full_name: fullName, telegram, items: itemsToSubmit })
+                        body: JSON.stringify({ 
+                            full_name: fullName, 
+                            telegram, 
+                            items: itemsToSubmit,
+                            supplier: supplier || null
+                        })
                     });
                     
                     result = await response.json();
@@ -5473,14 +5583,22 @@
         }
         
         // Add event listener for character count
-        // Load Timeline
+        // Load Timeline - tab-specific
         async function loadTimeline() {
             const timelineSection = document.getElementById('timeline-section');
             const timelineContent = document.getElementById('timeline-content');
             
             if (!timelineSection || !timelineContent) return;
             
+            // Don't show timeline when form is open
+            const orderFormLocked = {{ order_form_locked|tojson }};
+            if (!orderFormLocked) {
+                timelineSection.style.display = 'none';
+                return;
+            }
+            
             try {
+                // Get current tab from session (will be set by admin panel or default)
                 const response = await fetch('/api/timeline');
                 if (!response.ok) {
                     throw new Error(`Failed to load timeline: ${response.status}`);
@@ -5722,8 +5840,8 @@
         // Expose adjustInvQty to global scope for onclick handlers
         window.adjustInvQty = adjustInvQty;
 
-        function quickAddToCart(productCode, productName) {
-            console.log('quickAddToCart called:', { productCode, productName });
+        function quickAddToCart(productCode, productName, supplier) {
+            console.log('quickAddToCart called:', { productCode, productName, supplier });
             
             // Check if products are loaded
             if (!allProducts || allProducts.length === 0) {
@@ -5747,6 +5865,9 @@
                 return;
             }
             
+            // Get supplier from product if not provided
+            const productSupplier = supplier || product.supplier || 'Default';
+            
             console.log('✅ Found product:', product);
             
             const kitPrice = product.kit_price;
@@ -5762,9 +5883,11 @@
             let added = false;
             
             if (kitQty > 0) {
-                // Add kits to cart
+                // Add kits to cart - match by product_code, order_type, AND supplier
                 const existingKitIndex = cartItems.findIndex(item => 
-                    item.product_code === productCode && item.order_type === 'Kit'
+                    item.product_code === productCode && 
+                    item.order_type === 'Kit' &&
+                    item.supplier === productSupplier
                 );
                 
                 if (existingKitIndex !== -1) {
@@ -5779,6 +5902,7 @@
                         product_code: productCode,
                         product_name: productName,
                         order_type: 'Kit',
+                        supplier: productSupplier,
                         qty: kitQty,
                         unit_price_usd: kitPrice,
                         line_total_usd: lineTotalUsd,
@@ -5789,9 +5913,11 @@
             }
             
             if (vialQty > 0) {
-                // Add vials to cart
+                // Add vials to cart - match by product_code, order_type, AND supplier
                 const existingVialIndex = cartItems.findIndex(item => 
-                    item.product_code === productCode && item.order_type === 'Vial'
+                    item.product_code === productCode && 
+                    item.order_type === 'Vial' &&
+                    item.supplier === productSupplier
                 );
                 
                 if (existingVialIndex !== -1) {
@@ -5806,6 +5932,7 @@
                         product_code: productCode,
                         product_name: productName,
                         order_type: 'Vial',
+                        supplier: productSupplier,
                         qty: vialQty,
                         unit_price_usd: vialPrice,
                         line_total_usd: lineTotalUsd,

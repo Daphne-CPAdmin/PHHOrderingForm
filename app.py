@@ -1879,6 +1879,7 @@ def _fetch_products_from_sheets():
             kit_price_str = str(record.get('USD Kit Price') or record.get('Kit Price') or record.get('kit_price') or record.get('Kit', '0')).strip()
             vial_price_str = str(record.get('USD Price/Vial') or record.get('Vial Price') or record.get('vial_price') or record.get('Vial', '0')).strip()
             vials_per_kit_str = str(record.get('Vials/Kit') or record.get('Vials Per Kit') or record.get('vials_per_kit') or '10').strip()
+            supplier = record.get('Supplier') or record.get('supplier') or 'Default'
             
             # Skip empty rows
             if not code or not name:
@@ -1902,7 +1903,8 @@ def _fetch_products_from_sheets():
                 'name': name,
                 'kit_price': kit_price,
                 'vial_price': vial_price,
-                'vials_per_kit': vials_per_kit
+                'vials_per_kit': vials_per_kit,
+                'supplier': supplier.strip() if supplier else 'Default'
             })
         
         print(f"✅ Successfully loaded {len(products)} products from Google Sheets")
@@ -2169,7 +2171,7 @@ def get_exchange_rate():
     return FALLBACK_EXCHANGE_RATE
 
 def _fetch_consolidated_order_stats():
-    """Internal function to calculate consolidated order stats"""
+    """Internal function to calculate consolidated order stats per supplier"""
     try:
         orders = get_orders_from_sheets()
         if not orders:
@@ -2181,50 +2183,97 @@ def _fetch_consolidated_order_stats():
         # Get inventory stats to calculate actual kits_generated (includes kits formed from vials)
         inventory = get_inventory_stats()
         
-        # Calculate total kits based on kits_generated (actual kits that can be formed)
-        total_kits_usd = 0.0
-        total_kits_count = 0
+        # Group products by supplier
+        suppliers = sorted(set([p.get('supplier', 'Default') for p in products]))
+        stats_by_supplier = {}
         
-        for product in products:
-            product_code = product['code']
-            if product_code in inventory:
-                kits_generated = inventory[product_code].get('kits_generated', 0)
-                if kits_generated > 0:
-                    kit_price = product.get('kit_price', 0)
-                    total_kits_usd += kit_price * kits_generated
-                    total_kits_count += kits_generated
+        for supplier in suppliers:
+            supplier_products = [p for p in products if (p.get('supplier', 'Default') == supplier)]
+            
+            # Calculate total completed kits value (kits_generated)
+            total_completed_kits_usd = 0.0
+            total_completed_kits_count = 0
+            
+            for product in supplier_products:
+                product_code = product['code']
+                if product_code in inventory:
+                    kits_generated = inventory[product_code].get('kits_generated', 0)
+                    if kits_generated > 0:
+                        kit_price = product.get('kit_price', 0)
+                        total_completed_kits_usd += kit_price * kits_generated
+                        total_completed_kits_count += kits_generated
+            
+            # Calculate total incomplete kits vial value (remaining_vials that don't form complete kits)
+            total_incomplete_vials_usd = 0.0
+            total_incomplete_vials_count = 0
+            
+            for product in supplier_products:
+                product_code = product['code']
+                if product_code in inventory:
+                    remaining_vials = inventory[product_code].get('remaining_vials', 0)
+                    if remaining_vials > 0:
+                        vial_price = product.get('vial_price', 0)
+                        total_incomplete_vials_usd += vial_price * remaining_vials
+                        total_incomplete_vials_count += remaining_vials
+            
+            # Combined total (completed kits + incomplete vials)
+            combined_total_usd = total_completed_kits_usd + total_incomplete_vials_usd
+            
+            stats_by_supplier[supplier] = {
+                'total_completed_kits_usd': total_completed_kits_usd,
+                'total_incomplete_vials_usd': total_incomplete_vials_usd,
+                'total_completed_kits_count': total_completed_kits_count,
+                'total_incomplete_vials_count': total_incomplete_vials_count,
+                'combined_total_usd': combined_total_usd
+            }
         
-        # Calculate total vials value (only for remaining vials that don't form complete kits)
-        total_vials_usd = 0.0
-        total_vials_count = 0
-        
-        for product in products:
-            product_code = product['code']
-            if product_code in inventory:
-                remaining_vials = inventory[product_code].get('remaining_vials', 0)
-                if remaining_vials > 0:
-                    vial_price = product.get('vial_price', 0)
-                    total_vials_usd += vial_price * remaining_vials
-                    total_vials_count += remaining_vials
+        # Also calculate overall totals for backward compatibility
+        total_completed_kits_usd = sum(s['total_completed_kits_usd'] for s in stats_by_supplier.values())
+        total_incomplete_vials_usd = sum(s['total_incomplete_vials_usd'] for s in stats_by_supplier.values())
+        total_completed_kits_count = sum(s['total_completed_kits_count'] for s in stats_by_supplier.values())
+        total_incomplete_vials_count = sum(s['total_incomplete_vials_count'] for s in stats_by_supplier.values())
         
         return {
-            'total_kits_usd': total_kits_usd,
-            'total_vials_usd': total_vials_usd,
-            'total_kits_count': total_kits_count,
-            'total_vials_count': total_vials_count,
-            'combined_total_usd': total_kits_usd + total_vials_usd
+            'by_supplier': stats_by_supplier,
+            'total_completed_kits_usd': total_completed_kits_usd,
+            'total_incomplete_vials_usd': total_incomplete_vials_usd,
+            'total_completed_kits_count': total_completed_kits_count,
+            'total_incomplete_vials_count': total_incomplete_vials_count,
+            'combined_total_usd': total_completed_kits_usd + total_incomplete_vials_usd,
+            # Legacy fields for backward compatibility
+            'total_kits_usd': total_completed_kits_usd,
+            'total_vials_usd': total_incomplete_vials_usd,
+            'total_kits_count': total_completed_kits_count,
+            'total_vials_count': total_incomplete_vials_count
         }
     except Exception as e:
         print(f"Error calculating order stats: {e}")
         import traceback
         traceback.print_exc()
-        # Return default stats
+        # Return default stats - safely get suppliers
+        try:
+            products = get_products()
+            suppliers = sorted(set([p.get('supplier', 'Default') for p in products])) if products else ['Default']
+        except Exception:
+            suppliers = ['Default']
+        
         return {
+            'by_supplier': {s: {
+                'total_completed_kits_usd': 0.0,
+                'total_incomplete_vials_usd': 0.0,
+                'total_completed_kits_count': 0,
+                'total_incomplete_vials_count': 0,
+                'combined_total_usd': 0.0
+            } for s in suppliers},
+            'total_completed_kits_usd': 0.0,
+            'total_incomplete_vials_usd': 0.0,
+            'total_completed_kits_count': 0,
+            'total_incomplete_vials_count': 0,
+            'combined_total_usd': 0.0,
             'total_kits_usd': 0.0,
             'total_vials_usd': 0.0,
             'total_kits_count': 0,
-            'total_vials_count': 0,
-            'combined_total_usd': 0.0
+            'total_vials_count': 0
         }
 
 def get_consolidated_order_stats():
@@ -2329,13 +2378,43 @@ def index():
         # Sort incomplete kits by pending vials (ascending - least needed first)
         incomplete_kits.sort(key=lambda p: p.get('pending_vials', 10))
         
+        # Group products by supplier
+        products_by_supplier = {}
+        products_with_orders_by_supplier = {}
+        incomplete_kits_by_supplier = {}
+        
+        for product in products:
+            supplier = product.get('supplier', 'Default')
+            if supplier not in products_by_supplier:
+                products_by_supplier[supplier] = []
+            products_by_supplier[supplier].append(product)
+        
+        for product in products_with_orders:
+            supplier = product.get('supplier', 'Default')
+            if supplier not in products_with_orders_by_supplier:
+                products_with_orders_by_supplier[supplier] = []
+            products_with_orders_by_supplier[supplier].append(product)
+        
+        for product in incomplete_kits:
+            supplier = product.get('supplier', 'Default')
+            if supplier not in incomplete_kits_by_supplier:
+                incomplete_kits_by_supplier[supplier] = []
+            incomplete_kits_by_supplier[supplier].append(product)
+        
+        # Get unique suppliers
+        suppliers = sorted(set(products_by_supplier.keys()))
+        
         order_goal = get_order_goal()
         current_theme = get_theme()
         
         return render_template('index.html', 
                              products=products, 
+                             products_by_supplier=products_by_supplier,
                              products_with_orders=products_with_orders,
+                             products_with_orders_by_supplier=products_with_orders_by_supplier,
                              incomplete_kits=incomplete_kits,
+                             incomplete_kits_by_supplier=incomplete_kits_by_supplier,
+                             suppliers=suppliers,
                              exchange_rate=exchange_rate,
                              admin_fee=ADMIN_FEE_PHP,
                              vials_per_kit=VIALS_PER_KIT,
@@ -2354,7 +2433,9 @@ def index():
 @app.route('/admin')
 def admin_panel():
     """Admin panel for managing products and orders"""
-    return render_template('admin.html')
+    products = get_products()
+    suppliers = sorted(set([p.get('supplier', 'Default') for p in products])) if products else ['Default']
+    return render_template('admin.html', suppliers=suppliers)
 
 @app.route('/api/admin/status')
 def admin_status():
@@ -2716,20 +2797,29 @@ def api_get_theme():
 # Timeline Management
 _timeline_entries = []
 
-def _fetch_timeline_entries():
-    """Internal function to fetch timeline entries from sheets"""
+def _fetch_timeline_entries(tab_name=None):
+    """Internal function to fetch timeline entries from sheets - tab-specific"""
     global _timeline_entries
     entries = []
+    
+    if not tab_name:
+        tab_name = get_current_pephaul_tab()
+    
+    # Extract tab number from tab name (e.g., "PepHaul Entry-01" -> "01")
+    timeline_tab_name = 'Timeline'
+    if '-' in tab_name:
+        tab_num = tab_name.split('-')[-1]
+        timeline_tab_name = f'Timeline-{tab_num}'
     
     if sheets_client:
         try:
             spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
             
             try:
-                worksheet = spreadsheet.worksheet('Timeline')
+                worksheet = spreadsheet.worksheet(timeline_tab_name)
             except:
                 # Create Timeline sheet if doesn't exist
-                worksheet = spreadsheet.add_worksheet(title='Timeline', rows=100, cols=5)
+                worksheet = spreadsheet.add_worksheet(title=timeline_tab_name, rows=100, cols=5)
                 worksheet.update('A1:D1', [['ID', 'Date', 'Time', 'Details']])
                 return []
             
@@ -2748,13 +2838,25 @@ def _fetch_timeline_entries():
     _timeline_entries = entries
     return entries
 
-def get_timeline_entries():
-    """Get timeline entries (cached)"""
-    return get_cached('timeline_entries', _fetch_timeline_entries, cache_duration=300)  # 5 minutes
+def get_timeline_entries(tab_name=None):
+    """Get timeline entries (cached) - tab-specific"""
+    if not tab_name:
+        tab_name = get_current_pephaul_tab()
+    cache_key = f'timeline_entries_{tab_name}'
+    return get_cached(cache_key, lambda: _fetch_timeline_entries(tab_name), cache_duration=300)  # 5 minutes
 
-def add_timeline_entry(date, time, details):
-    """Add timeline entry to sheets"""
+def add_timeline_entry(date, time, details, tab_name=None):
+    """Add timeline entry to sheets - tab-specific"""
     import uuid
+    
+    if not tab_name:
+        tab_name = get_current_pephaul_tab()
+    
+    # Extract tab number from tab name (e.g., "PepHaul Entry-01" -> "01")
+    timeline_tab_name = 'Timeline'
+    if '-' in tab_name:
+        tab_num = tab_name.split('-')[-1]
+        timeline_tab_name = f'Timeline-{tab_num}'
     
     entry_id = str(uuid.uuid4())[:8]
     
@@ -2763,17 +2865,18 @@ def add_timeline_entry(date, time, details):
             spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
             
             try:
-                worksheet = spreadsheet.worksheet('Timeline')
+                worksheet = spreadsheet.worksheet(timeline_tab_name)
             except:
-                worksheet = spreadsheet.add_worksheet(title='Timeline', rows=100, cols=5)
+                worksheet = spreadsheet.add_worksheet(title=timeline_tab_name, rows=100, cols=5)
                 worksheet.update('A1:D1', [['ID', 'Date', 'Time', 'Details']])
             
             # Append new row
             next_row = len(worksheet.get_all_values()) + 1
             worksheet.update(f'A{next_row}:D{next_row}', [[entry_id, date, time, details]])
             
-            # Clear cache
-            clear_cache('timeline_entries')
+            # Clear cache for this tab
+            cache_key = f'timeline_entries_{tab_name}'
+            clear_cache(cache_key)
             
             return True
         except Exception as e:
@@ -2784,18 +2887,29 @@ def add_timeline_entry(date, time, details):
     
     return False
 
-def delete_timeline_entry(entry_id):
-    """Delete timeline entry from sheets"""
+def delete_timeline_entry(entry_id, tab_name=None):
+    """Delete timeline entry from sheets - tab-specific"""
+    if not tab_name:
+        tab_name = get_current_pephaul_tab()
+    
+    # Extract tab number from tab name (e.g., "PepHaul Entry-01" -> "01")
+    timeline_tab_name = 'Timeline'
+    if '-' in tab_name:
+        tab_num = tab_name.split('-')[-1]
+        timeline_tab_name = f'Timeline-{tab_num}'
+    
     if sheets_client:
         try:
             spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
-            worksheet = spreadsheet.worksheet('Timeline')
+            worksheet = spreadsheet.worksheet(timeline_tab_name)
             
             # Find the row with this ID
             cell = worksheet.find(entry_id)
             if cell:
                 worksheet.delete_rows(cell.row)
-                clear_cache('timeline_entries')
+                # Clear cache for this tab
+                cache_key = f'timeline_entries_{tab_name}'
+                clear_cache(cache_key)
                 return True
         except Exception as e:
             print(f"Error deleting timeline entry: {e}")
@@ -2806,12 +2920,21 @@ def delete_timeline_entry(entry_id):
     return False
 
 
-def update_timeline_entry(entry_id, date, time, details):
-    """Update a timeline entry in sheets"""
+def update_timeline_entry(entry_id, date, time, details, tab_name=None):
+    """Update a timeline entry in sheets - tab-specific"""
+    if not tab_name:
+        tab_name = get_current_pephaul_tab()
+    
+    # Extract tab number from tab name (e.g., "PepHaul Entry-01" -> "01")
+    timeline_tab_name = 'Timeline'
+    if '-' in tab_name:
+        tab_num = tab_name.split('-')[-1]
+        timeline_tab_name = f'Timeline-{tab_num}'
+    
     if sheets_client:
         try:
             spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
-            worksheet = spreadsheet.worksheet('Timeline')
+            worksheet = spreadsheet.worksheet(timeline_tab_name)
 
             all_values = worksheet.get_all_values()
             if not all_values or len(all_values) < 2:
@@ -2828,7 +2951,9 @@ def update_timeline_entry(entry_id, date, time, details):
                 return False
 
             worksheet.update(f'B{target_row}:D{target_row}', [[date, time, details]])
-            clear_cache('timeline_entries')
+            # Clear cache for this tab
+            cache_key = f'timeline_entries_{tab_name}'
+            clear_cache(cache_key)
             return True
         except Exception as e:
             print(f"Error updating timeline entry: {e}")
@@ -2839,36 +2964,41 @@ def update_timeline_entry(entry_id, date, time, details):
 
 @app.route('/api/admin/timeline')
 def api_get_timeline():
-    """Get timeline entries"""
-    entries = get_timeline_entries()
+    """Get timeline entries - tab-specific"""
+    tab_name = request.args.get('tab_name') or get_current_pephaul_tab()
+    entries = get_timeline_entries(tab_name)
     return jsonify({'entries': entries})
 
 @app.route('/api/admin/timeline', methods=['POST'])
 def api_add_timeline():
-    """Add timeline entry"""
+    """Add timeline entry - tab-specific"""
     if not session.get('is_admin'):
         return jsonify({'error': 'Unauthorized'}), 401
     
-    data = request.json
+    data = request.json or {}
     date = data.get('date', '')
     time = data.get('time', '')
     details = data.get('details', '')
+    tab_name = data.get('tab_name') or get_current_pephaul_tab()
     
     if not date or not details:
         return jsonify({'error': 'Date and details are required'}), 400
     
-    if add_timeline_entry(date, time, details):
+    if add_timeline_entry(date, time, details, tab_name):
         return jsonify({'success': True})
     
     return jsonify({'error': 'Failed to add timeline entry'}), 500
 
 @app.route('/api/admin/timeline/<entry_id>', methods=['DELETE'])
 def api_delete_timeline(entry_id):
-    """Delete timeline entry"""
+    """Delete timeline entry - tab-specific"""
     if not session.get('is_admin'):
         return jsonify({'error': 'Unauthorized'}), 401
     
-    if delete_timeline_entry(entry_id):
+    tab_name = (request.json or {}).get('tab_name') if request.is_json else request.args.get('tab_name')
+    tab_name = tab_name or get_current_pephaul_tab()
+    
+    if delete_timeline_entry(entry_id, tab_name):
         return jsonify({'success': True})
     
     return jsonify({'error': 'Failed to delete timeline entry'}), 500
@@ -2876,7 +3006,7 @@ def api_delete_timeline(entry_id):
 
 @app.route('/api/admin/timeline/<entry_id>', methods=['PUT', 'PATCH'])
 def api_update_timeline(entry_id):
-    """Update timeline entry"""
+    """Update timeline entry - tab-specific"""
     if not session.get('is_admin'):
         return jsonify({'error': 'Unauthorized'}), 401
 
@@ -2884,19 +3014,21 @@ def api_update_timeline(entry_id):
     date = (data.get('date') or '').strip()
     time = (data.get('time') or '').strip()
     details = (data.get('details') or '').strip()
+    tab_name = data.get('tab_name') or get_current_pephaul_tab()
 
     if not date or not details:
         return jsonify({'error': 'Date and details are required'}), 400
 
-    if update_timeline_entry(entry_id, date, time, details):
+    if update_timeline_entry(entry_id, date, time, details, tab_name):
         return jsonify({'success': True})
 
     return jsonify({'error': 'Failed to update timeline entry'}), 500
 
 @app.route('/api/timeline')
 def api_public_timeline():
-    """Get timeline entries for public display"""
-    entries = get_timeline_entries()
+    """Get timeline entries for public display - tab-specific"""
+    tab_name = request.args.get('tab_name') or get_current_pephaul_tab()
+    entries = get_timeline_entries(tab_name)
     return jsonify({'entries': entries})
 
 @app.route('/api/admin/theme', methods=['POST'])
@@ -5554,6 +5686,10 @@ def api_admin_switch_pephaul_tab():
         clear_cache('orders')
         clear_cache('inventory')
         clear_cache('order_stats')
+        # Clear timeline cache for all tabs (will reload for new tab)
+        for key in list(_cache.keys()):
+            if key.startswith('timeline_entries_'):
+                clear_cache(key)
         
         print(f"✅ Switched to PepHaul Entry tab: {tab_name}")
         

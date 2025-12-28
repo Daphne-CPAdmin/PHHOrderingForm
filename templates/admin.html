@@ -596,6 +596,35 @@
                 </div>
             </div>
 
+            <!-- Supplier Filter Toggle -->
+            <div class="card" style="margin-bottom: 2rem; border: 2px solid #8b5cf6;">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                    <div>
+                        <h2 style="font-size: 1.25rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                            🏢 Supplier Filter
+                        </h2>
+                        <p style="color: var(--text-muted); font-size: 0.9rem;">
+                            Filter the pricelist display by supplier. Choose to show Supplier 1, Supplier 2, or both.
+                        </p>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+                        <div id="supplier-filter-buttons" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                            <button id="supplier-filter-all" class="btn supplier-filter-btn active" data-filter="all" style="padding: 0.75rem 1.5rem; background: #8b5cf6; color: white;">
+                                All Suppliers
+                            </button>
+                            {% for supplier in suppliers %}
+                            <button class="btn supplier-filter-btn" data-filter="{{ supplier }}" data-supplier-name="{{ supplier }}" style="padding: 0.75rem 1.5rem; background: #c084fc; color: white;">
+                                {{ supplier }}
+                            </button>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                <div id="supplier-filter-status" style="margin-top: 1rem; font-size: 0.85rem; color: #7c3aed; display: none;">
+                    ✓ Supplier filter updated!
+                </div>
+            </div>
+
             <!-- Order Form Lock Control -->
             <div class="card" style="margin-bottom: 2rem; border: 2px solid #f472b6;">
                 <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
@@ -796,11 +825,12 @@
                 </div>
             </div>
 
-            <!-- Customer Summary Section -->
-            <div class="card" style="margin-bottom: 2rem; border: 2px solid #c084fc;">
-                <h2 class="card-title" style="text-align: left; margin-bottom: 1rem;">👥 Customer Summary</h2>
+            <!-- Customer Summary Section - One per Supplier -->
+            {% for supplier in suppliers %}
+            <div class="card supplier-section" data-supplier="{{ supplier }}" style="margin-bottom: 2rem; border: 2px solid #c084fc;">
+                <h2 class="card-title" style="text-align: left; margin-bottom: 1rem;">👥 Customer Summary - {{ supplier }}</h2>
                 <p style="color: var(--text-muted); margin-bottom: 1.5rem;">
-                    Overview of all customers showing unique orders, total vials, and grand totals (including PepHaul Admin fee).
+                    Overview of all customers showing unique orders, total vials, and grand totals (including PepHaul Admin fee) for {{ supplier }}.
                 </p>
 
                 <div class="table-container">
@@ -815,23 +845,25 @@
                                 <th>Grand Total (PHP)</th>
                             </tr>
                         </thead>
-                        <tbody id="customer-summary-tbody">
+                        <tbody class="customer-summary-tbody" data-supplier="{{ supplier }}">
                             <!-- Populated by JS -->
                         </tbody>
                     </table>
                 </div>
             </div>
+            {% endfor %}
 
-            <!-- Orders Management -->
-            <div class="card" style="margin-bottom: 2rem;">
-                <h2 class="card-title" style="text-align: left; margin-bottom: 1rem;">📦 Orders Management</h2>
+            <!-- Orders Management - One per Supplier -->
+            {% for supplier in suppliers %}
+            <div class="card supplier-section" data-supplier="{{ supplier }}" style="margin-bottom: 2rem;">
+                <h2 class="card-title" style="text-align: left; margin-bottom: 1rem;">📦 Orders Management - {{ supplier }}</h2>
                 <p style="color: var(--text-muted); margin-bottom: 1.5rem;">
-                    View all orders and confirm payments after verification.
+                    View all orders and confirm payments after verification for {{ supplier }}.
                 </p>
 
                 <div class="search-bar" style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem;">
-                    <input type="text" class="search-input" id="order-search" placeholder="Search orders by name, telegram, or order ID...">
-                    <select class="form-input" id="payment-filter" style="width: auto; padding: 0.75rem 1rem;">
+                    <input type="text" class="search-input order-search" data-supplier="{{ supplier }}" placeholder="Search orders by name, telegram, or order ID...">
+                    <select class="form-input payment-filter" data-supplier="{{ supplier }}" style="width: auto; padding: 0.75rem 1rem;">
                         <option value="all">All Orders</option>
                         <option value="unpaid">Unpaid Only</option>
                         <option value="paid">Paid Only</option>
@@ -839,20 +871,20 @@
                 </div>
                 
                 <!-- Bulk Actions -->
-                <div id="bulk-actions" style="display: none; margin-bottom: 1rem; padding: 1rem; background: linear-gradient(135deg, #fdf4ff 0%, #fce7f3 100%); border-radius: 12px; border: 2px solid #c084fc;">
+                <div class="bulk-actions" data-supplier="{{ supplier }}" style="display: none; margin-bottom: 1rem; padding: 1rem; background: linear-gradient(135deg, #fdf4ff 0%, #fce7f3 100%); border-radius: 12px; border: 2px solid #c084fc;">
                     <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
-                        <span style="font-weight: 600; color: var(--text-primary);"><span id="selected-count">0</span> orders selected</span>
-                        <button class="btn-sm" style="background: #f472b6; color: white;" onclick="bulkLockOrders(true)">🔒 Lock Selected</button>
-                        <button class="btn-sm" style="background: #a78bfa; color: white;" onclick="bulkLockOrders(false)">🔓 Unlock Selected</button>
-                        <button class="btn-sm" style="background: var(--bg-input); border: 1px solid var(--border); color: var(--text-primary);" onclick="clearSelection()">Clear Selection</button>
+                        <span style="font-weight: 600; color: var(--text-primary);"><span class="selected-count" data-supplier="{{ supplier }}">0</span> orders selected</span>
+                        <button class="btn-sm" style="background: #f472b6; color: white;" onclick="bulkLockOrders(true, '{{ supplier }}')">🔒 Lock Selected</button>
+                        <button class="btn-sm" style="background: #a78bfa; color: white;" onclick="bulkLockOrders(false, '{{ supplier }}')">🔓 Unlock Selected</button>
+                        <button class="btn-sm" style="background: var(--bg-input); border: 1px solid var(--border); color: var(--text-primary);" onclick="clearSelection('{{ supplier }}')">Clear Selection</button>
                     </div>
                 </div>
 
                 <div class="table-container">
-                    <table class="products-table" id="orders-table">
+                    <table class="products-table orders-table" data-supplier="{{ supplier }}">
                         <thead>
                             <tr>
-                                <th style="width: 40px;"><input type="checkbox" id="select-all-orders" onchange="toggleSelectAll(this)" style="cursor: pointer;"></th>
+                                <th style="width: 40px;"><input type="checkbox" class="select-all-orders" data-supplier="{{ supplier }}" onchange="toggleSelectAll(this, '{{ supplier }}')" style="cursor: pointer;"></th>
                                 <th>Order ID</th>
                                 <th>Date</th>
                                 <th>Customer</th>
@@ -863,18 +895,20 @@
                                 <th>Actions</th>
                             </tr>
                         </thead>
-                        <tbody id="orders-tbody">
+                        <tbody class="orders-tbody" data-supplier="{{ supplier }}">
                             <!-- Populated by JS -->
                         </tbody>
                     </table>
                 </div>
             </div>
+            {% endfor %}
 
-            <!-- Incomplete Kits Section -->
-            <div class="card" style="margin-bottom: 2rem; border: 2px solid #f472b6;">
-                <h2 class="card-title" style="text-align: left; margin-bottom: 1rem;">⚠️ Incomplete Kits</h2>
+            <!-- Incomplete Kits Section - One per Supplier -->
+            {% for supplier in suppliers %}
+            <div class="card supplier-section" data-supplier="{{ supplier }}" style="margin-bottom: 2rem; border: 2px solid #f472b6;">
+                <h2 class="card-title" style="text-align: left; margin-bottom: 1rem;">⚠️ Incomplete Kits - {{ supplier }}</h2>
                 <p style="color: var(--text-muted); margin-bottom: 1.5rem;">
-                    Products with incomplete kits (not divisible by 10 vials). Sorted by vials needed (fewest first). Shows pending vials needed to complete the next kit.
+                    Products with incomplete kits (not divisible by 10 vials) for {{ supplier }}. Sorted by vials needed (fewest first). Shows pending vials needed to complete the next kit.
                 </p>
 
                 <div class="table-container" style="background: rgba(221, 214, 254, 0.3); padding: 1rem; border-radius: 12px;">
@@ -890,22 +924,24 @@
                                 <th style="text-align: center;">Pep Hauler/s</th>
                             </tr>
                         </thead>
-                        <tbody id="incomplete-kits-tbody">
+                        <tbody class="incomplete-kits-tbody" data-supplier="{{ supplier }}">
                             <!-- Populated by JS -->
                         </tbody>
                     </table>
                 </div>
             </div>
+            {% endfor %}
 
-            <!-- Completed Kits Section -->
-            <div class="card" style="margin-bottom: 2rem; border: 2px solid #a78bfa;">
-                <h2 class="card-title" style="text-align: left; margin-bottom: 1rem;">✅ Completed Kits</h2>
+            <!-- Completed Kits Section - One per Supplier -->
+            {% for supplier in suppliers %}
+            <div class="card supplier-section" data-supplier="{{ supplier }}" style="margin-bottom: 2rem; border: 2px solid #a78bfa;">
+                <h2 class="card-title" style="text-align: left; margin-bottom: 1rem;">✅ Completed Kits - {{ supplier }}</h2>
                 <p style="color: var(--text-muted); margin-bottom: 1.5rem;">
-                    Products with completed kits, sorted by number of kits (most first). BAC Water products grouped at bottom. Easy to copy to table.
+                    Products with completed kits for {{ supplier }}, sorted by number of kits (most first). BAC Water products grouped at bottom. Easy to copy to table.
                 </p>
 
                 <div class="table-container" style="background: rgba(221, 214, 254, 0.2); padding: 1rem; border-radius: 12px;">
-                    <table class="products-table" id="completed-kits-table">
+                    <table class="products-table completed-kits-table" data-supplier="{{ supplier }}">
                         <thead>
                             <tr>
                                 <th style="text-align: center;">Product Name</th>
@@ -914,22 +950,24 @@
                                 <th style="text-align: center;">Total Vials</th>
                             </tr>
                         </thead>
-                        <tbody id="completed-kits-tbody">
+                        <tbody class="completed-kits-tbody" data-supplier="{{ supplier }}">
                             <!-- Populated by JS -->
                         </tbody>
                     </table>
                 </div>
             </div>
+            {% endfor %}
 
-            <!-- Shared Products Section -->
-            <div class="card" style="margin-bottom: 2rem; border: 2px solid #10b981;">
-                <h2 class="card-title" style="text-align: left; margin-bottom: 1rem;">🤝 Shared Products</h2>
+            <!-- Shared Products Section - One per Supplier -->
+            {% for supplier in suppliers %}
+            <div class="card supplier-section" data-supplier="{{ supplier }}" style="margin-bottom: 2rem; border: 2px solid #10b981;">
+                <h2 class="card-title" style="text-align: left; margin-bottom: 1rem;">🤝 Shared Products - {{ supplier }}</h2>
                 <p style="color: var(--text-muted); margin-bottom: 1.5rem;">
-                    Products with active orders showing all Pep Haulers sharing each product, with breakdown of vial orders and kit orders per user.
+                    Products with active orders for {{ supplier }} showing all Pep Haulers sharing each product, with breakdown of vial orders and kit orders per user.
                 </p>
 
                 <div class="table-container" style="background: rgba(16, 185, 129, 0.1); padding: 1rem; border-radius: 12px;">
-                    <table class="products-table" id="shared-products-table">
+                    <table class="products-table shared-products-table" data-supplier="{{ supplier }}">
                         <thead>
                             <tr>
                                 <th style="text-align: center;">Product Name</th>
@@ -938,25 +976,27 @@
                                 <th style="text-align: center;">Total Completed Kits</th>
                             </tr>
                         </thead>
-                        <tbody id="shared-products-tbody">
+                        <tbody class="shared-products-tbody" data-supplier="{{ supplier }}">
                             <!-- Populated by JS -->
                         </tbody>
                     </table>
                 </div>
             </div>
+            {% endfor %}
 
-            <!-- Products Management -->
-            <div class="card">
-                <h2 class="card-title" style="text-align: left; margin-bottom: 1rem;">Product Management</h2>
+            <!-- Products Management - One per Supplier -->
+            {% for supplier in suppliers %}
+            <div class="card supplier-section" data-supplier="{{ supplier }}">
+                <h2 class="card-title" style="text-align: left; margin-bottom: 1rem;">Product Management - {{ supplier }}</h2>
                 <p style="color: var(--text-muted); margin-bottom: 1.5rem;">
-                    Lock products when they reach maximum kits or manually lock/unlock products.
+                    Lock products for {{ supplier }} when they reach maximum kits or manually lock/unlock products.
                 </p>
 
                 <div class="search-bar" style="display: flex; gap: 1rem; flex-wrap: wrap; align-items: center;">
-                    <input type="text" class="search-input" id="product-search" placeholder="Search products..." style="flex: 1;">
+                    <input type="text" class="search-input product-search" data-supplier="{{ supplier }}" placeholder="Search products..." style="flex: 1;">
                     <div style="display: flex; gap: 0.5rem;">
-                        <button class="btn-sm" style="background: #f472b6; color: white;" onclick="lockAllProducts(true)">🔒 Lock All Products</button>
-                        <button class="btn-sm" style="background: #a78bfa; color: white;" onclick="lockAllProducts(false)">🔓 Unlock All Products</button>
+                        <button class="btn-sm" style="background: #f472b6; color: white;" onclick="lockAllProducts(true, '{{ supplier }}')">🔒 Lock All Products</button>
+                        <button class="btn-sm" style="background: #a78bfa; color: white;" onclick="lockAllProducts(false, '{{ supplier }}')">🔓 Unlock All Products</button>
                     </div>
                 </div>
 
@@ -972,12 +1012,13 @@
                                 <th>Lock Status</th>
                             </tr>
                         </thead>
-                        <tbody id="products-tbody">
+                        <tbody class="products-tbody" data-supplier="{{ supplier }}">
                             <!-- Populated by JS -->
                         </tbody>
                     </table>
                 </div>
             </div>
+            {% endfor %}
         </div>
     </div>
 
@@ -1290,6 +1331,88 @@
             }
         });
 
+        // Supplier Filter Functions
+        let currentSupplierFilter = localStorage.getItem('supplierFilter') || 'all';
+        
+        function updateSupplierFilterUI(filter) {
+            document.querySelectorAll('.supplier-filter-btn').forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.getAttribute('data-filter') === filter) {
+                    btn.classList.add('active');
+                    btn.style.background = '#8b5cf6';
+                } else {
+                    btn.style.background = '#c084fc';
+                }
+            });
+        }
+        
+        function applySupplierFilterToAdmin() {
+            // Show/hide supplier sections based on current filter
+            document.querySelectorAll('.supplier-section').forEach(section => {
+                const sectionSupplier = section.getAttribute('data-supplier');
+                let shouldShow = false;
+                
+                if (currentSupplierFilter === 'all') {
+                    shouldShow = true;
+                } else {
+                    // Filter matches supplier name exactly
+                    shouldShow = sectionSupplier === currentSupplierFilter;
+                }
+                
+                section.style.display = shouldShow ? 'block' : 'none';
+            });
+        }
+        
+        function applySupplierFilter(filter) {
+            currentSupplierFilter = filter;
+            localStorage.setItem('supplierFilter', filter);
+            updateSupplierFilterUI(filter);
+            
+            // Apply filter to admin panel sections
+            applySupplierFilterToAdmin();
+            
+            // Get supplier name for display
+            const btn = document.querySelector(`[data-filter="${filter}"]`);
+            const supplierName = btn ? (btn.getAttribute('data-supplier-name') || filter) : filter;
+            const filterText = filter === 'all' ? 'All Suppliers' : supplierName;
+            
+            const statusEl = document.getElementById('supplier-filter-status');
+            if (statusEl) {
+                statusEl.style.display = 'block';
+                statusEl.textContent = `✓ Filter set to: ${filterText}`;
+                setTimeout(() => {
+                    statusEl.style.display = 'none';
+                }, 3000);
+            }
+            
+            // Apply filter to main page if it's open
+            if (window.opener && !window.opener.closed) {
+                try {
+                    window.opener.postMessage({ type: 'supplierFilter', filter: filter }, '*');
+                } catch (e) {
+                    console.log('Could not communicate with main window');
+                }
+            }
+        }
+        
+        // Apply filter on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            applySupplierFilterToAdmin();
+        });
+        
+        // Initialize supplier filter UI
+        document.addEventListener('DOMContentLoaded', () => {
+            updateSupplierFilterUI(currentSupplierFilter);
+            
+            // Add event listeners for supplier filter buttons
+            document.querySelectorAll('.supplier-filter-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const filter = btn.getAttribute('data-filter');
+                    applySupplierFilter(filter);
+                });
+            });
+        });
+        
         document.getElementById('save-goal-btn').addEventListener('click', async () => {
             const goalAmount = parseFloat(document.getElementById('order-goal-amount').value);
             
@@ -1436,15 +1559,20 @@
             }
         });
 
-        // Timeline Management
+        // Timeline Management - tab-specific
         async function loadTimelineEntries() {
             try {
-                const response = await fetch('/api/admin/timeline', { credentials: 'same-origin' });
+                // Get current tab
+                const tabsResponse = await fetch('/api/admin/pephaul-tabs', { credentials: 'same-origin' });
+                const tabsData = await tabsResponse.json();
+                const currentTab = tabsData.current_tab || 'PepHaul Entry-01';
+                
+                const response = await fetch(`/api/admin/timeline?tab_name=${encodeURIComponent(currentTab)}`, { credentials: 'same-origin' });
                 const data = await response.json();
                 const entriesList = document.getElementById('timeline-entries-list');
                 
                 if (!data.entries || data.entries.length === 0) {
-                    entriesList.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--text-muted);">No timeline entries yet. Add one above!</div>';
+                    entriesList.innerHTML = `<div style="text-align: center; padding: 2rem; color: var(--text-muted);">No timeline entries yet for ${currentTab}. Add one above!</div>`;
                     return;
                 }
                 
@@ -1532,11 +1660,16 @@
             btn.disabled = true;
             btn.textContent = 'Saving...';
             try {
+                // Get current tab
+                const tabsResponse = await fetch('/api/admin/pephaul-tabs', { credentials: 'same-origin' });
+                const tabsData = await tabsResponse.json();
+                const currentTab = tabsData.current_tab || 'PepHaul Entry-01';
+                
                 const resp = await fetch(`/api/admin/timeline/${encodeURIComponent(_editingTimelineId)}`, {
                     method: 'PUT',
                     credentials: 'same-origin',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ date, time, details })
+                    body: JSON.stringify({ date, time, details, tab_name: currentTab })
                 });
                 const data = await resp.json();
                 if (data && data.success) {
@@ -1569,9 +1702,16 @@
             }
             
             try {
+                // Get current tab
+                const tabsResponse = await fetch('/api/admin/pephaul-tabs', { credentials: 'same-origin' });
+                const tabsData = await tabsResponse.json();
+                const currentTab = tabsData.current_tab || 'PepHaul Entry-01';
+                
                 const response = await fetch(`/api/admin/timeline/${entryId}`, {
                     method: 'DELETE',
-                    credentials: 'same-origin'
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tab_name: currentTab })
                 });
                 
                 const data = await response.json();
@@ -1624,6 +1764,11 @@
             statusEl.style.display = 'none';
             
             try {
+                // Get current tab
+                const tabsResponse = await fetch('/api/admin/pephaul-tabs', { credentials: 'same-origin' });
+                const tabsData = await tabsResponse.json();
+                const currentTab = tabsData.current_tab || 'PepHaul Entry-01';
+                
                 const response = await fetch('/api/admin/timeline', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1631,7 +1776,8 @@
                     body: JSON.stringify({
                         date: date,
                         time: time,
-                        details: details
+                        details: details,
+                        tab_name: currentTab
                     })
                 });
                 
@@ -1672,7 +1818,10 @@
             }
         });
         
-        // Load Products
+        // Get suppliers from template
+        const ADMIN_SUPPLIERS = {{ suppliers|tojson|safe }};
+        
+        // Load Products - Per Supplier
         async function loadProducts() {
             try {
                 const response = await fetch('/api/admin/products', { credentials: 'same-origin' });
@@ -1681,7 +1830,7 @@
                 // Cache for modals / secondary views
                 window._productsCache = Array.isArray(products) ? products : [];
                 
-                // Update stats
+                // Update stats (aggregate across all suppliers)
                 let totalKits = 0;
                 let totalVials = 0;
                 let lockedCount = 0;
@@ -1697,18 +1846,31 @@
                 document.getElementById('total-kits').textContent = totalKits;
                 document.getElementById('total-vials').textContent = totalVials;
                 
-                // Load incomplete kits
-                loadIncompleteKits(products);
+                // Load incomplete kits per supplier
+                ADMIN_SUPPLIERS.forEach(supplier => {
+                    const supplierProducts = products.filter(p => (p.supplier || 'Default') === supplier);
+                    loadIncompleteKits(supplierProducts, supplier);
+                });
                 
-                // Load completed kits
-                loadCompletedKits(products);
+                // Load completed kits per supplier
+                ADMIN_SUPPLIERS.forEach(supplier => {
+                    const supplierProducts = products.filter(p => (p.supplier || 'Default') === supplier);
+                    loadCompletedKits(supplierProducts, supplier);
+                });
                 
-                // Load shared products
-                loadSharedProducts(products);
+                // Load shared products per supplier
+                ADMIN_SUPPLIERS.forEach(supplier => {
+                    const supplierProducts = products.filter(p => (p.supplier || 'Default') === supplier);
+                    loadSharedProducts(supplierProducts, supplier);
+                });
                 
-                // Render table
-                const tbody = document.getElementById('products-tbody');
-                tbody.innerHTML = products.map(product => {
+                // Render table per supplier
+                ADMIN_SUPPLIERS.forEach(supplier => {
+                    const supplierProducts = products.filter(p => (p.supplier || 'Default') === supplier);
+                    const tbody = document.querySelector(`.products-tbody[data-supplier="${supplier}"]`);
+                    if (!tbody) return;
+                    
+                    tbody.innerHTML = supplierProducts.map(product => {
                     const kitsPercent = product.max_kits > 0 ? (product.kits_generated / product.max_kits) * 100 : 0;
                     let badgeClass = 'normal';
                     if (kitsPercent >= 90) badgeClass = 'danger';
@@ -1741,27 +1903,62 @@
                             </td>
                         </tr>
                     `;
-                }).join('');
+                    }).join('');
+                });
                 
             } catch (error) {
                 console.error('Error loading products:', error);
             }
         }
-
-        // Load Customer Summary
+        
+        // Load Customer Summary - Per Supplier
         async function loadCustomerSummary() {
             try {
                 const response = await fetch('/api/admin/customer-summary', { credentials: 'same-origin' });
                 const customers = await response.json();
                 
-                const tbody = document.getElementById('customer-summary-tbody');
+                // Also get products and orders to match suppliers
+                const productsResponse = await fetch('/api/admin/products', { credentials: 'same-origin' });
+                const products = await productsResponse.json();
+                const ordersResponse = await fetch('/api/admin/orders', { credentials: 'same-origin' });
+                const orders = await ordersResponse.json();
                 
-                if (customers.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-muted);">No customers found</td></tr>';
-                    return;
-                }
+                // Create a map of order IDs to suppliers based on order items
+                const orderSupplierMap = {};
+                orders.forEach(order => {
+                    order.items?.forEach(item => {
+                        const product = products.find(p => p.code === item.product_code);
+                        if (product) {
+                            const supplier = product.supplier || 'Default';
+                            if (!orderSupplierMap[order.order_id]) {
+                                orderSupplierMap[order.order_id] = new Set();
+                            }
+                            orderSupplierMap[order.order_id].add(supplier);
+                        }
+                    });
+                });
                 
-                tbody.innerHTML = customers.map(customer => {
+                // Group customers by supplier based on their orders
+                ADMIN_SUPPLIERS.forEach(supplier => {
+                    const tbody = document.querySelector(`.customer-summary-tbody[data-supplier="${supplier}"]`);
+                    if (!tbody) return;
+                    
+                    // Filter customers who have orders for this supplier
+                    const supplierCustomers = customers.filter(customer => {
+                        // Check if customer has any orders with products from this supplier
+                        const customerOrderIds = customer.order_numbers?.split(', ').map(id => id.trim()) || [];
+                        return customerOrderIds.some(orderId => {
+                            const suppliers = orderSupplierMap[orderId];
+                            return suppliers && suppliers.has(supplier);
+                        });
+                    });
+                    
+                    if (supplierCustomers.length === 0) {
+                        tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-muted);">No customers found for ${supplier}</td></tr>`;
+                        return;
+                    }
+                    
+                    tbody.innerHTML = supplierCustomers.map(customer => {
                     // Determine payment status badge color
                     let paymentStatusClass = 'unpaid';
                     let paymentStatusIcon = '⏳';
@@ -1829,8 +2026,8 @@
             return colorPalette[index];
         }
 
-        // Load Incomplete Kits
-        function loadIncompleteKits(products) {
+        // Load Incomplete Kits - Per Supplier
+        function loadIncompleteKits(products, supplier) {
             const incompleteKits = products.filter(product => {
                 const totalVials = product.total_vials || 0;
                 if (totalVials === 0) return false; // Skip products with no orders
@@ -1839,7 +2036,8 @@
                 return remainingVials > 0; // Incomplete if remainder > 0
             });
 
-            const tbody = document.getElementById('incomplete-kits-tbody');
+            const tbody = document.querySelector(`.incomplete-kits-tbody[data-supplier="${supplier}"]`);
+            if (!tbody) return;
             
             if (incompleteKits.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 2rem; color: var(--text-muted);">🎉 All kits are complete! No incomplete kits found.</td></tr>';
@@ -1927,16 +2125,18 @@
             }).join('');
         }
 
-        // Load Completed Kits
-        function loadCompletedKits(products) {
+        // Load Completed Kits - Per Supplier
+        function loadCompletedKits(products, supplier) {
             // Filter products with completed kits (kits_generated > 0)
             const completedKits = products.filter(product => {
                 const kitsGenerated = product.kits_generated || 0;
                 return kitsGenerated > 0;
             });
 
+            const tbody = document.querySelector(`.completed-kits-tbody[data-supplier="${supplier}"]`);
+            if (!tbody) return;
+            
             if (completedKits.length === 0) {
-                const tbody = document.getElementById('completed-kits-tbody');
                 tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 2rem; color: var(--text-muted);">No completed kits yet</td></tr>';
                 return;
             }
@@ -1966,7 +2166,6 @@
             // Find max kits for gradient calculation
             const maxKits = Math.max(...sortedProducts.map(p => p.kits_generated || 0), 1);
 
-            const tbody = document.getElementById('completed-kits-tbody');
             tbody.innerHTML = sortedProducts.map((product, index) => {
                 const kitsGenerated = product.kits_generated || 0;
                 const totalVials = product.total_vials || 0;
@@ -2015,7 +2214,7 @@
             }).join('');
 
             // Make table easy to copy (add copy functionality hint)
-            const table = document.getElementById('completed-kits-table');
+            const table = document.querySelector(`.completed-kits-table[data-supplier="${supplier}"]`);
             if (table) {
                 table.style.cursor = 'default';
                 // Add title attribute for copy hint
@@ -2023,16 +2222,18 @@
             }
         }
 
-        // Load Shared Products
-        function loadSharedProducts(products) {
+        // Load Shared Products - Per Supplier
+        function loadSharedProducts(products, supplier) {
             // Filter products with active orders (total_vials > 0)
             const sharedProducts = products.filter(product => {
                 const totalVials = product.total_vials || 0;
                 return totalVials > 0;
             });
 
+            const tbody = document.querySelector(`.shared-products-tbody[data-supplier="${supplier}"]`);
+            if (!tbody) return;
+            
             if (sharedProducts.length === 0) {
-                const tbody = document.getElementById('shared-products-tbody');
                 tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 2rem; color: var(--text-muted);">No products with active orders</td></tr>';
                 return;
             }
@@ -2040,7 +2241,6 @@
             // Sort by total completed kits (descending)
             sharedProducts.sort((a, b) => (b.kits_generated || 0) - (a.kits_generated || 0));
 
-            const tbody = document.getElementById('shared-products-tbody');
             tbody.innerHTML = sharedProducts.map(product => {
                 const breakdown = Array.isArray(product.pep_hauler_breakdown) ? product.pep_hauler_breakdown : [];
                 const kitsGenerated = product.kits_generated || 0;
@@ -2185,29 +2385,32 @@
             }
         }
 
-        // Lock/Unlock All Products
-        async function lockAllProducts(isLocked) {
+        // Lock/Unlock All Products - Per Supplier (updated version)
+        async function lockAllProducts(isLocked, supplier) {
             try {
                 // Get all products
                 const response = await fetch('/api/admin/products', { credentials: 'same-origin' });
                 const products = await response.json();
                 
-                if (products.length === 0) {
-                    showToast('No products found');
+                // Filter products for this supplier
+                const supplierProducts = products.filter(p => (p.supplier || 'Default') === supplier);
+                
+                if (supplierProducts.length === 0) {
+                    showToast(`No products found for ${supplier}`);
                     return;
                 }
                 
                 // Confirm action
                 const action = isLocked ? 'lock' : 'unlock';
-                if (!confirm(`Are you sure you want to ${action} all ${products.length} products?`)) {
+                if (!confirm(`Are you sure you want to ${action} all ${supplierProducts.length} products for ${supplier}?`)) {
                     return;
                 }
                 
                 // Show loading message
-                showToast(`⏳ ${action.charAt(0).toUpperCase() + action.slice(1)}ing ${products.length} products...`);
+                showToast(`⏳ ${action.charAt(0).toUpperCase() + action.slice(1)}ing ${supplierProducts.length} products...`);
                 
                 // Extract product codes
-                const productCodes = products.map(p => p.code);
+                const productCodes = supplierProducts.map(p => p.code);
                 
                 // Use bulk endpoint instead of individual calls
                 try {
@@ -2232,7 +2435,7 @@
                     loadProducts();
                     
                     if (result.failed_count === 0) {
-                        showToast(`✅ Successfully ${action}ed all ${result.success_count} products`);
+                        showToast(`✅ Successfully ${action}ed all ${result.success_count} products for ${supplier}`);
                     } else {
                         const failedMsg = result.failed_products ? ` (Failed: ${result.failed_products.join(', ')})` : '';
                         showToast(`⚠️ ${action}ed ${result.success_count} products, ${result.failed_count} failed${failedMsg}`);
@@ -2270,14 +2473,22 @@
             }
         }
 
-        // Search
-        document.getElementById('product-search').addEventListener('input', (e) => {
-            const query = e.target.value.toLowerCase();
-            document.querySelectorAll('#products-tbody tr').forEach(row => {
-                const code = row.dataset.code.toLowerCase();
-                const name = row.querySelector('td').textContent.toLowerCase();
-                row.style.display = (code.includes(query) || name.includes(query)) ? '' : 'none';
-            });
+        // Search products per supplier
+        ADMIN_SUPPLIERS.forEach(supplier => {
+            const searchInput = document.querySelector(`.product-search[data-supplier="${supplier}"]`);
+            if (searchInput) {
+                searchInput.addEventListener('input', (e) => {
+                    const query = e.target.value.toLowerCase();
+                    const tbody = document.querySelector(`.products-tbody[data-supplier="${supplier}"]`);
+                    if (tbody) {
+                        tbody.querySelectorAll('tr').forEach(row => {
+                            const code = row.dataset.code?.toLowerCase() || '';
+                            const name = row.querySelector('td')?.textContent?.toLowerCase() || '';
+                            row.style.display = (code.includes(query) || name.includes(query)) ? '' : 'none';
+                        });
+                    }
+                });
+            }
         });
 
         // Toast
@@ -2313,16 +2524,32 @@
                     console.log('📊 Admin: Sample order:', orders[0]);
                 }
                 
+                // Get products to match suppliers
+                const productsResponse = await fetch('/api/admin/products', { credentials: 'same-origin' });
+                const products = await productsResponse.json();
+                
                 allOrders = orders;
-                renderOrders(orders);
+                
+                // Render orders per supplier
+                ADMIN_SUPPLIERS.forEach(supplier => {
+                    const supplierOrders = orders.filter(order => {
+                        // Check if order has items from this supplier
+                        return order.items?.some(item => {
+                            const product = products.find(p => p.code === item.product_code);
+                            return product && (product.supplier || 'Default') === supplier;
+                        });
+                    });
+                    renderOrders(supplierOrders, supplier);
+                });
             } catch (error) {
                 console.error('📊 Admin: Error loading orders:', error);
                 console.error('📊 Admin: Error stack:', error.stack);
             }
         }
 
-        function renderOrders(orders) {
-            const tbody = document.getElementById('orders-tbody');
+        function renderOrders(orders, supplier) {
+            const tbody = document.querySelector(`.orders-tbody[data-supplier="${supplier}"]`);
+            if (!tbody) return;
             
             console.log('📊 Admin: renderOrders called with', orders.length, 'orders');
             
@@ -2348,7 +2575,7 @@
                 
                 return `
                     <tr data-order-id="${order.order_id}" class="${isLocked ? 'locked-order' : ''}">
-                        <td><input type="checkbox" class="order-checkbox" value="${order.order_id}" onchange="updateBulkActions()" style="cursor: pointer;"></td>
+                        <td><input type="checkbox" class="order-checkbox" data-supplier="${supplier}" value="${order.order_id}" onchange="updateBulkActions('${supplier}')" style="cursor: pointer;"></td>
                         <td><span class="product-code">${order.order_id}</span></td>
                         <td style="font-size: 0.85rem;">${order.order_date}</td>
                         <td>
@@ -2386,23 +2613,51 @@
                 `;
             }).join('');
             
-            // Reset select all checkbox
-            document.getElementById('select-all-orders').checked = false;
-            updateBulkActions();
+            // Reset select all checkbox for this supplier
+            const selectAllCheckbox = document.querySelector(`.select-all-orders[data-supplier="${supplier}"]`);
+            if (selectAllCheckbox) selectAllCheckbox.checked = false;
+            updateBulkActions(supplier);
         }
 
-        // Filter orders
-        document.getElementById('order-search').addEventListener('input', filterOrders);
-        document.getElementById('payment-filter').addEventListener('change', filterOrders);
+        // Filter orders per supplier
+        ADMIN_SUPPLIERS.forEach(supplier => {
+            const searchInput = document.querySelector(`.order-search[data-supplier="${supplier}"]`);
+            const paymentFilter = document.querySelector(`.payment-filter[data-supplier="${supplier}"]`);
+            
+            if (searchInput) {
+                searchInput.addEventListener('input', () => filterOrders(supplier));
+            }
+            if (paymentFilter) {
+                paymentFilter.addEventListener('change', () => filterOrders(supplier));
+            }
+        });
 
-        function filterOrders() {
-            const query = document.getElementById('order-search').value.toLowerCase();
-            const paymentFilter = document.getElementById('payment-filter').value;
+        function filterOrders(supplier) {
+            const searchInput = document.querySelector(`.order-search[data-supplier="${supplier}"]`);
+            const paymentFilterEl = document.querySelector(`.payment-filter[data-supplier="${supplier}"]`);
+            
+            if (!searchInput || !paymentFilterEl) return;
+            
+            const query = searchInput.value.toLowerCase();
+            const paymentFilter = paymentFilterEl.value;
+            
+            // Get products to match suppliers
+            const products = window._productsCache || [];
+            
+            // Filter orders for this supplier
+            const supplierOrders = allOrders.filter(order => {
+                // Check if order has items from this supplier
+                const hasSupplierItems = order.items?.some(item => {
+                    const product = products.find(p => p.code === item.product_code);
+                    return product && (product.supplier || 'Default') === supplier;
+                });
+                return hasSupplierItems;
+            });
             
             console.log('📊 Admin: Filtering orders - query:', query, 'paymentFilter:', paymentFilter);
             console.log('📊 Admin: Total orders before filter:', allOrders.length);
             
-            let filtered = allOrders.filter(order => {
+            let filtered = supplierOrders.filter(order => {
                 const matchesSearch = 
                     order.order_id.toLowerCase().includes(query) ||
                     order.full_name.toLowerCase().includes(query) ||
@@ -2414,18 +2669,11 @@
                     (paymentFilter === 'paid' && isPaid) ||
                     (paymentFilter === 'unpaid' && !isPaid);
                 
-                if (!matchesSearch) {
-                    console.log(`  Order ${order.order_id}: Filtered out (search mismatch)`);
-                }
-                if (!matchesPayment) {
-                    console.log(`  Order ${order.order_id}: Filtered out (payment filter mismatch - isPaid: ${isPaid}, filter: ${paymentFilter})`);
-                }
-                
                 return matchesSearch && matchesPayment;
             });
             
             console.log('📊 Admin: Orders after filter:', filtered.length);
-            renderOrders(filtered);
+            renderOrders(filtered, supplier);
         }
 
         // View order details
@@ -3000,6 +3248,15 @@
                     showToast(`✅ Switched to tab: ${selectedTab}`);
                     loadOrders(); // Reload orders from new tab
                     loadCustomerSummary(); // Reload customer summary
+                    loadTimelineEntries(); // Reload timeline for new tab
+                    // Notify main page to reload timeline if it's open
+                    if (window.opener && !window.opener.closed) {
+                        try {
+                            window.opener.postMessage({ type: 'tabSwitched', tab_name: selectedTab }, '*');
+                        } catch (e) {
+                            console.log('Could not communicate with main window');
+                        }
+                    }
                 } else {
                     showToast(result.error || 'Failed to switch tab');
                 }
