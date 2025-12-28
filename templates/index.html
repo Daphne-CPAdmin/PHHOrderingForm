@@ -2413,11 +2413,11 @@
                                     {% if item.available_in_wwb %}
                                         {% set diff = item.yiwu_kit_price - item.wwb_kit_price %}
                                         {% if diff < 0 %}
-                                            <span style="display: inline-block; width: 16px; height: 16px; border-radius: 50%; background-color: var(--accent-emerald);" title="YIWU is cheaper"></span>
+                                            <span style="color: var(--accent-violet); font-size: 1.2rem; font-weight: bold;" title="YIWU is cheaper">✓</span>
                                         {% elif diff > 0 %}
-                                            <span style="display: inline-block; width: 16px; height: 16px; border-radius: 50%; background-color: var(--accent-rose);" title="YIWU is more expensive"></span>
+                                            <span style="color: var(--accent-violet); font-size: 1.2rem; font-weight: bold;" title="YIWU is more expensive">⚠</span>
                                         {% else %}
-                                            <span style="display: inline-block; width: 16px; height: 16px; border-radius: 50%; background-color: var(--text-muted);" title="Same price"></span>
+                                            <span style="color: var(--text-muted); font-size: 1rem;">—</span>
                                         {% endif %}
                                     {% else %}
                                         <span style="color: var(--text-muted);">—</span>

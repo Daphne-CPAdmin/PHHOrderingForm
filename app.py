@@ -306,13 +306,13 @@ def ensure_worksheets_exist():
         if 'PepHaul Entry-01' not in existing_sheets:
             worksheet = spreadsheet.add_worksheet(title='PepHaul Entry-01', rows=1000, cols=25)
             headers = [
-                'Order ID', 'Order Date', 'Name', 'Telegram Username',
+                'Order ID', 'Order Date', 'Name', 'Telegram Username', 'Supplier',
                 'Product Code', 'Product Name', 'Order Type', 'QTY', 'Unit Price USD',
                 'Line Total USD', 'Exchange Rate', 'Line Total PHP', 'Admin Fee PHP',
                 'Grand Total PHP', 'Order Status', 'Locked', 'Payment Status', 
                 'Remarks', 'Link to Payment', 'Payment Date', 'Full Name', 'Contact Number', 'Mailing Address', 'Tracking Number'
             ]
-            worksheet.update('A1:X1', [headers])
+            worksheet.update('A1:Y1', [headers])
         
         # Product Locks tab (for admin)
         if 'Product Locks' not in existing_sheets:
@@ -1117,32 +1117,33 @@ def save_order_to_sheets(order_data, order_id=None):
                 order_date,                         # Column B: Order Date
                 order_data['full_name'],            # Column C: Name
                 order_data['telegram'],             # Column D: Telegram Username
-                item['product_code'],               # Column E: Product Code
-                item.get('product_name', ''),       # Column F: Product Name
-                item['order_type'],                 # Column G: Order Type
-                item['qty'],                        # Column H: QTY
-                item.get('unit_price_usd', 0),      # Column I: Unit Price USD
-                item.get('line_total_usd', 0),      # Column J: Line Total USD
-                order_data.get('exchange_rate', FALLBACK_EXCHANGE_RATE),  # Column K: Exchange Rate
-                item.get('line_total_php', 0),      # Column L: Line Total PHP
-                ADMIN_FEE_PHP if i == 0 else '',    # Column M: Admin Fee PHP (only first row)
-                order_data.get('grand_total_php', 0) if i == 0 else '',  # Column N: Grand Total PHP (only first row)
-                'Pending' if i == 0 else '',        # Column O: Order Status (only first row)
-                'No' if i == 0 else '',             # Column P: Locked (only first row)
-                'Unpaid' if i == 0 else '',         # Column Q: Payment Status (only first row)
-                '' if i == 0 else '',               # Column R: Remarks (only first row)
-                '',                                 # Column S: Link to Payment (only first row)
-                '',                                 # Column T: Payment Date (only first row)
-                order_data.get('full_name', '') if i == 0 else '',         # Column U: Full Name (only first row)
-                order_data.get('contact_number', '') if i == 0 else '',    # Column V: Contact Number (only first row)
-                order_data.get('mailing_address', '') if i == 0 else '',    # Column W: Mailing Address (only first row)
-                item.get('supplier', '')            # Column X: Supplier
+                item.get('supplier', ''),           # Column E: Supplier
+                item['product_code'],               # Column F: Product Code
+                item.get('product_name', ''),       # Column G: Product Name
+                item['order_type'],                 # Column H: Order Type
+                item['qty'],                        # Column I: QTY
+                item.get('unit_price_usd', 0),      # Column J: Unit Price USD
+                item.get('line_total_usd', 0),      # Column K: Line Total USD
+                order_data.get('exchange_rate', FALLBACK_EXCHANGE_RATE),  # Column L: Exchange Rate
+                item.get('line_total_php', 0),      # Column M: Line Total PHP
+                ADMIN_FEE_PHP if i == 0 else '',    # Column N: Admin Fee PHP (only first row)
+                order_data.get('grand_total_php', 0) if i == 0 else '',  # Column O: Grand Total PHP (only first row)
+                'Pending' if i == 0 else '',        # Column P: Order Status (only first row)
+                'No' if i == 0 else '',             # Column Q: Locked (only first row)
+                'Unpaid' if i == 0 else '',         # Column R: Payment Status (only first row)
+                '' if i == 0 else '',               # Column S: Remarks (only first row)
+                '',                                 # Column T: Link to Payment (only first row)
+                '',                                 # Column U: Payment Date (only first row)
+                order_data.get('full_name', '') if i == 0 else '',         # Column V: Full Name (only first row)
+                order_data.get('contact_number', '') if i == 0 else '',    # Column W: Contact Number (only first row)
+                order_data.get('mailing_address', '') if i == 0 else '',    # Column X: Mailing Address (only first row)
+                ''                                  # Column Y: Tracking Number (only first row)
             ]
             rows_to_add.append(row)
         
         if rows_to_add:
             end_row = next_row + len(rows_to_add) - 1
-            worksheet.update(f'A{next_row}:X{end_row}', rows_to_add)
+            worksheet.update(f'A{next_row}:Y{end_row}', rows_to_add)
         
         # Clear cache since orders changed
         clear_cache('orders')
@@ -1248,9 +1249,10 @@ def add_items_to_order(order_id, new_items, exchange_rate, telegram_username=Non
         all_values = worksheet.get_all_values()
         headers = all_values[0] if all_values else []
         
-        # Find column indices
+        # Find column indices (updated for Supplier in column E)
         col_indices = {
             'order_id': headers.index('Order ID') if 'Order ID' in headers else 0,
+            'supplier': headers.index('Supplier') if 'Supplier' in headers else 4,
             'product_code': headers.index('Product Code') if 'Product Code' in headers else 5,
             'order_type': headers.index('Order Type') if 'Order Type' in headers else 7,
             'qty': headers.index('QTY') if 'QTY' in headers else 8,
@@ -1364,29 +1366,31 @@ def add_items_to_order(order_id, new_items, exchange_rate, telegram_username=Non
             
             # Create new first row for the additional order
             new_first_row = [
-                new_order_id,                        # New Order ID
-                new_order_date,                      # New Order Date
-                order_info['full_name'],            # Name (same customer)
-                order_info['telegram'],             # Telegram Username (same)
-                '',                                  # Product Code - EMPTY (no product in first row)
-                '',                                  # Product Name - EMPTY
-                '',                                  # Order Type - EMPTY
-                '',                                  # QTY - EMPTY
-                '',                                  # Unit Price USD - EMPTY
-                '',                                  # Line Total USD - EMPTY
-                exchange_rate,                       # Exchange Rate
-                '',                                  # Line Total PHP - EMPTY
-                ADMIN_FEE_PHP,                      # Admin Fee PHP (separate admin fee for new items)
-                grand_total_php,                    # Grand Total PHP (only on first row)
-                'Pending',                          # Order Status - Pending (unpaid)
-                'No',                               # Locked - No
-                'Unpaid',                           # Payment Status - Unpaid
-                f'Additional items for {order_id}', # Remarks - link to original order
-                '',                                 # Link to Payment
-                '',                                 # Payment Date
-                '',                                 # Full Name (duplicate)
-                order_info['contact_number'],        # Contact Number
-                order_info['mailing_address']        # Mailing Address
+                new_order_id,                        # Column A: New Order ID
+                new_order_date,                      # Column B: New Order Date
+                order_info['full_name'],            # Column C: Name (same customer)
+                order_info['telegram'],             # Column D: Telegram Username (same)
+                '',                                  # Column E: Supplier - EMPTY (no product in first row)
+                '',                                  # Column F: Product Code - EMPTY (no product in first row)
+                '',                                  # Column G: Product Name - EMPTY
+                '',                                  # Column H: Order Type - EMPTY
+                '',                                  # Column I: QTY - EMPTY
+                '',                                  # Column J: Unit Price USD - EMPTY
+                '',                                  # Column K: Line Total USD - EMPTY
+                exchange_rate,                       # Column L: Exchange Rate
+                '',                                  # Column M: Line Total PHP - EMPTY
+                ADMIN_FEE_PHP,                      # Column N: Admin Fee PHP (separate admin fee for new items)
+                grand_total_php,                    # Column O: Grand Total PHP (only on first row)
+                'Pending',                          # Column P: Order Status - Pending (unpaid)
+                'No',                               # Column Q: Locked - No
+                'Unpaid',                           # Column R: Payment Status - Unpaid
+                f'Additional items for {order_id}', # Column S: Remarks - link to original order
+                '',                                 # Column T: Link to Payment
+                '',                                 # Column U: Payment Date
+                '',                                 # Column V: Full Name (duplicate)
+                order_info['contact_number'],        # Column W: Contact Number
+                order_info['mailing_address'],       # Column X: Mailing Address
+                ''                                  # Column Y: Tracking Number
             ]
             
             # Insert the new first row
@@ -1397,29 +1401,31 @@ def add_items_to_order(order_id, new_items, exchange_rate, telegram_username=Non
             rows_to_add = []
             for item in items_to_add:
                 row = [
-                    new_order_id,                    # New Order ID
-                    new_order_date,                   # New Order Date
-                    order_info['full_name'],          # All rows have Name
-                    order_info['telegram'],           # All rows have Telegram
-                    item['product_code'],
-                    item.get('product_name', ''),
-                    item['order_type'],
-                    item['qty'],
-                    item.get('unit_price_usd', 0),
-                    item.get('line_total_usd', 0),
-                    exchange_rate,
-                    item.get('line_total_php', 0),
-                    '',                               # Admin Fee - only on first row
-                    '',                               # Grand Total - only on first row
-                    '',                               # Order Status - only on first row
-                    '',                               # Locked - only on first row
-                    '',                               # Payment Status - only on first row
-                    f'Additional items for {order_id}', # Remarks
-                    '',                               # Link to Payment
-                    '',                               # Payment Date
-                    '',                               # Full Name (duplicate)
-                    '',                               # Contact Number
-                    ''                                # Mailing Address
+                    new_order_id,                    # Column A: New Order ID
+                    new_order_date,                   # Column B: New Order Date
+                    order_info['full_name'],          # Column C: All rows have Name
+                    order_info['telegram'],           # Column D: All rows have Telegram
+                    item.get('supplier', ''),         # Column E: Supplier
+                    item['product_code'],             # Column F: Product Code
+                    item.get('product_name', ''),     # Column G: Product Name
+                    item['order_type'],               # Column H: Order Type
+                    item['qty'],                     # Column I: QTY
+                    item.get('unit_price_usd', 0),   # Column J: Unit Price USD
+                    item.get('line_total_usd', 0),    # Column K: Line Total USD
+                    exchange_rate,                    # Column L: Exchange Rate
+                    item.get('line_total_php', 0),    # Column M: Line Total PHP
+                    '',                               # Column N: Admin Fee - only on first row
+                    '',                               # Column O: Grand Total - only on first row
+                    '',                               # Column P: Order Status - only on first row
+                    '',                               # Column Q: Locked - only on first row
+                    '',                               # Column R: Payment Status - only on first row
+                    f'Additional items for {order_id}', # Column S: Remarks
+                    '',                               # Column T: Link to Payment
+                    '',                               # Column U: Payment Date
+                    '',                               # Column V: Full Name (duplicate)
+                    '',                               # Column W: Contact Number
+                    '',                               # Column X: Mailing Address
+                    ''                                # Column Y: Tracking Number
                 ]
                 rows_to_add.append(row)
             
@@ -1444,6 +1450,7 @@ def add_items_to_order(order_id, new_items, exchange_rate, telegram_username=Non
                     if len(row_data) > col_indices['product_code'] and row_data[col_indices['product_code']]:
                         # This is an item row
                         existing_items.append({
+                            'supplier': row_data[col_indices['supplier']] if len(row_data) > col_indices['supplier'] else '',
                             'product_code': row_data[col_indices['product_code']] if len(row_data) > col_indices['product_code'] else '',
                             'product_name': row_data[headers.index('Product Name')] if 'Product Name' in headers and len(row_data) > headers.index('Product Name') else '',
                             'order_type': row_data[col_indices['order_type']] if len(row_data) > col_indices['order_type'] else '',
@@ -1484,29 +1491,31 @@ def add_items_to_order(order_id, new_items, exchange_rate, telegram_username=Non
             
             # Create new first row
             first_row = [
-                order_id,                           # Order ID
-                order_info['order_date'],           # Order Date
-                order_info['full_name'],            # Name
-                order_info['telegram'],             # Telegram Username
-                '',                                  # Product Code - EMPTY
-                '',                                  # Product Name - EMPTY
-                '',                                  # Order Type - EMPTY
-                '',                                  # QTY - EMPTY
-                '',                                  # Unit Price USD - EMPTY
-                '',                                  # Line Total USD - EMPTY
-                exchange_rate,                       # Exchange Rate
-                '',                                  # Line Total PHP - EMPTY
-                order_info['admin_fee'],            # Admin Fee PHP
-                grand_total_php,                     # Grand Total PHP
-                order_info['order_status'],          # Order Status
-                order_info['locked'],                # Locked
-                order_info['payment_status'],        # Payment Status
-                '',                                  # Remarks
-                order_info['payment_screenshot'],    # Link to Payment
-                order_info['payment_date'],          # Payment Date
-                '',                                  # Full Name (duplicate)
-                order_info['contact_number'],        # Contact Number
-                order_info['mailing_address']        # Mailing Address
+                order_id,                           # Column A: Order ID
+                order_info['order_date'],           # Column B: Order Date
+                order_info['full_name'],            # Column C: Name
+                order_info['telegram'],             # Column D: Telegram Username
+                '',                                  # Column E: Supplier - EMPTY (no product in first row)
+                '',                                  # Column F: Product Code - EMPTY
+                '',                                  # Column G: Product Name - EMPTY
+                '',                                  # Column H: Order Type - EMPTY
+                '',                                  # Column I: QTY - EMPTY
+                '',                                  # Column J: Unit Price USD - EMPTY
+                '',                                  # Column K: Line Total USD - EMPTY
+                exchange_rate,                       # Column L: Exchange Rate
+                '',                                  # Column M: Line Total PHP - EMPTY
+                order_info['admin_fee'],            # Column N: Admin Fee PHP
+                grand_total_php,                     # Column O: Grand Total PHP
+                order_info['order_status'],          # Column P: Order Status
+                order_info['locked'],                # Column Q: Locked
+                order_info['payment_status'],        # Column R: Payment Status
+                '',                                  # Column S: Remarks
+                order_info['payment_screenshot'],    # Column T: Link to Payment
+                order_info['payment_date'],          # Column U: Payment Date
+                '',                                  # Column V: Full Name (duplicate)
+                order_info['contact_number'],        # Column W: Contact Number
+                order_info['mailing_address'],       # Column X: Mailing Address
+                ''                                   # Column Y: Tracking Number
             ]
             
             # Insert the new first row
@@ -1518,29 +1527,31 @@ def add_items_to_order(order_id, new_items, exchange_rate, telegram_username=Non
                 rows_to_add = []
                 for item in final_items:
                     row = [
-                        order_id,                    # Order ID
-                        order_info['order_date'],    # Order Date
-                        order_info['full_name'],     # Name
-                        order_info['telegram'],      # Telegram
-                        item['product_code'],
-                        item.get('product_name', ''),
-                        item.get('order_type', 'Vial'),
-                        item['qty'],
-                        item.get('unit_price_usd', 0),
-                        item.get('line_total_usd', 0),
-                        exchange_rate,
-                        item.get('line_total_php', 0),
-                        '',                          # Admin Fee - only on first row
-                        '',                          # Grand Total - only on first row
-                        '',                          # Order Status - only on first row
-                        '',                          # Locked - only on first row
-                        '',                          # Payment Status - only on first row
-                        f'Updated {order_id}',       # Remarks
-                        '',                          # Link to Payment
-                        '',                          # Payment Date
-                        '',                          # Full Name (duplicate)
-                        '',                          # Contact Number
-                        ''                           # Mailing Address
+                        order_id,                    # Column A: Order ID
+                        order_info['order_date'],    # Column B: Order Date
+                        order_info['full_name'],     # Column C: Name
+                        order_info['telegram'],      # Column D: Telegram
+                        item.get('supplier', ''),    # Column E: Supplier
+                        item['product_code'],        # Column F: Product Code
+                        item.get('product_name', ''), # Column G: Product Name
+                        item.get('order_type', 'Vial'), # Column H: Order Type
+                        item['qty'],                 # Column I: QTY
+                        item.get('unit_price_usd', 0), # Column J: Unit Price USD
+                        item.get('line_total_usd', 0), # Column K: Line Total USD
+                        exchange_rate,                # Column L: Exchange Rate
+                        item.get('line_total_php', 0), # Column M: Line Total PHP
+                        '',                          # Column N: Admin Fee - only on first row
+                        '',                          # Column O: Grand Total - only on first row
+                        '',                          # Column P: Order Status - only on first row
+                        '',                          # Column Q: Locked - only on first row
+                        '',                          # Column R: Payment Status - only on first row
+                        f'Updated {order_id}',       # Column S: Remarks
+                        '',                          # Column T: Link to Payment
+                        '',                          # Column U: Payment Date
+                        '',                          # Column V: Full Name (duplicate)
+                        '',                          # Column W: Contact Number
+                        '',                          # Column X: Mailing Address
+                        ''                           # Column Y: Tracking Number
                     ]
                     rows_to_add.append(row)
                 
