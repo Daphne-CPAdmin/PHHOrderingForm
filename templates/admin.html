@@ -1890,23 +1890,27 @@
                     const remainingVials = (product.total_vials || 0) % vialsPerKit;
                     const isIncomplete = remainingVials > 0 && product.total_vials > 0;
                     
+                    // Escape product code and name for safe use in template literal
+                    const prodCode = escapeJS(String(product.code || ''));
+                    const prodName = escapeHtml(String(product.name || ''));
+                    const prodCodeHtml = escapeHtml(String(product.code || ''));
                     return `
-                        <tr data-code="${product.code}" class="${isIncomplete ? 'incomplete-kit' : ''}">
-                            <td>${product.name}</td>
-                            <td><span class="product-code">${product.code}</span></td>
+                        <tr data-code="${prodCode}" class="${isIncomplete ? 'incomplete-kit' : ''}">
+                            <td>${prodName}</td>
+                            <td><span class="product-code">${prodCodeHtml}</span></td>
                             <td><span class="kits-badge ${badgeClass}">${product.kits_generated} / ${product.max_kits}</span></td>
                             <td>${product.total_vials}</td>
                             <td>
                                 <input type="number" class="max-kits-input" 
                                        value="${product.max_kits}" 
-                                       onchange="updateMaxKits('${product.code}', this.value)"
+                                       onchange="updateMaxKits('${prodCode}', this.value)"
                                        min="1">
                             </td>
                             <td>
                                 <label class="toggle-switch">
                                     <input type="checkbox" 
                                            ${product.is_locked ? 'checked' : ''} 
-                                           onchange="toggleLock('${product.code}', this.checked)">
+                                           onchange="toggleLock('${prodCode}', this.checked)">
                                     <span class="toggle-slider"></span>
                                 </label>
                             </td>
@@ -2199,10 +2203,14 @@
                     ? 'border-top: 3px solid rgba(167, 139, 250, 0.5);' 
                     : '';
 
-                const productCode = escapeHtml(product.code || '');
-                const productName = escapeHtml(product.name || '');
+                // Escape for both JavaScript template literal and HTML
+                const productCodeRaw = String(product.code || '');
+                const productNameRaw = String(product.name || '');
+                const productCode = escapeHtml(productCodeRaw);
+                const productName = escapeHtml(productNameRaw);
+                const productCodeAttr = escapeJS(productCodeRaw); // For HTML attributes in template literal
                 return `
-                    <tr class="completed-kit-row" style="background: ${bgColor}; ${separatorStyle}" data-kits="${kitsGenerated}" data-code="${productCode}">
+                    <tr class="completed-kit-row" style="background: ${bgColor}; ${separatorStyle}" data-kits="${kitsGenerated}" data-code="${productCodeAttr}">
                         <td style="font-weight: 500; text-align: center; color: ${textColor};">
                             ${productName}
                             ${isBacWater ? '<span style="font-size: 0.75rem; opacity: 0.8;"> (BAC Water)</span>' : ''}
@@ -2282,11 +2290,14 @@
                     }).join('')
                     : '<div style="color: var(--text-muted); font-size: 0.75rem;">—</div>';
 
+                // Escape product name and code for safe use in template literal
+                const sharedProdName = escapeHtml(String(product.name || ''));
+                const sharedProdCode = escapeHtml(String(product.code || ''));
                 return `
                     <tr>
                         <td style="font-weight: 500; text-align: center; vertical-align: top; padding: 1rem;">
-                            <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.25rem;">${product.name}</div>
-                            <div style="font-family: 'JetBrains Mono', monospace; color: var(--accent-violet); font-size: 0.85rem;">${product.code}</div>
+                            <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.25rem;">${sharedProdName}</div>
+                            <div style="font-family: 'JetBrains Mono', monospace; color: var(--accent-violet); font-size: 0.85rem;">${sharedProdCode}</div>
                         </td>
                         <td style="text-align: left; vertical-align: top; padding: 1rem;">
                             ${vialOrdersHtml}
