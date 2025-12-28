@@ -3693,37 +3693,65 @@
         
         // Function to update submit button text and state based on existing order
         function updateSubmitButtonText() {
-            const submitBtn = document.getElementById('submit-order');
-            const updateOrderBtn = document.getElementById('update-order-btn');
-            const payOrderBtn = document.getElementById('pay-order-btn');
-            const cancelOrderBtn = document.getElementById('cancel-order-btn');
-            
-            if (!submitBtn || !updateOrderBtn || !payOrderBtn || !cancelOrderBtn) {
-                console.warn('Button elements not found:', { submitBtn, updateOrderBtn, payOrderBtn, cancelOrderBtn });
+            // Update buttons for each supplier
+            if (!SUPPLIERS || SUPPLIERS.length === 0) {
                 return;
             }
             
-            // Check if there's a pending order (including locked ones for status checks)
-            const pendingOrder = existingCustomerOrders.find(o => o.status !== 'Cancelled' && !o.locked);
-            const anyPendingOrder = existingCustomerOrders.find(o => o.status !== 'Cancelled');
+            SUPPLIERS.forEach(supplier => {
+                updateSupplierSubmitButtons(supplier);
+            });
+        }
+        
+        function updateSupplierSubmitButtons(supplier) {
+            const cartSection = document.querySelector(`.supplier-cart[data-supplier="${supplier}"]`);
+            if (!cartSection) return;
             
-            // Check if there are any changes (new items, updated quantities, or removed items)
-            const hasNewItems = cartItems.some(item => item.isExisting !== true);
-            const hasUpdatedItems = cartItems.some(item => item.isUpdated === true);
+            const orderActionButtons = cartSection.querySelector(`.order-action-buttons[data-supplier="${supplier}"]`);
+            if (!orderActionButtons) return;
+            
+            const submitBtn = orderActionButtons.querySelector(`.submit-order[data-supplier="${supplier}"]`);
+            const updateOrderBtn = orderActionButtons.querySelector(`.update-order-btn[data-supplier="${supplier}"]`);
+            const payOrderBtn = orderActionButtons.querySelector(`.pay-order-btn[data-supplier="${supplier}"]`);
+            const cancelOrderBtn = orderActionButtons.querySelector(`.cancel-order-btn[data-supplier="${supplier}"]`);
+            
+            if (!submitBtn || !updateOrderBtn || !payOrderBtn || !cancelOrderBtn) {
+                // Buttons might not exist yet, skip silently
+                return;
+            }
+            
+            // Get cart items for this supplier
+            const supplierCartItems = cartItems.filter(item => item.supplier === supplier);
+            
+            // Check if there's a pending order for this supplier (including locked ones for status checks)
+            const pendingOrder = existingCustomerOrders.find(o => 
+                o.status !== 'Cancelled' && 
+                !o.locked && 
+                o.supplier === supplier
+            );
+            const anyPendingOrder = existingCustomerOrders.find(o => 
+                o.status !== 'Cancelled' && 
+                o.supplier === supplier
+            );
+            
+            // Check if there are any changes (new items, updated quantities, or removed items) for this supplier
+            const supplierOriginalItems = originalOrderItems.filter(item => item.supplier === supplier);
+            const hasNewItems = supplierCartItems.some(item => item.isExisting !== true);
+            const hasUpdatedItems = supplierCartItems.some(item => item.isUpdated === true);
             
             // Check if items were removed by comparing with original order
-            const hasRemovedItems = originalOrderItems.length > 0 && 
-                (cartItems.length < originalOrderItems.length || 
-                 originalOrderItems.some(origItem => {
+            const hasRemovedItems = supplierOriginalItems.length > 0 && 
+                (supplierCartItems.length < supplierOriginalItems.length || 
+                 supplierOriginalItems.some(origItem => {
                      // Check if original item is missing from cart
-                     return !cartItems.some(cartItem => 
+                     return !supplierCartItems.some(cartItem => 
                          cartItem.product_code === origItem.product_code && 
                          cartItem.order_type === origItem.order_type
                      );
                  }));
             
             // Check if quantities changed from original
-            const hasQuantityChanges = cartItems.some(item => {
+            const hasQuantityChanges = supplierCartItems.some(item => {
                 if (item.isExisting === true && item.originalQty !== undefined) {
                     return item.qty !== item.originalQty;
                 }
@@ -3732,9 +3760,9 @@
             
             const hasChanges = hasNewItems || hasUpdatedItems || hasRemovedItems || hasQuantityChanges;
             
-            // Handle shipping details button visibility
-            const shippingDetailsContainer = document.getElementById('shipping-details-button-container');
-            const addShippingDetailsBtn = document.getElementById('add-shipping-details-btn');
+            // Handle shipping details button visibility for this supplier
+            const shippingDetailsContainer = cartSection.querySelector(`.shipping-details-button-container[data-supplier="${supplier}"]`);
+            const addShippingDetailsBtn = cartSection.querySelector(`.add-shipping-details-btn[data-supplier="${supplier}"]`);
             
             // Check if order form is locked
             const orderFormLocked = {{ order_form_locked|tojson }};
@@ -3747,7 +3775,7 @@
                 
                 // Show Update Order button - disable if order form is locked or no changes
                 updateOrderBtn.style.display = 'block';
-                const shouldDisableUpdate = orderFormLocked || !hasChanges || cartItems.length === 0;
+                const shouldDisableUpdate = orderFormLocked || !hasChanges || supplierCartItems.length === 0;
                 updateOrderBtn.disabled = shouldDisableUpdate;
                 if (orderFormLocked) {
                     updateOrderBtn.title = 'Order form is locked - cannot update orders';
@@ -3807,16 +3835,16 @@
                 
                 // Show Submit Order button
                 submitBtn.style.display = 'block';
-                submitBtn.textContent = 'Submit Order';
+                submitBtn.textContent = `Submit Order - ${supplier}`;
                 // Disable if cart is empty OR if order form is locked
-                const shouldDisableSubmit = cartItems.length === 0 || orderFormLocked;
+                const shouldDisableSubmit = supplierCartItems.length === 0 || orderFormLocked;
                 submitBtn.disabled = shouldDisableSubmit;
                 if (orderFormLocked) {
                     submitBtn.title = 'Order form is locked - cannot submit new orders. You can still add items to your cart.';
-                } else if (cartItems.length === 0) {
+                } else if (supplierCartItems.length === 0) {
                     submitBtn.title = 'Add items to cart first';
                 } else {
-                    submitBtn.title = 'Submit your new order';
+                    submitBtn.title = `Submit your new order for ${supplier}`;
                 }
                 
                 // Hide Update Order button (no existing order to update)
