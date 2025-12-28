@@ -1736,7 +1736,6 @@
         {% if not order_form_locked %}
         {% for supplier in suppliers %}
         {% set supplier_stats = order_stats.get('by_supplier', {}).get(supplier, {}) %}
-        {% if supplier_stats.get('total_completed_kits_count', 0) > 0 or supplier_stats.get('total_incomplete_vials_count', 0) > 0 %}
         <div class="stats-banner supplier-stats" data-supplier="{{ supplier }}" style="margin-bottom: 1.5rem;">
             <div style="margin-bottom: 0.75rem; font-weight: 600; color: var(--text-primary); font-size: 1.1rem;">
                 📊 Order Statistics - {{ supplier }}
@@ -1807,7 +1806,6 @@
                 </div>
             </div>
         </div>
-        {% endif %}
         {% endfor %}
         {% endif %}
 
