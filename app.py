@@ -985,9 +985,61 @@ def _fetch_orders_from_sheets():
         traceback.print_exc()
         return []
 
+def _enrich_orders_with_supplier(orders):
+    """Enrich orders with supplier information based on product code if supplier is missing"""
+    if not orders:
+        return orders
+    
+    # Get products to build product_code -> supplier map
+    try:
+        products = get_products()
+        # Build map: for unique codes, map to supplier; for duplicate codes, create a list
+        code_to_supplier_map = {}
+        code_to_suppliers_map = defaultdict(set)
+        for p in products:
+            code = p['code']
+            supplier = p.get('supplier', 'Default')
+            code_to_suppliers_map[code].add(supplier)
+            # For unique codes, store supplier
+            if code not in code_to_supplier_map:
+                code_to_supplier_map[code] = supplier
+        
+        # Enrich orders with supplier
+        enriched_orders = []
+        for order in orders:
+            enriched_order = order.copy()
+            order_supplier = order.get('Supplier', '') or order.get('supplier', '')
+            product_code = order.get('Product Code', '')
+            
+            # If supplier is missing, infer from product code
+            if not order_supplier and product_code:
+                if product_code in code_to_supplier_map:
+                    # Unique code - use mapped supplier
+                    enriched_order['Supplier'] = code_to_supplier_map[product_code]
+                elif product_code in code_to_suppliers_map:
+                    # Multiple suppliers have this code - default to first one (usually WWB)
+                    default_supplier = sorted(code_to_suppliers_map[product_code])[0]
+                    enriched_order['Supplier'] = default_supplier
+                else:
+                    # Product code not found - keep empty or set to Default
+                    enriched_order['Supplier'] = 'Default'
+            elif order_supplier:
+                # Supplier already exists - keep it
+                enriched_order['Supplier'] = order_supplier
+            
+            enriched_orders.append(enriched_order)
+        
+        return enriched_orders
+    except Exception as e:
+        print(f"⚠️ Error enriching orders with supplier: {e}")
+        # Return original orders if enrichment fails
+        return orders
+
 def get_orders_from_sheets():
     """Read existing orders from PepHaul Entry tab (cached)"""
-    return get_cached('orders', _fetch_orders_from_sheets, cache_duration=180)  # 3 minutes - balance freshness/performance
+    orders = get_cached('orders', _fetch_orders_from_sheets, cache_duration=180)  # 3 minutes - balance freshness/performance
+    # Enrich orders with supplier information if missing
+    return _enrich_orders_with_supplier(orders)
 
 def get_order_by_id(order_id):
     """Get a specific order by ID"""
@@ -3683,9 +3735,9 @@ def api_submit_order():
                     'error': f'Product {item["product_code"]} not found' + (f' for supplier {supplier}' if supplier else '')
                 }), 404
             
-            # Use supplier from product if not already set
-            if not supplier:
-                supplier = product.get('supplier', 'Default')
+            # Always use supplier from product (product is source of truth)
+            # This ensures supplier is always populated correctly
+            supplier = product.get('supplier', 'Default')
             
             try:
                 unit_price = product['kit_price'] if item.get('order_type') == 'Kit' else product['vial_price']
@@ -3702,7 +3754,7 @@ def api_submit_order():
                     'product_code': item['product_code'],
                     'product_name': product['name'],
                     'order_type': item.get('order_type', 'Vial'),
-                    'supplier': supplier,
+                    'supplier': supplier,  # Always from product
                     'qty': item['qty'],
                     'unit_price_usd': unit_price,
                     'line_total_usd': line_total_usd,
@@ -5893,6 +5945,100 @@ def api_admin_switch_pephaul_tab():
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
+
+@app.route('/api/admin/orders/backfill-suppliers', methods=['POST'])
+def api_admin_backfill_suppliers():
+    """Admin: Backfill missing supplier information in existing orders based on product codes"""
+    if not session.get('is_admin'):
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+    
+    if not sheets_client:
+        return jsonify({'success': False, 'error': 'Google Sheets not configured'}), 500
+    
+    try:
+        spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
+        worksheet = get_pephaul_worksheet(spreadsheet)
+        if not worksheet:
+            return jsonify({'success': False, 'error': 'PepHaul Entry worksheet not found'}), 404
+        
+        # Get all values
+        all_values = worksheet.get_all_values()
+        if not all_values or len(all_values) <= 1:
+            return jsonify({'success': True, 'updated': 0, 'message': 'No orders found'})
+        
+        # Get headers
+        headers = _normalize_order_sheet_headers(all_values[0])
+        supplier_col_idx = headers.index('Supplier') if 'Supplier' in headers else None
+        product_code_col_idx = headers.index('Product Code') if 'Product Code' in headers else None
+        
+        if supplier_col_idx is None or product_code_col_idx is None:
+            return jsonify({'success': False, 'error': 'Required columns not found'}), 400
+        
+        # Get products to build product_code -> supplier map
+        products = get_products()
+        code_to_supplier_map = {}
+        code_to_suppliers_map = defaultdict(set)
+        for p in products:
+            code = p['code']
+            supplier = p.get('supplier', 'Default')
+            code_to_suppliers_map[code].add(supplier)
+            if code not in code_to_supplier_map:
+                code_to_supplier_map[code] = supplier
+        
+        # Find rows that need supplier backfill
+        updates = []
+        updated_count = 0
+        
+        for row_idx, row in enumerate(all_values[1:], start=2):  # Start from row 2 (skip header)
+            # Pad row if needed
+            while len(row) <= max(supplier_col_idx, product_code_col_idx):
+                row.append('')
+            
+            supplier_value = row[supplier_col_idx].strip() if len(row) > supplier_col_idx else ''
+            product_code = row[product_code_col_idx].strip() if len(row) > product_code_col_idx else ''
+            
+            # If supplier is missing but product code exists, infer supplier
+            if not supplier_value and product_code:
+                if product_code in code_to_supplier_map:
+                    # Unique code - use mapped supplier
+                    inferred_supplier = code_to_supplier_map[product_code]
+                elif product_code in code_to_suppliers_map:
+                    # Multiple suppliers - default to first one (usually WWB)
+                    inferred_supplier = sorted(code_to_suppliers_map[product_code])[0]
+                else:
+                    # Product code not found - skip
+                    continue
+                
+                # Add to updates
+                updates.append({
+                    'range': f'E{row_idx}',  # Column E is Supplier
+                    'values': [[inferred_supplier]]
+                })
+                updated_count += 1
+        
+        # Batch update if there are updates
+        if updates:
+            # Google Sheets API allows up to 100 updates per batch
+            batch_size = 100
+            for i in range(0, len(updates), batch_size):
+                batch = updates[i:i + batch_size]
+                worksheet.batch_update(batch)
+            
+            # Clear cache to refresh data
+            clear_cache('orders')
+            clear_cache('inventory_stats')
+            clear_cache('consolidated_order_stats')
+        
+        return jsonify({
+            'success': True,
+            'updated': updated_count,
+            'message': f'Successfully backfilled suppliers for {updated_count} order rows'
+        })
+    
+    except Exception as e:
+        print(f"❌ Error backfilling suppliers: {e}")
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/admin/pephaul-tabs/rename', methods=['POST'])
 def api_admin_rename_pephaul_tab():
