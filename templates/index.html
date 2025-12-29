@@ -2361,21 +2361,17 @@
             <div class="card">
                 <h2 class="card-title"><span class="icon">💰</span> Price Comparison: YIWU vs WWB</h2>
                 
-                {% set checkmark_count = 0 %}
+                {% set ns = namespace(count=0) %}
                 {% for item in price_comparison %}
                     {% if item.available_in_wwb %}
                         {% set diff = item.yiwu_kit_price - item.wwb_kit_price %}
                         {% if diff < 0 %}
-                            {% set checkmark_count = checkmark_count + 1 %}
+                            {% set ns.count = ns.count + 1 %}
                         {% endif %}
                     {% else %}
-                        {% set checkmark_count = checkmark_count + 1 %}
+                        {% set ns.count = ns.count + 1 %}
                     {% endif %}
                 {% endfor %}
-                
-                <div style="margin-top: 1rem; margin-bottom: 1rem; padding: 0.75rem; background: rgba(192, 132, 252, 0.1); border-radius: 8px; text-align: center;">
-                    <span style="font-weight: 600; color: var(--accent-violet);">✓ Products with Checkmark: <span style="font-size: 1.2rem;">{{ checkmark_count }}</span></span>
-                </div>
                 
                 <div class="table-container" style="overflow-x: auto; margin-top: 1.5rem;">
                     <table class="products-table" style="width: 100%;">
@@ -2386,7 +2382,7 @@
                                 <th style="text-align: center;">YIWU Kit Price</th>
                                 <th style="text-align: center;">WWB Kit Price</th>
                                 <th style="text-align: center;">Price Difference</th>
-                                <th style="text-align: center;">Remarks</th>
+                                <th style="text-align: center;">Remarks <span style="color: var(--accent-violet); font-weight: bold;">✓: {{ ns.count }}</span></th>
                             </tr>
                         </thead>
                         <tbody>
