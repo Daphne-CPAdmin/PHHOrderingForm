@@ -2361,6 +2361,22 @@
             <div class="card">
                 <h2 class="card-title"><span class="icon">💰</span> Price Comparison: YIWU vs WWB</h2>
                 
+                {% set checkmark_count = 0 %}
+                {% for item in price_comparison %}
+                    {% if item.available_in_wwb %}
+                        {% set diff = item.yiwu_kit_price - item.wwb_kit_price %}
+                        {% if diff < 0 %}
+                            {% set checkmark_count = checkmark_count + 1 %}
+                        {% endif %}
+                    {% else %}
+                        {% set checkmark_count = checkmark_count + 1 %}
+                    {% endif %}
+                {% endfor %}
+                
+                <div style="margin-top: 1rem; margin-bottom: 1rem; padding: 0.75rem; background: rgba(192, 132, 252, 0.1); border-radius: 8px; text-align: center;">
+                    <span style="font-weight: 600; color: var(--accent-violet);">✓ Products with Checkmark: <span style="font-size: 1.2rem;">{{ checkmark_count }}</span></span>
+                </div>
+                
                 <div class="table-container" style="overflow-x: auto; margin-top: 1.5rem;">
                     <table class="products-table" style="width: 100%;">
                         <thead>
@@ -2380,7 +2396,7 @@
                                 {% set has_checkmark = diff < 0 %}
                             {% else %}
                                 {% set diff = 0 %}
-                                {% set has_checkmark = False %}
+                                {% set has_checkmark = True %}
                             {% endif %}
                             <tr style="{% if has_checkmark %}background: rgba(192, 132, 252, 0.15);{% elif item.available_in_wwb %}background: rgba(192, 132, 252, 0.05);{% else %}background: rgba(239, 68, 68, 0.05);{% endif %}">
                                 <td style="font-family: 'JetBrains Mono', monospace; font-weight: 600; color: var(--accent-violet);">
@@ -2420,7 +2436,7 @@
                                             <span style="color: var(--text-muted); font-size: 1rem;">—</span>
                                         {% endif %}
                                     {% else %}
-                                        <span style="color: var(--text-muted);">—</span>
+                                        <span style="color: var(--accent-violet); font-size: 1.2rem; font-weight: bold;" title="YIWU only product">✓</span>
                                     {% endif %}
                                 </td>
                             </tr>
