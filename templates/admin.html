@@ -1746,7 +1746,7 @@
                 .replace(/"/g, '\\"')     // Escape double quotes
                 .replace(/'/g, "\\'")     // Escape single quotes
                 .replace(/\u0000/g, '\\0'); // Escape null characters
-        }}}  // Close escapeJS function and 2 unclosed braces from before
+        }
 
         function escapeHtml(str) {
             if (str === null || str === undefined) return '';
@@ -2263,7 +2263,7 @@
                 // Add title attribute for copy hint
                 table.title = 'Click and drag to select rows, then copy (Ctrl+C / Cmd+C) to paste into spreadsheet';
             }
-        }}  // Close loadCompletedKits function and 1 unclosed brace
+        }
 
         // Load Shared Products - Per Supplier
         function loadSharedProducts(products, supplier) {
