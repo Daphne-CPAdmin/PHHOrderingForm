@@ -1584,11 +1584,11 @@
                     return;
                 }
                 
-                // Sort by date (newest first)
+                // Sort by date (oldest first for timeline flow)
                 const sortedEntries = data.entries.sort((a, b) => {
-                    const dateA = new Date(a.date + ' ' + (a.time || ''));
-                    const dateB = new Date(b.date + ' ' + (b.time || ''));
-                    return dateB - dateA;
+                    const dateA = parseTimelineDate(a.date, a.time);
+                    const dateB = parseTimelineDate(b.date, b.time);
+                    return dateA - dateB;
                 });
 
                 // Cache by id for editing
@@ -1597,20 +1597,83 @@
                     if (e && e.id) window._timelineEntriesById[String(e.id)] = e;
                 });
                 
-                let html = '<div style="display: flex; flex-direction: column; gap: 1rem;">';
+                // Helper function to parse date/time
+                function parseTimelineDate(dateStr, timeStr) {
+                    if (!dateStr) return new Date(0);
+                    // Try common date formats
+                    let date = new Date(dateStr);
+                    if (isNaN(date.getTime())) {
+                        // Try MM/DD/YYYY format
+                        const parts = dateStr.split('/');
+                        if (parts.length === 3) {
+                            date = new Date(parts[2], parts[0] - 1, parts[1]);
+                        }
+                    }
+                    // Add time if provided
+                    if (timeStr && !isNaN(date.getTime())) {
+                        const timeMatch = timeStr.match(/(\d+)\s*(AM|PM|am|pm)/i);
+                        if (timeMatch) {
+                            let hours = parseInt(timeMatch[1]);
+                            const isPM = /PM|pm/.test(timeMatch[2]);
+                            if (isPM && hours !== 12) hours += 12;
+                            if (!isPM && hours === 12) hours = 0;
+                            date.setHours(hours, 0, 0, 0);
+                        }
+                    }
+                    return date;
+                }
+                
+                // Helper function to calculate time difference
+                function getTimeDifference(date1, date2) {
+                    const diffMs = Math.abs(date2 - date1);
+                    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+                    const diffHours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                    return { days: diffDays, hours: diffHours };
+                }
+                
+                let html = '<div style="position: relative; padding-left: 2.5rem;">';
                 sortedEntries.forEach((entry, index) => {
+                    const entryDate = parseTimelineDate(entry.date, entry.time);
+                    const isLast = index === sortedEntries.length - 1;
+                    const isFirst = index === 0;
+                    
+                    // Calculate time difference from previous entry
+                    let timeDiffHtml = '';
+                    if (!isFirst) {
+                        const prevEntry = sortedEntries[index - 1];
+                        const prevDate = parseTimelineDate(prevEntry.date, prevEntry.time);
+                        const diff = getTimeDifference(prevDate, entryDate);
+                        if (diff.days > 0 || diff.hours > 0) {
+                            const diffParts = [];
+                            if (diff.days > 0) diffParts.push(`${diff.days} day${diff.days !== 1 ? 's' : ''}`);
+                            if (diff.hours > 0) diffParts.push(`${diff.hours} hour${diff.hours !== 1 ? 's' : ''}`);
+                            timeDiffHtml = `<div style="font-size: 0.75rem; color: #6b7280; margin-bottom: 0.5rem; font-weight: 500;">⏱️ ${diffParts.join(' and ')} since last update</div>`;
+                        }
+                    }
+                    
                     html += `
-                        <div style="padding: 1rem; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; border-left: 4px solid #fbbf24;">
-                            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.5rem;">
-                                <div>
-                                    <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.25rem;">
-                                        ${entry.date} ${entry.time ? '• ' + entry.time : ''}
+                        <div style="position: relative; margin-bottom: ${isLast ? '0' : '1.5rem'};">
+                            <!-- Timeline dot -->
+                            <div style="position: absolute; left: -2.5rem; top: 0.5rem; width: 14px; height: 14px; background: #fbbf24; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 0 2px #fbbf24; z-index: 2;"></div>
+                            <!-- Connecting line -->
+                            ${!isLast ? '<div style="position: absolute; left: -2rem; top: 1.25rem; width: 2px; height: calc(100% + 0.5rem); background: linear-gradient(to bottom, #fbbf24 0%, rgba(251, 191, 36, 0.3) 100%); z-index: 1;"></div>' : ''}
+                            <!-- Arrow pointing to card -->
+                            <div style="position: absolute; left: -1.5rem; top: 0.5rem; width: 0; height: 0; border-top: 6px solid transparent; border-bottom: 6px solid transparent; border-right: 8px solid #fbbf24; z-index: 2;"></div>
+                            <!-- Card -->
+                            <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-left: 3px solid #fbbf24;">
+                                ${timeDiffHtml}
+                                <div style="display: flex; justify-content: space-between; align-items: start; gap: 1rem;">
+                                    <div style="flex: 1;">
+                                        <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem; flex-wrap: wrap;">
+                                            <span style="font-weight: 600; color: var(--text-primary); font-size: 0.95rem;">${entry.date}</span>
+                                            ${entry.time ? `<span style="color: var(--text-secondary); font-size: 0.9rem;">• ${entry.time}</span>` : ''}
+                                        </div>
+                                        <div style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.6; white-space: pre-wrap;">${escapeHtml(entry.details)}</div>
                                     </div>
-                                    <div style="color: var(--text-secondary); font-size: 0.9rem; white-space: pre-wrap;">${escapeHtml(entry.details)}</div>
-                                </div>
-                                <div style="display:flex; gap: 0.5rem; align-items:center;">
-                                    <button onclick="openTimelineEditModal('${escapeJS(entry.id)}')" style="padding: 0.25rem 0.5rem; background: #fbbf24; color: #111827; border: none; border-radius: 4px; cursor: pointer; font-size: 0.75rem; font-weight: 700;">✏️ Edit</button>
-                                    <button onclick="deleteTimelineEntry('${escapeJS(entry.id)}')" style="padding: 0.25rem 0.5rem; background: #ef4444; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.75rem;">🗑️ Delete</button>
+                                    <div style="display: flex; gap: 0.5rem; align-items: start; flex-shrink: 0;">
+                                        <button onclick="openTimelineEditModal('${escapeJS(entry.id)}')" style="padding: 0.25rem 0.5rem; background: #fbbf24; color: #111827; border: none; border-radius: 4px; cursor: pointer; font-size: 0.75rem; font-weight: 700; white-space: nowrap;">✏️ Edit</button>
+                                        <button onclick="deleteTimelineEntry('${escapeJS(entry.id)}')" style="padding: 0.25rem 0.5rem; background: #ef4444; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.75rem; white-space: nowrap;">🗑️ Delete</button>
+                                    </div>
                                 </div>
                             </div>
                         </div>

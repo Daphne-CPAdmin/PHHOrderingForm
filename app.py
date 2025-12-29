@@ -3049,14 +3049,14 @@ def api_get_theme():
 _timeline_entries = []
 
 def _fetch_timeline_entries(tab_name=None):
-    """Internal function to fetch timeline entries from sheets - filter by PepHaul Number"""
+    """Internal function to fetch timeline entries from sheets - filter by PepHaul Entry ID"""
     global _timeline_entries
     entries = []
     
     if not tab_name:
         tab_name = get_current_pephaul_tab()
     
-    # Use single "Timeline" tab with PepHaul Number column
+    # Use single "Timeline" tab with PepHaul Entry ID column
     timeline_tab_name = 'Timeline'
     
     if sheets_client:
@@ -3065,26 +3065,46 @@ def _fetch_timeline_entries(tab_name=None):
             
             try:
                 worksheet = spreadsheet.worksheet(timeline_tab_name)
-            except:
+            except Exception as e:
                 # Create Timeline sheet if doesn't exist with new column structure
-                worksheet = spreadsheet.add_worksheet(title=timeline_tab_name, rows=100, cols=5)
-                worksheet.update('A1:E1', [['ID', 'PepHaul Number', 'Date', 'Time', 'Details of Transaction']])
+                try:
+                    worksheet = spreadsheet.add_worksheet(title=timeline_tab_name, rows=100, cols=5)
+                    worksheet.update('A1:E1', [['ID', 'PepHaul Entry ID', 'Date', 'Time', 'Details of Transaction']])
+                    return []
+                except Exception as create_error:
+                    print(f"Error creating Timeline sheet: {create_error}")
+                    import traceback
+                    traceback.print_exc()
+                    return []
+            
+            try:
+                records = worksheet.get_all_records()
+            except Exception as e:
+                print(f"Error reading Timeline records: {e}")
+                import traceback
+                traceback.print_exc()
                 return []
             
-            records = worksheet.get_all_records()
             for record in records:
-                # Filter by current PepHaul tab (match PepHaul Number column)
-                pephaul_number = record.get('PepHaul Number', '').strip()
-                if pephaul_number == tab_name and record.get('ID') and record.get('Date'):
+                # Filter by current PepHaul tab (match PepHaul Entry ID column)
+                # Support both old "PepHaul Number" and new "PepHaul Entry ID" column names
+                pephaul_entry_id = (
+                    record.get('PepHaul Entry ID', '') or 
+                    record.get('PepHaul Number', '')
+                ).strip()
+                
+                if pephaul_entry_id == tab_name and record.get('ID') and record.get('Date'):
                     entries.append({
                         'id': str(record.get('ID', '')),
-                        'pephaul_number': pephaul_number,
+                        'pephaul_entry_id': pephaul_entry_id,
                         'date': record.get('Date', ''),
                         'time': record.get('Time', ''),
                         'details': record.get('Details of Transaction', '')
                     })
         except Exception as e:
             print(f"Error getting timeline entries: {e}")
+            import traceback
+            traceback.print_exc()
     
     _timeline_entries = entries
     return entries
@@ -3097,7 +3117,7 @@ def get_timeline_entries(tab_name=None):
     return get_cached(cache_key, lambda: _fetch_timeline_entries(tab_name), cache_duration=300)  # 5 minutes
 
 def add_timeline_entry(date, time, details, tab_name=None):
-    """Add timeline entry to sheets - single Timeline tab with PepHaul Number"""
+    """Add timeline entry to sheets - single Timeline tab with PepHaul Entry ID"""
     import uuid
     
     if not tab_name:
@@ -3108,19 +3128,38 @@ def add_timeline_entry(date, time, details, tab_name=None):
     
     entry_id = str(uuid.uuid4())[:8]
     
-    if sheets_client:
+    if not sheets_client:
+        print("Error: sheets_client not initialized")
+        return False
+    
+    try:
+        spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
+        
         try:
-            spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
-            
+            worksheet = spreadsheet.worksheet(timeline_tab_name)
+            # Check if headers need updating (support migration from old column name)
+            headers = worksheet.row_values(1)
+            if headers and len(headers) >= 2:
+                # If old column name exists, update header row
+                if 'PepHaul Number' in headers and 'PepHaul Entry ID' not in headers:
+                    header_col_b = headers[1] if len(headers) > 1 else ''
+                    if header_col_b == 'PepHaul Number':
+                        worksheet.update('B1', [['PepHaul Entry ID']])
+        except Exception as e:
+            # Create Timeline sheet if doesn't exist with new column structure
             try:
-                worksheet = spreadsheet.worksheet(timeline_tab_name)
-            except:
-                # Create Timeline sheet if doesn't exist with new column structure
                 worksheet = spreadsheet.add_worksheet(title=timeline_tab_name, rows=100, cols=5)
-                worksheet.update('A1:E1', [['ID', 'PepHaul Number', 'Date', 'Time', 'Details of Transaction']])
-            
-            # Append new row with PepHaul Number
-            next_row = len(worksheet.get_all_values()) + 1
+                worksheet.update('A1:E1', [['ID', 'PepHaul Entry ID', 'Date', 'Time', 'Details of Transaction']])
+            except Exception as create_error:
+                print(f"Error creating Timeline sheet: {create_error}")
+                import traceback
+                traceback.print_exc()
+                return False
+        
+        # Append new row with PepHaul Entry ID
+        try:
+            all_values = worksheet.get_all_values()
+            next_row = len(all_values) + 1
             worksheet.update(f'A{next_row}:E{next_row}', [[entry_id, tab_name, date, time, details]])
             
             # Clear cache for this tab
@@ -3128,13 +3167,16 @@ def add_timeline_entry(date, time, details, tab_name=None):
             clear_cache(cache_key)
             
             return True
-        except Exception as e:
-            print(f"Error adding timeline entry: {e}")
+        except Exception as update_error:
+            print(f"Error updating Timeline sheet: {update_error}")
             import traceback
             traceback.print_exc()
             return False
-    
-    return False
+    except Exception as e:
+        print(f"Error adding timeline entry: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
 
 def delete_timeline_entry(entry_id, tab_name=None):
     """Delete timeline entry from sheets - single Timeline tab"""
@@ -3144,26 +3186,36 @@ def delete_timeline_entry(entry_id, tab_name=None):
     # Use single "Timeline" tab
     timeline_tab_name = 'Timeline'
     
-    if sheets_client:
-        try:
-            spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
-            worksheet = spreadsheet.worksheet(timeline_tab_name)
-            
-            # Find the row with this ID
-            cell = worksheet.find(entry_id)
-            if cell:
-                worksheet.delete_rows(cell.row)
-                # Clear cache for this tab
-                cache_key = f'timeline_entries_{tab_name}'
-                clear_cache(cache_key)
-                return True
-        except Exception as e:
-            print(f"Error deleting timeline entry: {e}")
-            import traceback
-            traceback.print_exc()
-            return False
+    if not sheets_client:
+        print("Error: sheets_client not initialized")
+        return False
     
-    return False
+    try:
+        spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
+        worksheet = spreadsheet.worksheet(timeline_tab_name)
+        
+        # Find the row with this ID (search in first column only)
+        all_values = worksheet.get_all_values()
+        target_row = None
+        for idx, row in enumerate(all_values[1:], start=2):
+            if row and len(row) >= 1 and str(row[0]).strip() == str(entry_id).strip():
+                target_row = idx
+                break
+        
+        if target_row:
+            worksheet.delete_rows(target_row)
+            # Clear cache for this tab
+            cache_key = f'timeline_entries_{tab_name}'
+            clear_cache(cache_key)
+            return True
+        else:
+            print(f"Timeline entry ID {entry_id} not found")
+            return False
+    except Exception as e:
+        print(f"Error deleting timeline entry: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
 
 
 def update_timeline_entry(entry_id, date, time, details, tab_name=None):
@@ -3174,38 +3226,42 @@ def update_timeline_entry(entry_id, date, time, details, tab_name=None):
     # Use single "Timeline" tab
     timeline_tab_name = 'Timeline'
     
-    if sheets_client:
-        try:
-            spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
-            worksheet = spreadsheet.worksheet(timeline_tab_name)
+    if not sheets_client:
+        print("Error: sheets_client not initialized")
+        return False
+    
+    try:
+        spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
+        worksheet = spreadsheet.worksheet(timeline_tab_name)
 
-            all_values = worksheet.get_all_values()
-            if not all_values or len(all_values) < 2:
-                return False
-
-            # Locate ID in first column only (avoid matching in details)
-            target_row = None
-            for idx, row in enumerate(all_values[1:], start=2):
-                if row and len(row) >= 1 and str(row[0]).strip() == str(entry_id).strip():
-                    target_row = idx
-                    break
-
-            if not target_row:
-                return False
-
-            # Update columns C, D, E (Date, Time, Details of Transaction)
-            # Column B (PepHaul Number) stays the same
-            worksheet.update(f'C{target_row}:E{target_row}', [[date, time, details]])
-            # Clear cache for this tab
-            cache_key = f'timeline_entries_{tab_name}'
-            clear_cache(cache_key)
-            return True
-        except Exception as e:
-            print(f"Error updating timeline entry: {e}")
-            import traceback
-            traceback.print_exc()
+        all_values = worksheet.get_all_values()
+        if not all_values or len(all_values) < 2:
+            print("Timeline sheet is empty or has no data rows")
             return False
-    return False
+
+        # Locate ID in first column only (avoid matching in details)
+        target_row = None
+        for idx, row in enumerate(all_values[1:], start=2):
+            if row and len(row) >= 1 and str(row[0]).strip() == str(entry_id).strip():
+                target_row = idx
+                break
+
+        if not target_row:
+            print(f"Timeline entry ID {entry_id} not found")
+            return False
+
+        # Update columns C, D, E (Date, Time, Details of Transaction)
+        # Column B (PepHaul Entry ID) stays the same
+        worksheet.update(f'C{target_row}:E{target_row}', [[date, time, details]])
+        # Clear cache for this tab
+        cache_key = f'timeline_entries_{tab_name}'
+        clear_cache(cache_key)
+        return True
+    except Exception as e:
+        print(f"Error updating timeline entry: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
 
 @app.route('/api/admin/timeline')
 def api_get_timeline():
