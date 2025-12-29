@@ -1631,6 +1631,22 @@
                     return { days: diffDays, hours: diffHours };
                 }
                 
+                // Calculate total time span from first to last entry
+                let totalTimeSpanHtml = '';
+                if (sortedEntries.length > 1) {
+                    const firstEntry = sortedEntries[0];
+                    const lastEntry = sortedEntries[sortedEntries.length - 1];
+                    const firstDate = parseTimelineDate(firstEntry.date, firstEntry.time);
+                    const lastDate = parseTimelineDate(lastEntry.date, lastEntry.time);
+                    const totalDiff = getTimeDifference(firstDate, lastDate);
+                    if (totalDiff.days > 0 || totalDiff.hours > 0) {
+                        const totalParts = [];
+                        if (totalDiff.days > 0) totalParts.push(`${totalDiff.days} day${totalDiff.days !== 1 ? 's' : ''}`);
+                        if (totalDiff.hours > 0) totalParts.push(`${totalDiff.hours} hour${totalDiff.hours !== 1 ? 's' : ''}`);
+                        totalTimeSpanHtml = `<div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 2px solid #e5e7eb; text-align: center;"><div style="font-size: 0.875rem; color: #374151; font-weight: 600;">📊 Total Timeline: ${totalParts.join(' and ')} from first to last update</div></div>`;
+                    }
+                }
+                
                 let html = '<div style="position: relative; padding-left: 2.5rem;">';
                 sortedEntries.forEach((entry, index) => {
                     const entryDate = parseTimelineDate(entry.date, entry.time);
@@ -1668,7 +1684,7 @@
                                             <span style="font-weight: 600; color: var(--text-primary); font-size: 0.95rem;">${entry.date}</span>
                                             ${entry.time ? `<span style="color: var(--text-secondary); font-size: 0.9rem;">• ${entry.time}</span>` : ''}
                                         </div>
-                                        <div style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.6; white-space: pre-wrap;">${escapeHtml(entry.details)}</div>
+                                        ${entry.details ? `<div style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.6; white-space: pre-wrap; margin-top: 0.5rem;">${escapeHtml(entry.details)}</div>` : ''}
                                     </div>
                                     <div style="display: flex; gap: 0.5rem; align-items: start; flex-shrink: 0;">
                                         <button onclick="openTimelineEditModal('${escapeJS(entry.id)}')" style="padding: 0.25rem 0.5rem; background: #fbbf24; color: #111827; border: none; border-radius: 4px; cursor: pointer; font-size: 0.75rem; font-weight: 700; white-space: nowrap;">✏️ Edit</button>
@@ -1680,6 +1696,7 @@
                     `;
                 });
                 html += '</div>';
+                html += totalTimeSpanHtml;
                 entriesList.innerHTML = html;
             } catch (error) {
                 console.error('Error loading timeline entries:', error);
