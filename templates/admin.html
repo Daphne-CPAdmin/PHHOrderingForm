@@ -1684,7 +1684,7 @@
                                             <span style="font-weight: 600; color: var(--text-primary); font-size: 0.95rem;">${entry.date}</span>
                                             ${entry.time ? `<span style="color: var(--text-secondary); font-size: 0.9rem;">• ${entry.time}</span>` : ''}
                                         </div>
-                                        ${entry.details ? `<div style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.6; white-space: pre-wrap; margin-top: 0.5rem;">${escapeHtml(entry.details)}</div>` : ''}
+                                        <div style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.6; white-space: pre-wrap; margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid rgba(0,0,0,0.05);">${entry.details ? escapeHtml(entry.details) : '<em style="color: #9ca3af;">No details provided</em>'}</div>
                                     </div>
                                     <div style="display: flex; gap: 0.5rem; align-items: start; flex-shrink: 0;">
                                         <button onclick="openTimelineEditModal('${escapeJS(entry.id)}')" style="padding: 0.25rem 0.5rem; background: #fbbf24; color: #111827; border: none; border-radius: 4px; cursor: pointer; font-size: 0.75rem; font-weight: 700; white-space: nowrap;">✏️ Edit</button>
