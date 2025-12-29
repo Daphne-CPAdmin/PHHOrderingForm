@@ -3016,18 +3016,15 @@ def api_get_theme():
 _timeline_entries = []
 
 def _fetch_timeline_entries(tab_name=None):
-    """Internal function to fetch timeline entries from sheets - tab-specific"""
+    """Internal function to fetch timeline entries from sheets - filter by PepHaul Number"""
     global _timeline_entries
     entries = []
     
     if not tab_name:
         tab_name = get_current_pephaul_tab()
     
-    # Extract tab number from tab name (e.g., "PepHaul Entry-01" -> "01")
+    # Use single "Timeline" tab with PepHaul Number column
     timeline_tab_name = 'Timeline'
-    if '-' in tab_name:
-        tab_num = tab_name.split('-')[-1]
-        timeline_tab_name = f'Timeline-{tab_num}'
     
     if sheets_client:
         try:
@@ -3036,19 +3033,22 @@ def _fetch_timeline_entries(tab_name=None):
             try:
                 worksheet = spreadsheet.worksheet(timeline_tab_name)
             except:
-                # Create Timeline sheet if doesn't exist
+                # Create Timeline sheet if doesn't exist with new column structure
                 worksheet = spreadsheet.add_worksheet(title=timeline_tab_name, rows=100, cols=5)
-                worksheet.update('A1:D1', [['ID', 'Date', 'Time', 'Details']])
+                worksheet.update('A1:E1', [['ID', 'PepHaul Number', 'Date', 'Time', 'Details of Transaction']])
                 return []
             
             records = worksheet.get_all_records()
             for record in records:
-                if record.get('ID') and record.get('Date'):
+                # Filter by current PepHaul tab (match PepHaul Number column)
+                pephaul_number = record.get('PepHaul Number', '').strip()
+                if pephaul_number == tab_name and record.get('ID') and record.get('Date'):
                     entries.append({
                         'id': str(record.get('ID', '')),
+                        'pephaul_number': pephaul_number,
                         'date': record.get('Date', ''),
                         'time': record.get('Time', ''),
-                        'details': record.get('Details', '')
+                        'details': record.get('Details of Transaction', '')
                     })
         except Exception as e:
             print(f"Error getting timeline entries: {e}")
@@ -3064,17 +3064,14 @@ def get_timeline_entries(tab_name=None):
     return get_cached(cache_key, lambda: _fetch_timeline_entries(tab_name), cache_duration=300)  # 5 minutes
 
 def add_timeline_entry(date, time, details, tab_name=None):
-    """Add timeline entry to sheets - tab-specific"""
+    """Add timeline entry to sheets - single Timeline tab with PepHaul Number"""
     import uuid
     
     if not tab_name:
         tab_name = get_current_pephaul_tab()
     
-    # Extract tab number from tab name (e.g., "PepHaul Entry-01" -> "01")
+    # Use single "Timeline" tab
     timeline_tab_name = 'Timeline'
-    if '-' in tab_name:
-        tab_num = tab_name.split('-')[-1]
-        timeline_tab_name = f'Timeline-{tab_num}'
     
     entry_id = str(uuid.uuid4())[:8]
     
@@ -3085,12 +3082,13 @@ def add_timeline_entry(date, time, details, tab_name=None):
             try:
                 worksheet = spreadsheet.worksheet(timeline_tab_name)
             except:
+                # Create Timeline sheet if doesn't exist with new column structure
                 worksheet = spreadsheet.add_worksheet(title=timeline_tab_name, rows=100, cols=5)
-                worksheet.update('A1:D1', [['ID', 'Date', 'Time', 'Details']])
+                worksheet.update('A1:E1', [['ID', 'PepHaul Number', 'Date', 'Time', 'Details of Transaction']])
             
-            # Append new row
+            # Append new row with PepHaul Number
             next_row = len(worksheet.get_all_values()) + 1
-            worksheet.update(f'A{next_row}:D{next_row}', [[entry_id, date, time, details]])
+            worksheet.update(f'A{next_row}:E{next_row}', [[entry_id, tab_name, date, time, details]])
             
             # Clear cache for this tab
             cache_key = f'timeline_entries_{tab_name}'
@@ -3106,15 +3104,12 @@ def add_timeline_entry(date, time, details, tab_name=None):
     return False
 
 def delete_timeline_entry(entry_id, tab_name=None):
-    """Delete timeline entry from sheets - tab-specific"""
+    """Delete timeline entry from sheets - single Timeline tab"""
     if not tab_name:
         tab_name = get_current_pephaul_tab()
     
-    # Extract tab number from tab name (e.g., "PepHaul Entry-01" -> "01")
+    # Use single "Timeline" tab
     timeline_tab_name = 'Timeline'
-    if '-' in tab_name:
-        tab_num = tab_name.split('-')[-1]
-        timeline_tab_name = f'Timeline-{tab_num}'
     
     if sheets_client:
         try:
@@ -3139,15 +3134,12 @@ def delete_timeline_entry(entry_id, tab_name=None):
 
 
 def update_timeline_entry(entry_id, date, time, details, tab_name=None):
-    """Update a timeline entry in sheets - tab-specific"""
+    """Update a timeline entry in sheets - single Timeline tab"""
     if not tab_name:
         tab_name = get_current_pephaul_tab()
     
-    # Extract tab number from tab name (e.g., "PepHaul Entry-01" -> "01")
+    # Use single "Timeline" tab
     timeline_tab_name = 'Timeline'
-    if '-' in tab_name:
-        tab_num = tab_name.split('-')[-1]
-        timeline_tab_name = f'Timeline-{tab_num}'
     
     if sheets_client:
         try:
@@ -3168,7 +3160,9 @@ def update_timeline_entry(entry_id, date, time, details, tab_name=None):
             if not target_row:
                 return False
 
-            worksheet.update(f'B{target_row}:D{target_row}', [[date, time, details]])
+            # Update columns C, D, E (Date, Time, Details of Transaction)
+            # Column B (PepHaul Number) stays the same
+            worksheet.update(f'C{target_row}:E{target_row}', [[date, time, details]])
             # Clear cache for this tab
             cache_key = f'timeline_entries_{tab_name}'
             clear_cache(cache_key)

@@ -3001,6 +3001,11 @@
             const bulkActions = document.getElementById('bulk-actions');
             const selectedCount = document.getElementById('selected-count');
             
+            // Add null checks to prevent errors
+            if (!bulkActions || !selectedCount) {
+                return;
+            }
+            
             if (checkboxes.length > 0) {
                 bulkActions.style.display = 'block';
                 selectedCount.textContent = checkboxes.length;
