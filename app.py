@@ -1842,17 +1842,28 @@ def upload_to_drive(file_data, filename, order_id):
     return None
 
 def _fetch_inventory_stats():
-    """Internal function to fetch and calculate inventory statistics"""
+    """Internal function to fetch and calculate inventory statistics - supplier-aware"""
     try:
         orders = get_orders_from_sheets()
         if not orders:
             orders = []
         
+        # Use (product_code, supplier) as key to track inventory per supplier
         product_stats = defaultdict(lambda: {'total_vials': 0, 'kit_orders': 0, 'vial_orders': 0})
         
-        # Build product lookup for vials_per_kit
+        # Build product lookup for vials_per_kit and supplier
         products = get_products()
         product_vials_map = {p['code']: p.get('vials_per_kit', VIALS_PER_KIT) for p in products}
+        
+        # Build map of product_code -> supplier for products (for inferring supplier if missing)
+        code_to_supplier_map = {}
+        code_to_suppliers_map = defaultdict(set)
+        for p in products:
+            code = p['code']
+            supplier = p.get('supplier', 'Default')
+            code_to_suppliers_map[code].add(supplier)
+            if code not in code_to_supplier_map:
+                code_to_supplier_map[code] = supplier
         
         for order in orders:
             if order.get('Order Status') == 'Cancelled':
@@ -1861,7 +1872,19 @@ def _fetch_inventory_stats():
             product_code = order.get('Product Code', '')
             if not product_code:
                 continue
-                
+            
+            # Get supplier from order (column E) or infer from products
+            order_supplier = order.get('Supplier', '') or order.get('supplier', '')
+            if not order_supplier:
+                # Infer supplier: if code is unique to one supplier, use it
+                if product_code in code_to_supplier_map:
+                    order_supplier = code_to_supplier_map[product_code]
+                elif product_code in code_to_suppliers_map:
+                    # If code exists in multiple suppliers, default to first one (usually WWB)
+                    order_supplier = sorted(code_to_suppliers_map[product_code])[0]
+                else:
+                    order_supplier = 'Default'
+            
             order_type = order.get('Order Type', 'Vial')
             qty = int(order.get('QTY', 0) or 0)
             # Skip items with 0 quantity for inventory calculations
@@ -1869,18 +1892,21 @@ def _fetch_inventory_stats():
                 continue
             vials_per_kit = product_vials_map.get(product_code, VIALS_PER_KIT)
             
+            # Use (product_code, supplier) as key
+            key = (product_code, order_supplier)
+            
             if order_type == 'Kit':
-                product_stats[product_code]['total_vials'] += qty * vials_per_kit
-                product_stats[product_code]['kit_orders'] += qty
+                product_stats[key]['total_vials'] += qty * vials_per_kit
+                product_stats[key]['kit_orders'] += qty
             else:
-                product_stats[product_code]['total_vials'] += qty
-                product_stats[product_code]['vial_orders'] += qty
+                product_stats[key]['total_vials'] += qty
+                product_stats[key]['vial_orders'] += qty
         
-        # Get product locks
+        # Get product locks (still keyed by product_code only for backward compatibility)
         locks = get_product_locks()
         
         inventory = {}
-        for product_code, stats in product_stats.items():
+        for (product_code, supplier), stats in product_stats.items():
             vials_per_kit = product_vials_map.get(product_code, VIALS_PER_KIT)
             total_vials = stats['total_vials']
             kits_generated = total_vials // vials_per_kit
@@ -1891,14 +1917,16 @@ def _fetch_inventory_stats():
             max_kits = lock_info.get('max_kits', MAX_KITS_DEFAULT)
             is_locked = lock_info.get('is_locked', False) or kits_generated >= max_kits
             
-            inventory[product_code] = {
+            # Store inventory keyed by (product_code, supplier)
+            inventory[(product_code, supplier)] = {
                 'total_vials': total_vials,
                 'kits_generated': kits_generated,
                 'remaining_vials': remaining_vials,
                 'slots_to_next_kit': slots_to_next_kit,
                 'vials_per_kit': vials_per_kit,
                 'max_kits': max_kits,
-                'is_locked': is_locked
+                'is_locked': is_locked,
+                'supplier': supplier
             }
         
         return inventory
@@ -2416,7 +2444,10 @@ def index():
         # Filter products with orders for the summary section
         products_with_orders = []
         for product in products:
-            stats = inventory.get(product['code'], {
+            product_code = product['code']
+            supplier = product.get('supplier', 'Default')
+            # Look up inventory using (product_code, supplier) key
+            stats = inventory.get((product_code, supplier), {
                 'total_vials': 0, 'kits_generated': 0, 'remaining_vials': 0,
                 'slots_to_next_kit': VIALS_PER_KIT, 'max_kits': MAX_KITS_DEFAULT, 'is_locked': False,
                 'vials_per_kit': VIALS_PER_KIT
@@ -2831,7 +2862,9 @@ def api_admin_products():
     
     for product in products:
         code = product['code']
-        inv = inventory.get(code, {'kits_generated': 0, 'total_vials': 0})
+        supplier = product.get('supplier', 'Default')
+        # Look up inventory using (product_code, supplier) key
+        inv = inventory.get((code, supplier), {'kits_generated': 0, 'total_vials': 0})
         lock = locks.get(code, {'max_kits': MAX_KITS_DEFAULT, 'is_locked': False})
         
         product['kits_generated'] = inv.get('kits_generated', 0)
@@ -3271,8 +3304,11 @@ def api_products():
     print(f"📦 Got {len(products)} products from get_products()")
     inventory = get_inventory_stats()
     for product in products:
+        product_code = product['code']
+        supplier = product.get('supplier', 'Default')
         vials_per_kit = product.get('vials_per_kit', VIALS_PER_KIT)
-        product['inventory'] = inventory.get(product['code'], {
+        # Look up inventory using (product_code, supplier) key
+        product['inventory'] = inventory.get((product_code, supplier), {
             'total_vials': 0, 'kits_generated': 0, 'remaining_vials': 0,
             'slots_to_next_kit': vials_per_kit, 'vials_per_kit': vials_per_kit, 'is_locked': False
         })
@@ -3668,7 +3704,10 @@ def api_submit_order():
             inventory = get_inventory_stats()
             for item in data.get('items', []):
                 code = item.get('product_code')
-                if inventory.get(code, {}).get('is_locked'):
+                supplier = item.get('supplier') or data.get('supplier') or 'Default'
+                # Look up inventory using (product_code, supplier) key
+                inv_entry = inventory.get((code, supplier), {})
+                if inv_entry.get('is_locked'):
                     return jsonify({
                         'success': False,
                         'error': f'Product {code} is currently locked and cannot be ordered'
