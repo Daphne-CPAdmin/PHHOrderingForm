@@ -3338,6 +3338,9 @@
             // Save updated cart items with corrected prices
             saveCart();
             updateSubmitButtonText();
+            
+            // Apply supplier filter to show/hide supplier carts based on current filter
+            applySupplierFilterToPage();
         }
         
         function updateSupplierCart(supplier, paidOrder) {
