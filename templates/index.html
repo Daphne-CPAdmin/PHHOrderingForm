@@ -3588,6 +3588,10 @@
                     items.innerHTML = itemsHTML;
                     console.log(`[updateSupplierCart] Items innerHTML set for supplier: ${supplier}, items element:`, items);
                     console.log(`[updateSupplierCart] Items element children count after innerHTML:`, items.children.length);
+                    console.log(`[updateSupplierCart] Items element offsetHeight: ${items.offsetHeight}, offsetWidth: ${items.offsetWidth}`);
+                    console.log(`[updateSupplierCart] Items element computed display:`, window.getComputedStyle(items).display);
+                    console.log(`[updateSupplierCart] Items element computed visibility:`, window.getComputedStyle(items).visibility);
+                    console.log(`[updateSupplierCart] Items element computed opacity:`, window.getComputedStyle(items).opacity);
                     
                     // Remove any existing listeners by cloning and replacing
                     const clonedItems = items.cloneNode(true);
