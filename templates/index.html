@@ -3362,13 +3362,21 @@
             const empty = cartSection.querySelector(`.cart-empty[data-supplier="${supplier}"]`);
             // Get the regular cart-items element (not the new-order-items)
             let items = cartSection.querySelector(`.cart-items[data-supplier="${supplier}"]:not(.new-order-items)`);
-            // Get the main cart-summary (not the one inside new-order-section)
+            // Get the main cart-summary (not paid-order-summary or new-order-summary, and prefer one with content)
             const allSummaries = cartSection.querySelectorAll(`.cart-summary[data-supplier="${supplier}"]`);
             console.log(`[updateSupplierCart] Found ${allSummaries.length} cart-summary elements for ${supplier}`);
             allSummaries.forEach((el, idx) => {
                 console.log(`[updateSupplierCart] Summary ${idx}: classList=${Array.from(el.classList).join(', ')}, innerHTML length=${el.innerHTML.length}, offsetHeight=${el.offsetHeight}`);
             });
-            const summary = Array.from(allSummaries).find(el => !el.classList.contains('new-order-summary'));
+            // Exclude both paid-order-summary and new-order-summary, prefer one with content
+            const summary = Array.from(allSummaries).find(el => 
+                !el.classList.contains('new-order-summary') && 
+                !el.classList.contains('paid-order-summary') &&
+                el.innerHTML.length > 0
+            ) || Array.from(allSummaries).find(el => 
+                !el.classList.contains('new-order-summary') && 
+                !el.classList.contains('paid-order-summary')
+            );
             console.log(`[updateSupplierCart] Selected summary element:`, summary);
             console.log(`[updateSupplierCart] Selected summary innerHTML length:`, summary?.innerHTML.length);
             const submitBtn = cartSection.querySelector(`.submit-order[data-supplier="${supplier}"]`);
@@ -4659,6 +4667,32 @@
             
             let html = '';
             
+            // Helper function to calculate tiered admin fee based on items
+            function calculateTieredAdminFee(items) {
+                let totalVials = 0;
+                const productsCache = window._productsCache || window.products || [];
+                
+                items.forEach(item => {
+                    const productCode = item.product_code;
+                    const orderType = item.order_type || 'Vial';
+                    const qty = parseFloat(item.qty) || 0;
+                    
+                    if (qty <= 0) return;
+                    
+                    const product = productsCache.find(p => p.code === productCode);
+                    const vialsPerKit = product?.vials_per_kit || VIALS_PER_KIT || 10;
+                    
+                    if (orderType === 'Kit') {
+                        totalVials += qty * vialsPerKit;
+                    } else {
+                        totalVials += qty;
+                    }
+                });
+                
+                // Tiered admin fee: ₱300 for every 50 vials (or part thereof)
+                return totalVials > 0 ? Math.ceil(totalVials / 50) * 300 : 0;
+            }
+            
             // Paid Orders Section (Locked with Admin Fee)
             if (paidOrders.length > 0) {
                 html += '<div style="margin-bottom: 2rem;">';
@@ -4671,9 +4705,10 @@
                     const items = order.items || [];
                     const itemsPreview = items.map(i => `${i.product_name || i.product_code} (${i.order_type || 'Vial'} x${i.qty || 0})`).join(', ');
                     
-                    // Calculate subtotal and admin fee for display
+                    // Calculate subtotal and tiered admin fee for display
                     const itemsTotal = items.reduce((sum, i) => sum + (i.line_total_php || 0), 0);
-                    const adminFee = (order.grand_total_php || 0) - itemsTotal;
+                    const adminFee = calculateTieredAdminFee(items);
+                    const grandTotal = itemsTotal + adminFee;
                     
                     // Check if shipping details exist (mailing_address in column W)
                     const hasShippingDetails = order.mailing_address && order.mailing_address.trim() !== '';
@@ -4690,7 +4725,7 @@
                                     <div style="font-size: 0.85rem; color: var(--text-muted);">${order.order_date}</div>
                                 </div>
                                 <div style="text-align: right;">
-                                    <div style="font-family: 'JetBrains Mono', monospace; font-size: 1.25rem; font-weight: 700; color: var(--accent-emerald); margin-bottom: 0.35rem;">₱${order.grand_total_php.toLocaleString('en-PH', {minimumFractionDigits: 2})}</div>
+                                    <div style="font-family: 'JetBrains Mono', monospace; font-size: 1.25rem; font-weight: 700; color: var(--accent-emerald); margin-bottom: 0.35rem;">₱${grandTotal.toLocaleString('en-PH', {minimumFractionDigits: 2})}</div>
                                     <div style="display: inline-block; padding: 0.35rem 0.85rem; border-radius: 20px; font-size: 0.75rem; font-weight: 700; background: rgba(16, 185, 129, 0.2); color: #065f46;">✅ PAID 🔒</div>
                                 </div>
                             </div>
@@ -4707,7 +4742,7 @@
                                 </div>
                                 <div style="display: flex; justify-content: space-between; font-weight: 700; color: var(--accent-emerald); margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid rgba(16, 185, 129, 0.2);">
                                     <span>Total:</span>
-                                    <span>₱${order.grand_total_php.toLocaleString('en-PH', {minimumFractionDigits: 2})}</span>
+                                    <span>₱${grandTotal.toLocaleString('en-PH', {minimumFractionDigits: 2})}</span>
                                 </div>
                             </div>
                             ${!hasShippingDetails ? `
@@ -4765,9 +4800,10 @@
                     const items = order.items || [];
                     const itemsPreview = items.map(i => `${i.product_name || i.product_code} (${i.order_type || 'Vial'} x${i.qty || 0})`).join(', ');
                     
-                    // Calculate subtotal and admin fee for display
+                    // Calculate subtotal and tiered admin fee for display
                     const itemsTotal = items.reduce((sum, i) => sum + (i.line_total_php || 0), 0);
-                    const adminFee = (order.grand_total_php || 0) - itemsTotal;
+                    const adminFee = calculateTieredAdminFee(items);
+                    const grandTotal = itemsTotal + adminFee;
                     
                     html += `
                         <div class="card" style="padding: 1.5rem; border: 2px solid var(--accent-amber); background: rgba(245, 158, 11, 0.05); margin-bottom: 1rem;">
@@ -4777,7 +4813,7 @@
                                     <div style="font-size: 0.85rem; color: var(--text-muted);">${order.order_date}</div>
                                 </div>
                                 <div style="text-align: right;">
-                                    <div style="font-family: 'JetBrains Mono', monospace; font-size: 1.25rem; font-weight: 700; color: var(--accent-amber); margin-bottom: 0.35rem;">₱${order.grand_total_php.toLocaleString('en-PH', {minimumFractionDigits: 2})}</div>
+                                    <div style="font-family: 'JetBrains Mono', monospace; font-size: 1.25rem; font-weight: 700; color: var(--accent-amber); margin-bottom: 0.35rem;">₱${grandTotal.toLocaleString('en-PH', {minimumFractionDigits: 2})}</div>
                                     <div style="display: inline-block; padding: 0.35rem 0.85rem; border-radius: 20px; font-size: 0.75rem; font-weight: 700; background: rgba(245, 158, 11, 0.2); color: #92400e;">⏳ UNPAID</div>
                                 </div>
                             </div>
@@ -4795,7 +4831,7 @@
                                     </div>
                                     <div style="display: flex; justify-content: space-between; font-weight: 700; color: var(--accent-amber); margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid rgba(245, 158, 11, 0.2);">
                                         <span>Total:</span>
-                                        <span>₱${order.grand_total_php.toLocaleString('en-PH', {minimumFractionDigits: 2})}</span>
+                                        <span>₱${grandTotal.toLocaleString('en-PH', {minimumFractionDigits: 2})}</span>
                                     </div>
                                 </div>
                             </div>
