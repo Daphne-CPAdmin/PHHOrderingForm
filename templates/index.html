@@ -3483,8 +3483,14 @@
             
             // Show cart if there are items (existing or new) - always show when items exist
             if (supplierCartItems.length > 0) {
+                console.log(`[updateSupplierCart] Displaying cart for supplier: ${supplier}, ${supplierCartItems.length} items`);
                 if (empty) empty.style.display = 'none';
-                if (items) items.style.display = 'block';
+                if (items) {
+                    items.style.display = 'block';
+                    console.log(`[updateSupplierCart] Items element found and set to display: block for supplier: ${supplier}`);
+                } else {
+                    console.error(`[updateSupplierCart] Items element NOT FOUND for supplier: ${supplier}`);
+                }
                 if (summary) summary.style.display = 'block';
                 if (submitBtn) submitBtn.disabled = supplierCartItems.length === 0;
                 
@@ -3494,7 +3500,8 @@
                 
                 // Display all items together with + - X buttons (filtered by supplier)
                 if (items) {
-                    items.innerHTML = supplierCartItems.map((item, i) => {
+                    console.log(`[updateSupplierCart] Rendering ${supplierCartItems.length} items for supplier: ${supplier}`, supplierCartItems);
+                    const itemsHTML = supplierCartItems.map((item, i) => {
                         const itemIndex = cartItems.indexOf(item);
                         const isExisting = item.isExisting === true;
                         const hasChanged = item.originalQty !== undefined && item.qty !== item.originalQty;
@@ -3529,11 +3536,15 @@
                         `;
                     }).join('');
                     
-                    // Attach event listeners using event delegation
-                    const clonedItems = items.cloneNode(true);
-                    items.parentNode.replaceChild(clonedItems, items);
+                    console.log(`[updateSupplierCart] Generated HTML for ${supplierCartItems.length} items, HTML length: ${itemsHTML.length} characters`);
                     
-                    clonedItems.addEventListener('click', function(e) {
+                    // Set innerHTML first
+                    items.innerHTML = itemsHTML;
+                    console.log(`[updateSupplierCart] Items innerHTML set for supplier: ${supplier}, items element:`, items);
+                    console.log(`[updateSupplierCart] Items element children count after innerHTML:`, items.children.length);
+                    
+                    // Attach event listeners using event delegation (attach to original, not clone)
+                    items.addEventListener('click', function(e) {
                         try {
                             const btn = e.target.closest('.qty-btn-minus, .qty-btn-plus');
                             if (btn) {
