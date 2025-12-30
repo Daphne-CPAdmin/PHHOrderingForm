@@ -1958,10 +1958,12 @@
 
                     <button type="button" class="btn btn-primary btn-full" style="margin-top: 1.5rem;" id="add-to-cart">Add to Order</button>
                 </div>
-            </div>
+                </div>
 
+                <!-- Order Summary Section - Right Half -->
+                <div style="flex: 1; min-width: 0;">
             <!-- Cart - One per Supplier - Side by Side -->
-            <div class="supplier-carts-grid" style="margin-top: 15rem;">
+            <div class="supplier-carts-grid" style="margin-top: 0;">
                 {% for supplier in suppliers %}
                 <div class="card supplier-cart" data-supplier="{{ supplier }}">
                     <h2 class="card-title"><span class="icon">🛒</span> Order Summary - {{ supplier }}</h2>
