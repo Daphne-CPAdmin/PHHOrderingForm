@@ -1994,22 +1994,22 @@
 
                     <div class="cart-items" data-supplier="{{ supplier }}" style="display: none;"></div>
 
-                    <div class="cart-summary" data-supplier="{{ supplier }}" style="display: none;">
-                        <div class="summary-row">
-                            <span class="summary-label">Subtotal (USD)</span>
-                            <span class="summary-value summary-usd" data-supplier="{{ supplier }}">$0.00</span>
+                    <div class="cart-summary" data-supplier="{{ supplier }}" style="display: none; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border);">
+                        <div class="summary-row" style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                            <span class="summary-label" style="color: var(--text-secondary);">Subtotal (USD)</span>
+                            <span class="summary-value summary-usd" data-supplier="{{ supplier }}" style="font-weight: 600;">$0.00</span>
                         </div>
-                        <div class="summary-row">
-                            <span class="summary-label">Subtotal (PHP)</span>
-                            <span class="summary-value summary-php" data-supplier="{{ supplier }}">₱0.00</span>
+                        <div class="summary-row" style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                            <span class="summary-label" style="color: var(--text-secondary);">Subtotal (PHP)</span>
+                            <span class="summary-value summary-php" data-supplier="{{ supplier }}" style="font-weight: 600;">₱0.00</span>
                         </div>
-                        <div class="summary-row">
-                            <span class="summary-label">Admin Fee</span>
-                            <span class="summary-value">₱{{ "%.2f"|format(admin_fee) }}</span>
+                        <div class="summary-row" style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                            <span class="summary-label" style="color: var(--text-secondary);">Admin Fee</span>
+                            <span class="summary-value" style="font-weight: 600;">₱{{ "%.2f"|format(admin_fee) }}</span>
                         </div>
-                        <div class="summary-row grand-total">
-                            <span class="summary-label">Grand Total</span>
-                            <span class="summary-value grand-total-value" data-supplier="{{ supplier }}">₱0.00</span>
+                        <div class="summary-row grand-total" style="display: flex; justify-content: space-between; margin-top: 0.5rem; padding-top: 0.5rem; border-top: 2px solid var(--accent-amber);">
+                            <span class="summary-label" style="color: var(--accent-amber); font-weight: 700; font-size: 1.1rem;">Grand Total</span>
+                            <span class="summary-value grand-total-value" data-supplier="{{ supplier }}" style="color: var(--accent-amber); font-weight: 700; font-size: 1.1rem;">₱0.00</span>
                         </div>
                     </div>
 
