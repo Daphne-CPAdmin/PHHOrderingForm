@@ -855,7 +855,7 @@
         .btn-full { width: 100%; }
 
         /* Product Dropdown */
-        .product-search-container { position: relative; z-index: 1000; }
+        .product-search-container { position: relative; z-index: 10000; }
         .product-dropdown {
             position: absolute;
             top: 100%;
@@ -866,7 +866,7 @@
             border-radius: 10px;
             max-height: 600px; /* Increased to utilize available space before Products with Active Orders */
             overflow-y: auto;
-            z-index: 1001;
+            z-index: 10001;
             display: none;
             margin-top: 4px;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
@@ -2748,6 +2748,9 @@
                 
                 section.style.display = shouldShow ? 'block' : 'none';
             });
+            
+            // Also filter product dropdown by supplier
+            filterProductDropdownBySupplier();
         }
         
         // Apply filter on page load
@@ -2865,10 +2868,12 @@
         function renderProductDropdown(products) {
             productDropdown.innerHTML = products.map(product => {
                 const isLocked = product.inventory && product.inventory.is_locked;
+                const productSupplier = product.supplier || 'Default';
                 return `
                     <div class="product-option ${isLocked ? 'locked' : ''}"
                          data-code="${product.code}" 
                          data-name="${product.name}" 
+                         data-supplier="${productSupplier}"
                          data-kit="${product.kit_price}" 
                          data-vial="${product.vial_price}"
                          data-vials-per-kit="${product.vials_per_kit || 10}"
@@ -2889,6 +2894,48 @@
                     </div>
                 `;
             }).join('');
+            // Apply supplier filter after rendering
+            filterProductDropdownBySupplier();
+        }
+        
+        function filterProductDropdownBySupplier() {
+            if (!productDropdown) return;
+            
+            // Get current supplier filter
+            const currentFilter = supplierFilter || 'all';
+            
+            // Get current search query
+            const searchQuery = productSearch ? productSearch.value.toLowerCase().trim() : '';
+            
+            // Filter product options by supplier (and search query if present), limit to first 7 matches
+            let visibleCount = 0;
+            const maxVisible = 7;
+            
+            productDropdown.querySelectorAll('.product-option').forEach(option => {
+                const optionSupplier = option.dataset.supplier || 'Default';
+                let supplierMatch = true;
+                
+                // Apply supplier filter
+                if (currentFilter !== 'all') {
+                    supplierMatch = optionSupplier === currentFilter;
+                }
+                
+                // Apply search filter if query exists
+                let searchMatch = true;
+                if (searchQuery) {
+                    const nameMatch = option.dataset.name.toLowerCase().includes(searchQuery) || 
+                                     option.dataset.code.toLowerCase().includes(searchQuery);
+                    searchMatch = nameMatch;
+                }
+                
+                // Show only if both filters match and within limit
+                if (supplierMatch && searchMatch && visibleCount < maxVisible) {
+                    option.style.display = 'block';
+                    visibleCount++;
+                } else {
+                    option.style.display = 'none';
+                }
+            });
         }
 
         function attachProductClickHandlers() {
@@ -2906,9 +2953,11 @@
                     
                     const productVialsPerKit = parseInt(option.dataset.vialsPerKit) || VIALS_PER_KIT;
                     const isLocked = option.dataset.locked === 'true';
+                    const productSupplier = option.dataset.supplier || 'Default';
                     selectedProduct = {
                         code: option.dataset.code,
                         name: option.dataset.name,
+                        supplier: productSupplier,
                         kit_price: parseFloat(option.dataset.kit),
                         vial_price: parseFloat(option.dataset.vial),
                         vials_per_kit: productVialsPerKit,
@@ -2953,12 +3002,10 @@
                 return;
             }
             
-            // Show all products when user focuses on search
+            // Show products when user focuses on search (filtered by supplier)
             if (allProducts.length > 0 && productDropdown) {
                 productDropdown.classList.add('show');
-                productDropdown.querySelectorAll('.product-option').forEach(option => {
-                    option.style.display = 'block';
-                });
+                filterProductDropdownBySupplier();
             }
             });
         }
@@ -2982,15 +3029,37 @@
             // Always show dropdown when there's input or when focused
             productDropdown.classList.add('show');
             
-            // Filter products by name or code
+            // Filter products by name or code AND supplier, limit to first 7 matches
+            const currentFilter = supplierFilter || 'all';
+            let visibleCount = 0;
+            const maxVisible = 7;
+            
             productDropdown.querySelectorAll('.product-option').forEach(option => {
+                const optionSupplier = option.dataset.supplier || 'Default';
+                let supplierMatch = true;
+                
+                // Apply supplier filter
+                if (currentFilter !== 'all') {
+                    supplierMatch = optionSupplier === currentFilter;
+                }
+                
                 if (!query) {
-                    // Show all if empty
-                    option.style.display = 'block';
+                    // Show all matching supplier if empty query (limit to first 7)
+                    if (supplierMatch && visibleCount < maxVisible) {
+                        option.style.display = 'block';
+                        visibleCount++;
+                    } else {
+                        option.style.display = 'none';
+                    }
                 } else {
-                    // Filter by search query
-                    const match = option.dataset.name.toLowerCase().includes(query) || option.dataset.code.toLowerCase().includes(query);
-                    option.style.display = match ? 'block' : 'none';
+                    // Filter by search query AND supplier (limit to first 7 matches)
+                    const nameMatch = option.dataset.name.toLowerCase().includes(query) || option.dataset.code.toLowerCase().includes(query);
+                    if (nameMatch && supplierMatch && visibleCount < maxVisible) {
+                        option.style.display = 'block';
+                        visibleCount++;
+                    } else {
+                        option.style.display = 'none';
+                    }
                 }
             });
             });
@@ -3113,9 +3182,12 @@
             
             const unitPrice = orderType === 'Kit' ? selectedProduct.kit_price : selectedProduct.vial_price;
             
-            // Check if same product_code + order_type already exists in cart - consolidate!
+            // Check if same product_code + order_type + supplier already exists in cart - consolidate!
+            const productSupplier = selectedProduct.supplier || 'Default';
             const existingIndex = cartItems.findIndex(item => 
-                item.product_code === selectedProduct.code && item.order_type === orderType
+                item.product_code === selectedProduct.code && 
+                item.order_type === orderType &&
+                (item.supplier || 'Default') === productSupplier
             );
             
             if (existingIndex !== -1) {
@@ -3139,6 +3211,7 @@
                     product_code: selectedProduct.code,
                     product_name: selectedProduct.name,
                     order_type: orderType,
+                    supplier: productSupplier,
                     qty: qty,
                     unit_price_usd: unitPrice,
                     line_total_usd: unitPrice * qty,
@@ -6179,13 +6252,19 @@
                 if (kitQtyInput) kitQtyInput.value = 0;
                 if (vialQtyInput) vialQtyInput.value = 0;
                 
-                // Scroll to cart (with error handling)
+                // Scroll to cart (with error handling) - scroll to supplier-specific new-order-section
                 try {
-                    const newOrderSection = document.getElementById('new-order');
+                    const newOrderSection = document.querySelector(`.new-order-section[data-supplier="${productSupplier}"]`);
                     if (newOrderSection) {
                         newOrderSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
                     } else {
-                        console.warn('new-order section not found for scrolling');
+                        // Fallback: scroll to supplier cart section
+                        const supplierCart = document.querySelector(`.supplier-cart[data-supplier="${productSupplier}"]`);
+                        if (supplierCart) {
+                            supplierCart.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        } else {
+                            console.warn(`new-order section not found for supplier: ${productSupplier}`);
+                        }
                     }
                 } catch (error) {
                     console.error('Error scrolling to cart:', error);
