@@ -1990,13 +1990,17 @@ def _fetch_products_from_sheets():
             if kit_price == 0 and vial_price == 0:
                 continue
             
+            # Normalize supplier and code (strip whitespace, ensure consistent format)
+            normalized_supplier = str(supplier).strip() if supplier else 'Default'
+            normalized_code = code.strip() if code else ''
+            
             products.append({
-                'code': code,
+                'code': normalized_code,
                 'name': name,
                 'kit_price': kit_price,
                 'vial_price': vial_price,
                 'vials_per_kit': vials_per_kit,
-                'supplier': supplier.strip() if supplier else 'Default'
+                'supplier': normalized_supplier
             })
         
         print(f"✅ Successfully loaded {len(products)} products from Google Sheets")
@@ -3816,25 +3820,40 @@ def api_submit_order():
         
         for key, item in consolidated.items():
             # Validate item has product_code
-            product_code = item.get('product_code')
-            if not product_code:
+            product_code_raw = item.get('product_code')
+            if not product_code_raw:
                 print(f"❌ Item missing product_code: {item}")
                 return jsonify({
                     'success': False,
                     'error': f'Item is missing product_code. Item data: {item}'
                 }), 400
             
-            # Match product by code AND supplier
-            # Supplier should always be set (defaults to 'Default' if not provided)
-            supplier = item.get('supplier', 'Default')
-            print(f"🔍 Looking for product: code={product_code}, supplier={supplier}")
+            # Normalize product_code and supplier for comparison (strip whitespace, handle case)
+            product_code = str(product_code_raw).strip()
+            supplier = str(item.get('supplier', 'Default')).strip()
+            print(f"🔍 Looking for product: code='{product_code}', supplier='{supplier}'")
+            print(f"   Total products available: {len(products)}")
             
-            # Try to find product with matching code AND supplier
-            product = next((p for p in products if p['code'] == product_code and p.get('supplier', 'Default') == supplier), None)
+            # Try to find product with matching code AND supplier (case-insensitive, trimmed)
+            product = None
+            for p in products:
+                p_code = str(p.get('code', '')).strip()
+                p_supplier = str(p.get('supplier', 'Default')).strip()
+                if p_code == product_code and p_supplier.lower() == supplier.lower():
+                    product = p
+                    print(f"✅ Found product: {p.get('name')} (code: {p_code}, supplier: {p_supplier})")
+                    break
+            
             # Fallback: if not found, try without supplier match (for backward compatibility)
             if not product:
-                print(f"⚠️ Product {product_code} not found with supplier {supplier}, trying without supplier match")
-                product = next((p for p in products if p['code'] == product_code), None)
+                print(f"⚠️ Product '{product_code}' not found with supplier '{supplier}', trying without supplier match")
+                # Show available products with this code for debugging
+                matching_codes = [p for p in products if str(p.get('code', '')).strip() == product_code]
+                if matching_codes:
+                    print(f"   Found {len(matching_codes)} product(s) with code '{product_code}':")
+                    for p in matching_codes:
+                        print(f"     - {p.get('name')} (supplier: {p.get('supplier', 'Default')})")
+                product = next((p for p in products if str(p.get('code', '')).strip() == product_code), None)
             
             if not product:
                 print(f"❌ Product {product_code} not found in products list")
