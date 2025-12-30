@@ -3430,7 +3430,25 @@
                     paidTotalUsd += parseFloat(item.line_total_usd || 0);
                     paidTotalPhp += parseFloat(item.line_total_php || 0);
                 });
-                const paidGrandTotal = paidTotalPhp + (paidOrder.admin_fee_php || ADMIN_FEE);
+                
+                // Calculate tiered admin fee for paid order
+                let paidTotalVials = 0;
+                const productsCache = window._productsCache || window.products || [];
+                paidOrderItemsList.forEach(item => {
+                    const productCode = item.product_code;
+                    const orderType = item.order_type || 'Vial';
+                    const qty = parseFloat(item.qty) || 0;
+                    if (qty <= 0) return;
+                    const product = productsCache.find(p => p.code === productCode);
+                    const vialsPerKit = product?.vials_per_kit || VIALS_PER_KIT || 10;
+                    if (orderType === 'Kit') {
+                        paidTotalVials += qty * vialsPerKit;
+                    } else {
+                        paidTotalVials += qty;
+                    }
+                });
+                const paidAdminFee = paidTotalVials > 0 ? Math.ceil(paidTotalVials / 50) * 300 : 0;
+                const paidGrandTotal = paidTotalPhp + paidAdminFee;
                 
                 // Display paid order summary
                 if (paidOrderSummary) {
@@ -3441,7 +3459,7 @@
                         </div>
                         <div class="summary-row">
                             <span class="summary-label">Admin Fee</span>
-                            <span class="summary-value">₱${(paidOrder.admin_fee_php || ADMIN_FEE).toFixed(2)}</span>
+                            <span class="summary-value">₱${paidAdminFee.toFixed(2)}</span>
                         </div>
                         <div class="summary-row grand-total" style="border-top: 2px solid var(--accent-emerald); margin-top: 0.5rem; padding-top: 0.5rem;">
                             <span class="summary-label" style="color: var(--accent-emerald); font-weight: 700;">Grand Total</span>
@@ -3503,7 +3521,25 @@
                     newTotalUsd += itemUsd;
                     newTotalPhp += itemPhp;
                 });
-                const newGrandTotal = newTotalPhp + ADMIN_FEE;
+                
+                // Calculate tiered admin fee for new order items
+                let newTotalVials = 0;
+                const productsCache = window._productsCache || window.products || [];
+                newOrderItemsList.forEach(item => {
+                    const productCode = item.product_code;
+                    const orderType = item.order_type || 'Vial';
+                    const qty = parseFloat(item.qty) || 0;
+                    if (qty <= 0) return;
+                    const product = productsCache.find(p => p.code === productCode);
+                    const vialsPerKit = product?.vials_per_kit || VIALS_PER_KIT || 10;
+                    if (orderType === 'Kit') {
+                        newTotalVials += qty * vialsPerKit;
+                    } else {
+                        newTotalVials += qty;
+                    }
+                });
+                const newAdminFee = newTotalVials > 0 ? Math.ceil(newTotalVials / 50) * 300 : 0;
+                const newGrandTotal = newTotalPhp + newAdminFee;
                 
                 // Display new order summary
                 if (newOrderSummary) {
@@ -3519,7 +3555,7 @@
                         </div>
                         <div class="summary-row">
                             <span class="summary-label">Admin Fee</span>
-                            <span class="summary-value">₱${ADMIN_FEE.toFixed(2)}</span>
+                            <span class="summary-value">₱${newAdminFee.toFixed(2)}</span>
                         </div>
                         <div class="summary-row grand-total" style="border-top: 2px solid var(--accent-amber); margin-top: 0.5rem; padding-top: 0.5rem;">
                             <span class="summary-label" style="color: var(--accent-amber); font-weight: 700;">Grand Total</span>
@@ -5163,7 +5199,25 @@
             // Calculate totals
             const items = order.items || [];
             const subtotalPhp = items.reduce((sum, item) => sum + (parseFloat(item.line_total_php) || 0), 0);
-            const grandTotalPhp = order.grand_total_php || (subtotalPhp + ADMIN_FEE);
+            
+            // Calculate tiered admin fee for this order
+            let totalVials = 0;
+            const productsCache = window._productsCache || window.products || [];
+            items.forEach(item => {
+                const productCode = item.product_code;
+                const orderType = item.order_type || 'Vial';
+                const qty = parseFloat(item.qty) || 0;
+                if (qty <= 0) return;
+                const product = productsCache.find(p => p.code === productCode);
+                const vialsPerKit = product?.vials_per_kit || VIALS_PER_KIT || 10;
+                if (orderType === 'Kit') {
+                    totalVials += qty * vialsPerKit;
+                } else {
+                    totalVials += qty;
+                }
+            });
+            const adminFee = totalVials > 0 ? Math.ceil(totalVials / 50) * 300 : 0;
+            const grandTotalPhp = subtotalPhp + adminFee;
             
             // Populate order summary
             summaryEl.innerHTML = `
@@ -5178,7 +5232,7 @@
                     </div>
                     <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
                         <span style="color: var(--text-secondary); font-size: 0.9rem;">Admin Fee:</span>
-                        <span style="font-weight: 600;">₱${ADMIN_FEE.toFixed(2)}</span>
+                        <span style="font-weight: 600;">₱${adminFee.toFixed(2)}</span>
                     </div>
                     <div style="display: flex; justify-content: space-between; font-size: 1.1rem; font-weight: 700; color: var(--accent-primary); margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--border);">
                         <span>Grand Total:</span>
