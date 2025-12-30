@@ -2032,6 +2032,10 @@
                             </div>
                         </div>
                         <div class="summary-row" style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                            <span class="summary-label" style="color: var(--text-secondary);">📦 Total Vials</span>
+                            <span class="summary-value total-vials-count" data-supplier="{{ supplier }}" style="font-weight: 600; color: var(--text-primary);">0</span>
+                        </div>
+                        <div class="summary-row" style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
                             <span class="summary-label" style="color: var(--text-secondary);">Subtotal (USD)</span>
                             <span class="summary-value summary-usd" data-supplier="{{ supplier }}" style="font-weight: 600;">$0.00</span>
                         </div>
@@ -3749,15 +3753,21 @@
                 // Update kits/vials summary displays for this supplier
                 const completeKitsEl = cartSection.querySelector(`.complete-kits-count[data-supplier="${supplier}"]`);
                 const incompleteVialsEl = cartSection.querySelector(`.incomplete-vials-count[data-supplier="${supplier}"]`);
+                const totalVialsEl = cartSection.querySelector(`.total-vials-count[data-supplier="${supplier}"]`);
                 
                 if (completeKitsEl) completeKitsEl.textContent = `${totalCompleteKits} kit${totalCompleteKits !== 1 ? 's' : ''}`;
                 if (incompleteVialsEl) incompleteVialsEl.textContent = `${totalIncompleteVials} vial${totalIncompleteVials !== 1 ? 's' : ''}`;
+                if (totalVialsEl) totalVialsEl.textContent = `${totalVials} vial${totalVials !== 1 ? 's' : ''}`;
+                
+                console.log(`[updateSupplierCart] Calculations for ${supplier}: totalVials=${totalVials}, adminFee=₱${adminFee.toFixed(2)}, totalPhp=₱${totalPhp.toFixed(2)}, grandTotal=₱${grandTotal.toFixed(2)}`);
                 
                 // Update summary displays for this supplier
                 const summaryUsdEl = cartSection.querySelector(`.summary-usd[data-supplier="${supplier}"]`);
                 const summaryPhpEl = cartSection.querySelector(`.summary-php[data-supplier="${supplier}"]`);
                 const adminFeeEl = cartSection.querySelector(`.admin-fee-value[data-supplier="${supplier}"]`);
                 const grandTotalEl = cartSection.querySelector(`.grand-total-value[data-supplier="${supplier}"]`);
+                
+                console.log(`[updateSupplierCart] Elements found - summaryUsd: ${!!summaryUsdEl}, summaryPhp: ${!!summaryPhpEl}, adminFee: ${!!adminFeeEl}, grandTotal: ${!!grandTotalEl}`);
                 
                 if (summaryUsdEl) summaryUsdEl.textContent = `$${totalUsd.toFixed(2)}`;
                 if (summaryPhpEl) summaryPhpEl.textContent = `₱${totalPhp.toFixed(2)}`;
@@ -3768,7 +3778,11 @@
                 if (summary) {
                     summary.style.display = 'block';
                     summary.style.visibility = 'visible';
+                    summary.style.height = 'auto';
+                    summary.style.overflow = 'visible';
                     console.log(`[updateSupplierCart] Summary re-shown after calculations for supplier: ${supplier}`);
+                    console.log(`[updateSupplierCart] Summary offsetHeight: ${summary.offsetHeight}, offsetWidth: ${summary.offsetWidth}`);
+                    console.log(`[updateSupplierCart] Summary computed display:`, window.getComputedStyle(summary).display);
                 }
             }
             
