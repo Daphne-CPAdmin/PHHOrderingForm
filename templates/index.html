@@ -4717,10 +4717,6 @@
                 return paymentStatus.toLowerCase() !== 'paid';
             });
             
-            // Calculate totals for each section
-            const paidTotal = paidOrders.reduce((sum, o) => sum + (o.grand_total_php || 0), 0);
-            const unpaidTotal = unpaidOrders.reduce((sum, o) => sum + (o.grand_total_php || 0), 0);
-            
             let html = '';
             
             // Helper function to calculate tiered admin fee based on items
@@ -4748,6 +4744,23 @@
                 // Tiered admin fee: ₱300 for every 50 vials (or part thereof)
                 return totalVials > 0 ? Math.ceil(totalVials / 50) * 300 : 0;
             }
+            
+            // Calculate totals for each section using recalculated tiered admin fees
+            let paidTotal = 0;
+            paidOrders.forEach(order => {
+                const items = order.items || [];
+                const itemsTotal = items.reduce((sum, i) => sum + (i.line_total_php || 0), 0);
+                const adminFee = calculateTieredAdminFee(items);
+                paidTotal += itemsTotal + adminFee;
+            });
+            
+            let unpaidTotal = 0;
+            unpaidOrders.forEach(order => {
+                const items = order.items || [];
+                const itemsTotal = items.reduce((sum, i) => sum + (i.line_total_php || 0), 0);
+                const adminFee = calculateTieredAdminFee(items);
+                unpaidTotal += itemsTotal + adminFee;
+            });
             
             // Paid Orders Section (Locked with Admin Fee)
             if (paidOrders.length > 0) {
@@ -5712,38 +5725,45 @@
             const modalItems = document.getElementById('modal-items');
             const orderModal = document.getElementById('order-modal');
             
-            // Calculate tiered admin fee based on total vials
+            // Recalculate subtotals from items to ensure consistency
+            const items = order.items || [];
+            let subtotalUsd = 0;
+            let subtotalPhp = 0;
             let totalVials = 0;
             const productsCache = window._productsCache || window.products || [];
             
-            if (order.items && Array.isArray(order.items)) {
-                order.items.forEach(item => {
-                    const productCode = item.product_code;
-                    const orderType = item.order_type || 'Vial';
-                    const qty = parseFloat(item.qty) || 0;
-                    
-                    if (qty <= 0) return;
-                    
-                    const product = productsCache.find(p => p.code === productCode);
-                    const vialsPerKit = product?.vials_per_kit || VIALS_PER_KIT || 10;
-                    
-                    if (orderType === 'Kit') {
-                        totalVials += qty * vialsPerKit;
-                    } else {
-                        totalVials += qty;
-                    }
-                });
-            }
+            items.forEach(item => {
+                const itemUsd = parseFloat(item.line_total_usd || 0);
+                const itemPhp = parseFloat(item.line_total_php || 0);
+                subtotalUsd += itemUsd;
+                subtotalPhp += itemPhp;
+                
+                // Calculate total vials for admin fee
+                const productCode = item.product_code;
+                const orderType = item.order_type || 'Vial';
+                const qty = parseFloat(item.qty) || 0;
+                
+                if (qty <= 0) return;
+                
+                const product = productsCache.find(p => p.code === productCode);
+                const vialsPerKit = product?.vials_per_kit || VIALS_PER_KIT || 10;
+                
+                if (orderType === 'Kit') {
+                    totalVials += qty * vialsPerKit;
+                } else {
+                    totalVials += qty;
+                }
+            });
             
             // Tiered admin fee: ₱300 for every 50 vials (or part thereof)
             const adminFee = totalVials > 0 ? Math.ceil(totalVials / 50) * 300 : 0;
-            const grandTotal = order.subtotal_php + adminFee;
+            const grandTotal = subtotalPhp + adminFee;
             
             const modalTotalVials = document.getElementById('modal-total-vials');
             if (modalTotalVials) modalTotalVials.textContent = totalVials;
             if (modalOrderId) modalOrderId.textContent = order.order_id;
-            if (modalSubtotalUsd) modalSubtotalUsd.textContent = `$${order.subtotal_usd.toFixed(2)}`;
-            if (modalSubtotalPhp) modalSubtotalPhp.textContent = `₱${order.subtotal_php.toFixed(2)}`;
+            if (modalSubtotalUsd) modalSubtotalUsd.textContent = `$${subtotalUsd.toFixed(2)}`;
+            if (modalSubtotalPhp) modalSubtotalPhp.textContent = `₱${subtotalPhp.toFixed(2)}`;
             if (modalAdminFee) modalAdminFee.textContent = `₱${adminFee.toFixed(2)}`;
             if (modalGrandTotal) modalGrandTotal.textContent = `₱${grandTotal.toFixed(2)}`;
             
