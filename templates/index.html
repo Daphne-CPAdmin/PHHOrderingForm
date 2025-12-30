@@ -4701,14 +4701,10 @@
             }
         });
         
-        // Update Order button - Show confirmation modal first
-        const updateOrderBtn = document.getElementById('update-order-btn');
-        if (updateOrderBtn) {
-            // Remove any existing listeners by cloning
-            const newBtn = updateOrderBtn.cloneNode(true);
-            updateOrderBtn.parentNode.replaceChild(newBtn, updateOrderBtn);
-            
-            newBtn.addEventListener('click', () => {
+        // Handle supplier-specific Update Order buttons using event delegation
+        document.addEventListener('click', (e) => {
+            if (e.target.classList.contains('update-order-btn')) {
+                const supplier = e.target.getAttribute('data-supplier');
                 const fullName = document.getElementById('full-name').value.trim();
                 const telegram = document.getElementById('telegram').value.trim();
                 
@@ -4717,23 +4713,28 @@
                     return;
                 }
                 
-                if (cartItems.length === 0) {
-                    showToast('Your cart is empty', 3000);
+                // Filter cart items by supplier
+                const supplierCartItems = cartItems.filter(item => (item.supplier || 'Default') === supplier);
+                
+                if (supplierCartItems.length === 0) {
+                    showToast(`Your cart is empty for ${supplier}`, 3000);
                     return;
                 }
                 
-                // Check if there are changes
-                const hasNewItems = cartItems.some(item => item.isExisting !== true);
-                const hasUpdatedItems = cartItems.some(item => item.isUpdated === true);
-                const hasRemovedItems = originalOrderItems.length > 0 && 
-                    (cartItems.length < originalOrderItems.length || 
-                     originalOrderItems.some(origItem => {
-                         return !cartItems.some(cartItem => 
+                // Check if there are changes for this supplier
+                const supplierOriginalItems = originalOrderItems.filter(item => (item.supplier || 'Default') === supplier);
+                const hasNewItems = supplierCartItems.some(item => item.isExisting !== true);
+                const hasUpdatedItems = supplierCartItems.some(item => item.isUpdated === true);
+                const hasRemovedItems = supplierOriginalItems.length > 0 && 
+                    (supplierCartItems.length < supplierOriginalItems.length || 
+                     supplierOriginalItems.some(origItem => {
+                         return !supplierCartItems.some(cartItem => 
                              cartItem.product_code === origItem.product_code && 
-                             cartItem.order_type === origItem.order_type
+                             cartItem.order_type === origItem.order_type &&
+                             (cartItem.supplier || 'Default') === (origItem.supplier || 'Default')
                          );
                      }));
-                const hasQuantityChanges = cartItems.some(item => {
+                const hasQuantityChanges = supplierCartItems.some(item => {
                     if (item.isExisting === true && item.originalQty !== undefined) {
                         return item.qty !== item.originalQty;
                     }
@@ -4746,10 +4747,13 @@
                     return;
                 }
                 
+                // Store supplier for confirmation modal
+                window.currentSubmitSupplier = supplier;
+                
                 // Show confirmation modal (same as submit)
-                showOrderConfirmationModal();
-            });
-        }
+                showOrderConfirmationModal(supplier);
+            }
+        });
         
         // Pay Order button - Show payment modal
         const payOrderBtn = document.getElementById('pay-order-btn');
