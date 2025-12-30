@@ -5658,6 +5658,7 @@
                     }
                     
                     btn.textContent = 'Submitting...';
+                    console.log('Submitting new order with items:', itemsToSubmit);
                     response = await fetch('/api/submit-order', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -5668,6 +5669,33 @@
                             supplier: supplier || null
                         })
                     });
+                    
+                    // Check response status before parsing JSON to handle various errors
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        let errorMessage = `Server error (${response.status})`;
+                        
+                        if (response.status === 403) {
+                            errorMessage = 'Orders are currently closed. Please contact admin.';
+                        } else if (response.status === 400) {
+                            errorMessage = 'Invalid order data. Please check your order and try again.';
+                        } else if (response.status === 502) {
+                            errorMessage = 'Server temporarily unavailable. Please try again in a moment.';
+                        } else if (errorText) {
+                            try {
+                                const errorJson = JSON.parse(errorText);
+                                errorMessage = errorJson.error || errorMessage;
+                            } catch (e) {
+                                errorMessage = `Server error: ${errorText.substring(0, 100)}`;
+                            }
+                        }
+                        
+                        showToast(`❌ ${errorMessage}`, 8000);
+                        console.error('Order submission error:', response.status, errorText);
+                        btn.disabled = false;
+                        btn.textContent = 'Confirm & Submit Order';
+                        return;
+                    }
                     
                     result = await response.json();
                     

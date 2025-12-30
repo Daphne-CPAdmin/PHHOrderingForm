@@ -3891,12 +3891,17 @@ def api_submit_order():
         
         # Save order to sheets
         try:
+            print(f"📝 Saving order to sheets: {len(order_data['items'])} items")
+            print(f"📝 Order data keys: {list(order_data.keys())}")
+            print(f"📝 First item keys: {list(order_data['items'][0].keys()) if order_data['items'] else 'No items'}")
             order_id = save_order_to_sheets(order_data)
         except Exception as e:
             print(f"❌ Error saving order to sheets: {e}")
+            import traceback
+            traceback.print_exc()
             return jsonify({
                 'success': False,
-                'error': 'Failed to save order. Please try again or contact support.'
+                'error': f'Failed to save order: {str(e)}'
             }), 500
         
         if not order_id:
