@@ -3766,13 +3766,41 @@
                 const summaryPhpEl = cartSection.querySelector(`.summary-php[data-supplier="${supplier}"]`);
                 const adminFeeEl = cartSection.querySelector(`.admin-fee-value[data-supplier="${supplier}"]`);
                 const grandTotalEl = cartSection.querySelector(`.grand-total-value[data-supplier="${supplier}"]`);
+                const totalVialsEl = cartSection.querySelector(`.total-vials-count[data-supplier="${supplier}"]`);
+                const completeKitsEl = cartSection.querySelector(`.complete-kits-count[data-supplier="${supplier}"]`);
+                const incompleteVialsEl = cartSection.querySelector(`.incomplete-vials-count[data-supplier="${supplier}"]`);
                 
-                console.log(`[updateSupplierCart] Elements found - summaryUsd: ${!!summaryUsdEl}, summaryPhp: ${!!summaryPhpEl}, adminFee: ${!!adminFeeEl}, grandTotal: ${!!grandTotalEl}`);
+                console.log(`[updateSupplierCart] Elements found - summaryUsd: ${!!summaryUsdEl}, summaryPhp: ${!!summaryPhpEl}, adminFee: ${!!adminFeeEl}, grandTotal: ${!!grandTotalEl}, totalVials: ${!!totalVialsEl}`);
+                console.log(`[updateSupplierCart] summaryUsdEl element:`, summaryUsdEl);
+                console.log(`[updateSupplierCart] adminFeeEl element:`, adminFeeEl);
+                console.log(`[updateSupplierCart] grandTotalEl element:`, grandTotalEl);
                 
-                if (summaryUsdEl) summaryUsdEl.textContent = `$${totalUsd.toFixed(2)}`;
-                if (summaryPhpEl) summaryPhpEl.textContent = `₱${totalPhp.toFixed(2)}`;
-                if (adminFeeEl) adminFeeEl.textContent = `₱${adminFee.toFixed(2)}`;
-                if (grandTotalEl) grandTotalEl.textContent = `₱${grandTotal.toFixed(2)}`;
+                if (summaryUsdEl) {
+                    summaryUsdEl.textContent = `$${totalUsd.toFixed(2)}`;
+                    console.log(`[updateSupplierCart] Set summaryUsdEl to: $${totalUsd.toFixed(2)}`);
+                }
+                if (summaryPhpEl) {
+                    summaryPhpEl.textContent = `₱${totalPhp.toFixed(2)}`;
+                    console.log(`[updateSupplierCart] Set summaryPhpEl to: ₱${totalPhp.toFixed(2)}`);
+                }
+                if (adminFeeEl) {
+                    adminFeeEl.textContent = `₱${adminFee.toFixed(2)}`;
+                    console.log(`[updateSupplierCart] Set adminFeeEl to: ₱${adminFee.toFixed(2)}`);
+                }
+                if (grandTotalEl) {
+                    grandTotalEl.textContent = `₱${grandTotal.toFixed(2)}`;
+                    console.log(`[updateSupplierCart] Set grandTotalEl to: ₱${grandTotal.toFixed(2)}`);
+                }
+                if (totalVialsEl) {
+                    totalVialsEl.textContent = `${totalVialsForAdminFee} vial${totalVialsForAdminFee !== 1 ? 's' : ''}`;
+                    console.log(`[updateSupplierCart] Set totalVialsEl to: ${totalVialsForAdminFee} vials`);
+                }
+                if (completeKitsEl) {
+                    completeKitsEl.textContent = `${totalCompleteKits} kit${totalCompleteKits !== 1 ? 's' : ''}`;
+                }
+                if (incompleteVialsEl) {
+                    incompleteVialsEl.textContent = `${totalIncompleteVials} vial${totalIncompleteVials !== 1 ? 's' : ''}`;
+                }
                 
                 // Ensure summary is visible after all updates (especially after items cloning)
                 if (summary) {
@@ -3786,17 +3814,25 @@
                     if (kitsVialsSummary) {
                         kitsVialsSummary.style.display = 'block';
                         kitsVialsSummary.style.visibility = 'visible';
+                        console.log(`[updateSupplierCart] kitsVialsSummary set to visible`);
+                    } else {
+                        console.error(`[updateSupplierCart] kitsVialsSummary NOT FOUND for ${supplier}`);
                     }
                     
                     // Ensure all summary-row elements are visible
-                    summary.querySelectorAll('.summary-row').forEach(row => {
+                    const allSummaryRows = summary.querySelectorAll('.summary-row');
+                    console.log(`[updateSupplierCart] Found ${allSummaryRows.length} summary-row elements inside summary`);
+                    allSummaryRows.forEach((row, idx) => {
                         row.style.display = 'flex';
                         row.style.visibility = 'visible';
+                        console.log(`[updateSupplierCart] Row ${idx}: offsetHeight=${row.offsetHeight}, display=${window.getComputedStyle(row).display}`);
                     });
                     
                     console.log(`[updateSupplierCart] Summary re-shown after calculations for supplier: ${supplier}`);
                     console.log(`[updateSupplierCart] Summary offsetHeight: ${summary.offsetHeight}, offsetWidth: ${summary.offsetWidth}`);
                     console.log(`[updateSupplierCart] Summary computed display:`, window.getComputedStyle(summary).display);
+                    console.log(`[updateSupplierCart] Summary children count:`, summary.children.length);
+                    console.log(`[updateSupplierCart] Summary innerHTML length:`, summary.innerHTML.length);
                 }
             }
             
