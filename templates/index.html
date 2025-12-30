@@ -5428,13 +5428,15 @@
                     
                     // Send ALL items from cart (backend will update/delete as needed)
                     // Filter out items with qty 0 (they should be removed, not sent)
-                    // Consolidate items by product_code and order_type before sending
+                    // Consolidate items by product_code, order_type, AND supplier before sending
                     // This prevents duplicate items from being sent to the backend
                     const consolidatedMap = new Map();
                     cartItems
                         .filter(item => item.qty > 0) // Only process items with qty > 0
                         .forEach(item => {
-                            const key = `${item.product_code}|${item.order_type}`;
+                            // Include supplier in key to prevent merging items from different suppliers
+                            const itemSupplier = item.supplier || 'Default';
+                            const key = `${item.product_code}|${item.order_type}|${itemSupplier}`;
                             if (consolidatedMap.has(key)) {
                                 // Merge: sum quantities and totals
                                 const existing = consolidatedMap.get(key);
@@ -5449,6 +5451,7 @@
                                     product_code: item.product_code,
                                     product_name: item.product_name,
                                     order_type: item.order_type,
+                                    supplier: itemSupplier, // Include supplier
                                     qty: parseFloat(item.qty) || 0,
                                     unit_price_usd: parseFloat(item.unit_price_usd) || 0,
                                     line_total_usd: parseFloat(item.line_total_usd) || 0,
@@ -5586,20 +5589,72 @@
                     
                     // Filter items by supplier if submitting supplier-specific order
                     const supplier = window.currentSubmitSupplier || null;
-                    let itemsToSubmit = supplier 
+                    let filteredItems = supplier 
                         ? cartItems.filter(item => (item.supplier || 'Default') === supplier)
                         : cartItems;
                     
                     if (paidOrder) {
                         // Filter only new items (not from paid order)
-                        itemsToSubmit = itemsToSubmit.filter(item => !item.isExisting || item.isNewOrder);
+                        filteredItems = filteredItems.filter(item => !item.isExisting || item.isNewOrder);
                         
-                        if (itemsToSubmit.length === 0) {
+                        if (filteredItems.length === 0) {
                             showToast('❌ Please add new items to create a new order', 3000);
                             btn.disabled = false;
                             btn.textContent = 'Confirm & Submit Order';
                             return;
                         }
+                    }
+                    
+                    // Consolidate items by product_code, order_type, AND supplier
+                    // This prevents duplicate items from being sent to the backend
+                    const consolidatedMap = new Map();
+                    filteredItems
+                        .filter(item => item.qty > 0) // Only process items with qty > 0
+                        .forEach(item => {
+                            // Include supplier in key to prevent merging items from different suppliers
+                            const itemSupplier = item.supplier || 'Default';
+                            const key = `${item.product_code}|${item.order_type}|${itemSupplier}`;
+                            if (consolidatedMap.has(key)) {
+                                // Merge: sum quantities and totals
+                                const existing = consolidatedMap.get(key);
+                                existing.qty += parseFloat(item.qty) || 0;
+                                existing.line_total_usd += parseFloat(item.line_total_usd) || 0;
+                                existing.line_total_php += parseFloat(item.line_total_php) || 0;
+                                // Recalculate unit price based on new totals
+                                existing.unit_price_usd = existing.qty > 0 ? existing.line_total_usd / existing.qty : existing.unit_price_usd;
+                            } else {
+                                // First occurrence, add to map
+                                consolidatedMap.set(key, {
+                                    product_code: item.product_code,
+                                    product_name: item.product_name,
+                                    order_type: item.order_type,
+                                    supplier: itemSupplier, // Include supplier
+                                    qty: parseFloat(item.qty) || 0,
+                                    unit_price_usd: parseFloat(item.unit_price_usd) || 0,
+                                    line_total_usd: parseFloat(item.line_total_usd) || 0,
+                                    line_total_php: parseFloat(item.line_total_php) || 0
+                                });
+                            }
+                        });
+                    
+                    // Convert consolidated map to array
+                    const itemsToSubmit = Array.from(consolidatedMap.values());
+                    
+                    // Validate all items have valid quantities
+                    const invalidItems = itemsToSubmit.filter(item => !item.qty || item.qty <= 0);
+                    if (invalidItems.length > 0) {
+                        showToast('❌ Error: Some items have invalid quantities. Please check your order.', 3000);
+                        btn.disabled = false;
+                        btn.textContent = 'Confirm & Submit Order';
+                        return;
+                    }
+                    
+                    // Validate we have items to send
+                    if (itemsToSubmit.length === 0) {
+                        showToast('❌ No items to submit. Please add items to your order.', 3000);
+                        btn.disabled = false;
+                        btn.textContent = 'Confirm & Submit Order';
+                        return;
                     }
                     
                     btn.textContent = 'Submitting...';

@@ -3783,7 +3783,8 @@ def api_submit_order():
         consolidated = {}
         for item in data.get('items', []):
             # Include supplier in key to handle duplicate codes across suppliers
-            supplier = item.get('supplier') or data.get('supplier') or None
+            # Default to 'Default' if supplier is not provided
+            supplier = item.get('supplier') or data.get('supplier') or 'Default'
             key = (item['product_code'], item.get('order_type', 'Vial'), supplier)
             if key in consolidated:
                 consolidated[key]['qty'] += item['qty']
@@ -3808,16 +3809,13 @@ def api_submit_order():
             }), 500
         
         for key, item in consolidated.items():
-            # Match product by code AND supplier if supplier is provided
-            supplier = item.get('supplier')
-            if supplier:
-                # Try to find product with matching code AND supplier
-                product = next((p for p in products if p['code'] == item['product_code'] and p.get('supplier', 'Default') == supplier), None)
-                # Fallback: if not found, try without supplier match (for backward compatibility)
-                if not product:
-                    product = next((p for p in products if p['code'] == item['product_code']), None)
-            else:
-                # No supplier specified, match by code only (will take first match)
+            # Match product by code AND supplier
+            # Supplier should always be set (defaults to 'Default' if not provided)
+            supplier = item.get('supplier', 'Default')
+            # Try to find product with matching code AND supplier
+            product = next((p for p in products if p['code'] == item['product_code'] and p.get('supplier', 'Default') == supplier), None)
+            # Fallback: if not found, try without supplier match (for backward compatibility)
+            if not product:
                 product = next((p for p in products if p['code'] == item['product_code']), None)
             
             if not product:
