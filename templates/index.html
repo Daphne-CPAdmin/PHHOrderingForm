@@ -1858,7 +1858,7 @@
         <!-- View: New / Update Order -->
         <div id="view-new-order" class="view-content">
             <!-- Order Form - Full Width -->
-            <div class="card" style="margin-bottom: 5rem;">
+            <div class="card" style="margin-bottom: 15rem;">
                 <h2 class="card-title"><span class="icon">📦</span> Customer Order Section</h2>
                 <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: -0.5rem; margin-bottom: 1.5rem;">💡 Enter your Name and Telegram username and your existing orders will auto-populate in the Order Summary</p>
 
@@ -1959,7 +1959,7 @@
             </div>
 
             <!-- Cart - One per Supplier - Side by Side -->
-            <div class="supplier-carts-grid" style="margin-top: 5rem;">
+            <div class="supplier-carts-grid" style="margin-top: 15rem;">
                 {% for supplier in suppliers %}
                 <div class="card supplier-cart" data-supplier="{{ supplier }}">
                     <h2 class="card-title"><span class="icon">🛒</span> Order Summary - {{ supplier }}</h2>
@@ -3481,7 +3481,8 @@
             // CRITICAL: Always show cart if there are items and no paid order
             const shouldShowRegularCart = !paidOrder || (paidOrder && !hasNewItems);
             
-            if (shouldShowRegularCart && supplierCartItems.length > 0) {
+            // Show cart if there are items (existing or new) - always show when items exist
+            if (supplierCartItems.length > 0) {
                 if (empty) empty.style.display = 'none';
                 if (items) items.style.display = 'block';
                 if (summary) summary.style.display = 'block';
@@ -4057,10 +4058,18 @@
                                 // Calculate unit price if missing
                                 const unitPriceUsd = parseFloat(item.unit_price_usd) || (qty > 0 ? lineTotalUsd / qty : 0);
                                 
+                                // Get supplier from product if available, otherwise from item or default
+                                let itemSupplier = item.supplier || 'Default';
+                                if (!itemSupplier || itemSupplier === 'Default') {
+                                    const product = allProducts?.find(p => p.code === item.product_code);
+                                    itemSupplier = product?.supplier || 'Default';
+                                }
+                                
                                 return {
                                     product_code: item.product_code,
                                     product_name: item.product_name,
                                     order_type: item.order_type || 'Vial',
+                                    supplier: itemSupplier,
                                     qty: qty,
                                     unit_price_usd: unitPriceUsd,
                                     line_total_usd: lineTotalUsd,
