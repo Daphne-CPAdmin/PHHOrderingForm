@@ -2004,6 +2004,14 @@ def _fetch_products_from_sheets():
             })
         
         print(f"✅ Successfully loaded {len(products)} products from Google Sheets")
+        
+        # Debug: Show sample products including LEMBOT if present
+        lembot_found = [p for p in products if 'LEMBOT' in str(p.get('code', '')).upper()]
+        if lembot_found:
+            print(f"   📦 LEMBOT products found: {[(p.get('code'), p.get('supplier'), p.get('name')) for p in lembot_found]}")
+        else:
+            print(f"   ⚠️ No LEMBOT products found in loaded products")
+        
         return products if products else None
         
     except Exception as e:
