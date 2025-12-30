@@ -3535,7 +3535,12 @@
                 } else {
                     console.error(`[updateSupplierCart] Items element NOT FOUND for supplier: ${supplier}`);
                 }
-                if (summary) summary.style.display = 'block';
+                if (summary) {
+                    summary.style.display = 'block';
+                    console.log(`[updateSupplierCart] Summary element found and set to display: block for supplier: ${supplier}`);
+                } else {
+                    console.error(`[updateSupplierCart] Summary element NOT FOUND for supplier: ${supplier}`);
+                }
                 if (submitBtn) submitBtn.disabled = supplierCartItems.length === 0;
                 
                 // Check if order is editable
