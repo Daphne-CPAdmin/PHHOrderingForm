@@ -3757,18 +3757,15 @@
                 
                 if (completeKitsEl) completeKitsEl.textContent = `${totalCompleteKits} kit${totalCompleteKits !== 1 ? 's' : ''}`;
                 if (incompleteVialsEl) incompleteVialsEl.textContent = `${totalIncompleteVials} vial${totalIncompleteVials !== 1 ? 's' : ''}`;
-                if (totalVialsEl) totalVialsEl.textContent = `${totalVials} vial${totalVials !== 1 ? 's' : ''}`;
+                if (totalVialsEl) totalVialsEl.textContent = `${totalVialsForAdminFee} vial${totalVialsForAdminFee !== 1 ? 's' : ''}`; // Use totalVialsForAdminFee which includes all vials
                 
-                console.log(`[updateSupplierCart] Calculations for ${supplier}: totalVials=${totalVials}, adminFee=₱${adminFee.toFixed(2)}, totalPhp=₱${totalPhp.toFixed(2)}, grandTotal=₱${grandTotal.toFixed(2)}`);
+                console.log(`[updateSupplierCart] Calculations for ${supplier}: totalVials=${totalVialsForAdminFee}, adminFee=₱${adminFee.toFixed(2)}, totalPhp=₱${totalPhp.toFixed(2)}, grandTotal=₱${grandTotal.toFixed(2)}`);
                 
                 // Update summary displays for this supplier
                 const summaryUsdEl = cartSection.querySelector(`.summary-usd[data-supplier="${supplier}"]`);
                 const summaryPhpEl = cartSection.querySelector(`.summary-php[data-supplier="${supplier}"]`);
                 const adminFeeEl = cartSection.querySelector(`.admin-fee-value[data-supplier="${supplier}"]`);
                 const grandTotalEl = cartSection.querySelector(`.grand-total-value[data-supplier="${supplier}"]`);
-                const totalVialsEl = cartSection.querySelector(`.total-vials-count[data-supplier="${supplier}"]`);
-                const completeKitsEl = cartSection.querySelector(`.complete-kits-count[data-supplier="${supplier}"]`);
-                const incompleteVialsEl = cartSection.querySelector(`.incomplete-vials-count[data-supplier="${supplier}"]`);
                 
                 console.log(`[updateSupplierCart] Elements found - summaryUsd: ${!!summaryUsdEl}, summaryPhp: ${!!summaryPhpEl}, adminFee: ${!!adminFeeEl}, grandTotal: ${!!grandTotalEl}, totalVials: ${!!totalVialsEl}`);
                 console.log(`[updateSupplierCart] summaryUsdEl element:`, summaryUsdEl);
@@ -3790,16 +3787,6 @@
                 if (grandTotalEl) {
                     grandTotalEl.textContent = `₱${grandTotal.toFixed(2)}`;
                     console.log(`[updateSupplierCart] Set grandTotalEl to: ₱${grandTotal.toFixed(2)}`);
-                }
-                if (totalVialsEl) {
-                    totalVialsEl.textContent = `${totalVialsForAdminFee} vial${totalVialsForAdminFee !== 1 ? 's' : ''}`;
-                    console.log(`[updateSupplierCart] Set totalVialsEl to: ${totalVialsForAdminFee} vials`);
-                }
-                if (completeKitsEl) {
-                    completeKitsEl.textContent = `${totalCompleteKits} kit${totalCompleteKits !== 1 ? 's' : ''}`;
-                }
-                if (incompleteVialsEl) {
-                    incompleteVialsEl.textContent = `${totalIncompleteVials} vial${totalIncompleteVials !== 1 ? 's' : ''}`;
                 }
                 
                 // Ensure summary is visible after all updates (especially after items cloning)
