@@ -3834,30 +3834,53 @@ def api_submit_order():
             print(f"🔍 Looking for product: code='{product_code}', supplier='{supplier}'")
             print(f"   Total products available: {len(products)}")
             
+            # Debug: Show all products with matching code (case-insensitive)
+            matching_codes_debug = [p for p in products if str(p.get('code', '')).strip().upper() == product_code.upper()]
+            if matching_codes_debug:
+                print(f"   Found {len(matching_codes_debug)} product(s) with code '{product_code}' (case-insensitive):")
+                for p in matching_codes_debug:
+                    p_code = str(p.get('code', '')).strip()
+                    p_supplier = str(p.get('supplier', 'Default')).strip()
+                    print(f"     - {p.get('name')} (code: '{p_code}', supplier: '{p_supplier}')")
+                    print(f"       Code match: {p_code == product_code}, Supplier match: {p_supplier.lower() == supplier.lower()}")
+            
             # Try to find product with matching code AND supplier (case-insensitive, trimmed)
             product = None
             for p in products:
                 p_code = str(p.get('code', '')).strip()
                 p_supplier = str(p.get('supplier', 'Default')).strip()
-                if p_code == product_code and p_supplier.lower() == supplier.lower():
+                # Case-insensitive comparison for both code and supplier
+                if p_code.upper() == product_code.upper() and p_supplier.upper() == supplier.upper():
                     product = p
-                    print(f"✅ Found product: {p.get('name')} (code: {p_code}, supplier: {p_supplier})")
+                    print(f"✅ Found product: {p.get('name')} (code: '{p_code}', supplier: '{p_supplier}')")
                     break
             
             # Fallback: if not found, try without supplier match (for backward compatibility)
             if not product:
                 print(f"⚠️ Product '{product_code}' not found with supplier '{supplier}', trying without supplier match")
                 # Show available products with this code for debugging
-                matching_codes = [p for p in products if str(p.get('code', '')).strip() == product_code]
+                matching_codes = [p for p in products if str(p.get('code', '')).strip().upper() == product_code.upper()]
                 if matching_codes:
                     print(f"   Found {len(matching_codes)} product(s) with code '{product_code}':")
                     for p in matching_codes:
-                        print(f"     - {p.get('name')} (supplier: {p.get('supplier', 'Default')})")
-                product = next((p for p in products if str(p.get('code', '')).strip() == product_code), None)
+                        print(f"     - {p.get('name')} (supplier: '{p.get('supplier', 'Default')}')")
+                product = next((p for p in products if str(p.get('code', '')).strip().upper() == product_code.upper()), None)
             
             if not product:
                 print(f"❌ Product {product_code} not found in products list")
-                print(f"   Available products: {[p['code'] for p in products[:10]]}...")  # Show first 10
+                print(f"   Searching for: code='{product_code}', supplier='{supplier}'")
+                print(f"   Total products in cache: {len(products)}")
+                
+                # Show all LEMBOT products for debugging
+                lembot_products = [p for p in products if 'LEMBOT' in str(p.get('code', '')).upper()]
+                if lembot_products:
+                    print(f"   Found {len(lembot_products)} LEMBOT product(s):")
+                    for p in lembot_products:
+                        print(f"     - Code: '{p.get('code')}', Supplier: '{p.get('supplier')}', Name: {p.get('name')}")
+                
+                # Show first 20 product codes for reference
+                print(f"   Sample product codes: {[p.get('code') for p in products[:20]]}")
+                
                 return jsonify({
                     'success': False,
                     'error': f'Product {product_code} not found' + (f' for supplier {supplier}' if supplier else '')
