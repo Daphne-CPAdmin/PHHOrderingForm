@@ -3822,8 +3822,8 @@
                 return;
             }
             
-            // Get cart items for this supplier
-            const supplierCartItems = cartItems.filter(item => item.supplier === supplier);
+            // Get cart items for this supplier (use same logic as updateSupplierCart)
+            const supplierCartItems = cartItems.filter(item => (item.supplier || 'Default') === supplier);
             
             // Check if there's a pending order for this supplier (including locked ones for status checks)
             const pendingOrder = existingCustomerOrders.find(o => 
@@ -3837,7 +3837,7 @@
             );
             
             // Check if there are any changes (new items, updated quantities, or removed items) for this supplier
-            const supplierOriginalItems = originalOrderItems.filter(item => item.supplier === supplier);
+            const supplierOriginalItems = originalOrderItems.filter(item => (item.supplier || 'Default') === supplier);
             const hasNewItems = supplierCartItems.some(item => item.isExisting !== true);
             const hasUpdatedItems = supplierCartItems.some(item => item.isUpdated === true);
             
@@ -4107,6 +4107,7 @@
                                 product_code: item.product_code,
                                 product_name: item.product_name,
                                 order_type: item.order_type || 'Vial',
+                                supplier: item.supplier || 'Default',
                                 qty: item.qty
                             }));
                             
