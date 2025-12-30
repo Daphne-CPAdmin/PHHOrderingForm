@@ -2818,13 +2818,57 @@
                 section.style.display = shouldShow ? 'block' : 'none';
             });
             
+            // Price comparison section should always be visible (not filtered)
+            const comparisonSection = document.querySelector('.orders-summary-section');
+            if (comparisonSection && comparisonSection.querySelector('.card-title') && comparisonSection.querySelector('.card-title').textContent.includes('Price Comparison')) {
+                comparisonSection.style.display = 'block';
+            }
+            
             // Also filter product dropdown by supplier
             filterProductDropdownBySupplier();
         }
         
-        // Apply filter on page load
+        // Handle supplier filter button clicks
         document.addEventListener('DOMContentLoaded', () => {
+            // Apply filter on page load
             applySupplierFilterToPage();
+            
+            // Set up supplier filter buttons
+            const filterButtons = document.querySelectorAll('.supplier-filter-btn');
+            if (filterButtons.length > 0) {
+                // Set initial active button based on current filter
+                const currentFilter = localStorage.getItem('supplierFilter') || 'all';
+                filterButtons.forEach(button => {
+                    const buttonFilter = button.getAttribute('data-filter') || 'all';
+                    if (buttonFilter === currentFilter) {
+                        button.classList.add('active');
+                        button.style.background = '#8b5cf6';
+                    } else {
+                        button.classList.remove('active');
+                        button.style.background = '#c084fc';
+                    }
+                    
+                    // Add click handler
+                    button.addEventListener('click', () => {
+                        // Remove active class from all buttons
+                        filterButtons.forEach(btn => {
+                            btn.classList.remove('active');
+                            btn.style.background = '#c084fc';
+                        });
+                        
+                        // Add active class to clicked button
+                        button.classList.add('active');
+                        button.style.background = '#8b5cf6';
+                        
+                        // Update filter
+                        supplierFilter = button.getAttribute('data-filter') || 'all';
+                        localStorage.setItem('supplierFilter', supplierFilter);
+                        
+                        // Apply filter
+                        applySupplierFilterToPage();
+                    });
+                });
+            }
         });
         
         // State
