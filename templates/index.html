@@ -3593,12 +3593,16 @@
                     console.log(`[updateSupplierCart] Items element computed visibility:`, window.getComputedStyle(items).visibility);
                     console.log(`[updateSupplierCart] Items element computed opacity:`, window.getComputedStyle(items).opacity);
                     
-                    // Remove any existing listeners by cloning and replacing
-                    const clonedItems = items.cloneNode(true);
-                    items.parentNode.replaceChild(clonedItems, items);
+                    // Attach event listener directly to items (no cloning)
+                    // Remove any existing listeners first by removing and re-adding the element
+                    const parent = items.parentNode;
+                    const nextSibling = items.nextSibling;
+                    parent.removeChild(items);
+                    items = items.cloneNode(true); // Clone with new content
+                    parent.insertBefore(items, nextSibling);
                     
                     // Attach event listener to the new element
-                    clonedItems.addEventListener('click', function(e) {
+                    items.addEventListener('click', function(e) {
                         try {
                             const btn = e.target.closest('.qty-btn-minus, .qty-btn-plus');
                             if (btn) {
