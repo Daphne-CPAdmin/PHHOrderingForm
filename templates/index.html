@@ -3780,6 +3780,20 @@
                     summary.style.visibility = 'visible';
                     summary.style.height = 'auto';
                     summary.style.overflow = 'visible';
+                    
+                    // Also ensure all child elements are visible
+                    const kitsVialsSummary = cartSection.querySelector(`.kits-vials-summary[data-supplier="${supplier}"]`);
+                    if (kitsVialsSummary) {
+                        kitsVialsSummary.style.display = 'block';
+                        kitsVialsSummary.style.visibility = 'visible';
+                    }
+                    
+                    // Ensure all summary-row elements are visible
+                    summary.querySelectorAll('.summary-row').forEach(row => {
+                        row.style.display = 'flex';
+                        row.style.visibility = 'visible';
+                    });
+                    
                     console.log(`[updateSupplierCart] Summary re-shown after calculations for supplier: ${supplier}`);
                     console.log(`[updateSupplierCart] Summary offsetHeight: ${summary.offsetHeight}, offsetWidth: ${summary.offsetWidth}`);
                     console.log(`[updateSupplierCart] Summary computed display:`, window.getComputedStyle(summary).display);
