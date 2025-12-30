@@ -4077,10 +4077,10 @@
                                 };
                             });
                             
-                            // Consolidate items with same product_code and order_type
+                            // Consolidate items with same product_code, order_type, AND supplier
                             const consolidatedMap = new Map();
                             mappedItems.forEach(item => {
-                                const key = `${item.product_code}|${item.order_type}`;
+                                const key = `${item.product_code}|${item.order_type}|${item.supplier || 'Default'}`;
                                 if (consolidatedMap.has(key)) {
                                     // Merge: sum quantities and totals
                                     const existing = consolidatedMap.get(key);
