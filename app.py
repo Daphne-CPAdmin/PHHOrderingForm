@@ -3712,6 +3712,12 @@ def api_submit_order():
             }), 400
         
         data = request.json
+        print(f"📥 Received order submission request")
+        print(f"📥 Full name: {data.get('full_name', 'MISSING')}")
+        print(f"📥 Telegram: {data.get('telegram', 'MISSING')}")
+        print(f"📥 Items count: {len(data.get('items', []))}")
+        print(f"📥 Items: {data.get('items', [])}")
+        print(f"📥 Supplier: {data.get('supplier', 'MISSING')}")
         
         # Validate required fields
         if not data.get('full_name') or not data.get('full_name').strip():

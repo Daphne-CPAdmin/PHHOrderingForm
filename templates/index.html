@@ -5659,15 +5659,23 @@
                     
                     btn.textContent = 'Submitting...';
                     console.log('Submitting new order with items:', itemsToSubmit);
+                    console.log('Items detail:', JSON.stringify(itemsToSubmit, null, 2));
+                    console.log('Full name:', fullName);
+                    console.log('Telegram:', telegram);
+                    console.log('Supplier:', supplier);
+                    
+                    const requestBody = { 
+                        full_name: fullName, 
+                        telegram, 
+                        items: itemsToSubmit,
+                        supplier: supplier || null
+                    };
+                    console.log('Request body:', JSON.stringify(requestBody, null, 2));
+                    
                     response = await fetch('/api/submit-order', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ 
-                            full_name: fullName, 
-                            telegram, 
-                            items: itemsToSubmit,
-                            supplier: supplier || null
-                        })
+                        body: JSON.stringify(requestBody)
                     });
                     
                     // Check response status before parsing JSON to handle various errors
