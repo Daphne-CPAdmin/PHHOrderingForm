@@ -1942,25 +1942,63 @@ def get_inventory_stats():
     return get_cached('inventory', _fetch_inventory_stats, cache_duration=300)  # 5 minutes - derived data, can cache longer
 
 def _fetch_products_from_sheets():
-    """Internal function to fetch products from Price List tab"""
+    """Internal function to fetch products from Price List tab, with fallback to alternate tab"""
     if not sheets_client:
         print("⚠️ sheets_client is None - cannot fetch products from Google Sheets")
         return None
     
     try:
-        print("📊 Fetching products from Google Sheets 'Price List' tab...")
+        print("📊 Fetching products from Google Sheets...")
         spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
         
-        # Try to find Price List worksheet
-        worksheet = spreadsheet.worksheet('Price List')
+        # Try to find Price List worksheet first
+        worksheet = None
+        records = []
+        tab_name = None
         
-        # Get all records
-        records = worksheet.get_all_records()
-        print(f"📋 Found {len(records)} records in Price List tab")
+        try:
+            worksheet = spreadsheet.worksheet('Price List')
+            records = worksheet.get_all_records()
+            tab_name = 'Price List'
+            print(f"📋 Found {len(records)} records in 'Price List' tab")
+        except Exception as e:
+            print(f"⚠️ Could not load from 'Price List' tab: {e}")
+            print("   Trying fallback tab (gid=1334586174)...")
+            
+            # Fallback: Try to find worksheet by gid (1334586174)
+            try:
+                # Get all worksheets and find by gid
+                all_worksheets = spreadsheet.worksheets()
+                fallback_worksheet = None
+                for ws in all_worksheets:
+                    if str(ws.id) == '1334586174':
+                        fallback_worksheet = ws
+                        break
+                
+                if fallback_worksheet:
+                    worksheet = fallback_worksheet
+                    records = worksheet.get_all_records()
+                    tab_name = fallback_worksheet.title
+                    print(f"✅ Found {len(records)} records in fallback tab '{tab_name}' (gid=1334586174)")
+                else:
+                    print(f"⚠️ Fallback tab with gid=1334586174 not found")
+                    # Try to use first available worksheet as last resort
+                    if all_worksheets:
+                        worksheet = all_worksheets[0]
+                        records = worksheet.get_all_records()
+                        tab_name = worksheet.title
+                        print(f"⚠️ Using first available worksheet '{tab_name}' as last resort")
+            except Exception as fallback_error:
+                print(f"❌ Fallback also failed: {fallback_error}")
+                return None
+        
+        if not records or len(records) == 0:
+            print(f"⚠️ No records found in '{tab_name}' tab")
+            return None
         
         # Debug: Log available columns if records exist
         if records:
-            print(f"📋 Available columns in Price List: {list(records[0].keys())}")
+            print(f"📋 Available columns in '{tab_name}': {list(records[0].keys())}")
             print(f"📋 Sample record: {records[0]}")
         
         products = []
