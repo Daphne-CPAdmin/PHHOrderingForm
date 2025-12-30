@@ -3327,6 +3327,7 @@
             
             // Filter cart items by supplier
             const supplierCartItems = cartItems.filter(item => (item.supplier || 'Default') === supplier);
+            console.log(`[updateSupplierCart] Supplier: ${supplier}, Total cart items: ${cartItems.length}, Supplier items: ${supplierCartItems.length}`, supplierCartItems);
             
             // Separate paid order items from new items for this supplier
             const paidOrderItemsList = paidOrder ? (paidOrder.items || []).filter(item => {
@@ -3476,7 +3477,11 @@
             }
             
             // For non-paid orders or when no paid order exists, show regular cart
-            if (!paidOrder || !hasNewItems) {
+            // Show regular cart if there's no paid order OR if there's a paid order but no new items
+            // CRITICAL: Always show cart if there are items and no paid order
+            const shouldShowRegularCart = !paidOrder || (paidOrder && !hasNewItems);
+            
+            if (shouldShowRegularCart && supplierCartItems.length > 0) {
                 if (empty) empty.style.display = 'none';
                 if (items) items.style.display = 'block';
                 if (summary) summary.style.display = 'block';
