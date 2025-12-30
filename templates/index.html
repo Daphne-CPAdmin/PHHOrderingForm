@@ -2506,6 +2506,10 @@
                 
                 <div class="cart-summary">
                     <div class="summary-row">
+                        <span class="summary-label">📦 Total Vials</span>
+                        <span class="summary-value" id="confirmation-total-vials">0</span>
+                    </div>
+                    <div class="summary-row">
                         <span class="summary-label">Subtotal (USD)</span>
                         <span class="summary-value" id="confirmation-subtotal-usd">$0.00</span>
                     </div>
@@ -2560,6 +2564,10 @@
                 <div class="order-items-list" id="modal-items"></div>
 
                 <div class="cart-summary">
+                    <div class="summary-row">
+                        <span class="summary-label">📦 Total Vials</span>
+                        <span class="summary-value" id="modal-total-vials">0</span>
+                    </div>
                     <div class="summary-row">
                         <span class="summary-label">Subtotal (USD)</span>
                         <span class="summary-value" id="modal-subtotal-usd">$0.00</span>
@@ -3454,6 +3462,14 @@
                 if (paidOrderSummary) {
                     paidOrderSummary.innerHTML = `
                         <div class="summary-row">
+                            <span class="summary-label">📦 Total Vials</span>
+                            <span class="summary-value">${paidTotalVials}</span>
+                        </div>
+                        <div class="summary-row">
+                            <span class="summary-label">Subtotal (USD)</span>
+                            <span class="summary-value">$${paidTotalUsd.toFixed(2)}</span>
+                        </div>
+                        <div class="summary-row">
                             <span class="summary-label">Subtotal (PHP)</span>
                             <span class="summary-value">₱${paidTotalPhp.toFixed(2)}</span>
                         </div>
@@ -3545,6 +3561,10 @@
                 if (newOrderSummary) {
                     newOrderSummary.style.display = 'block';
                     newOrderSummary.innerHTML = `
+                        <div class="summary-row">
+                            <span class="summary-label">📦 Total Vials</span>
+                            <span class="summary-value">${newTotalVials}</span>
+                        </div>
                         <div class="summary-row">
                             <span class="summary-label">Subtotal (USD)</span>
                             <span class="summary-value">$${newTotalUsd.toFixed(2)}</span>
@@ -5198,6 +5218,7 @@
             
             // Calculate totals
             const items = order.items || [];
+            const subtotalUsd = items.reduce((sum, item) => sum + (parseFloat(item.line_total_usd) || 0), 0);
             const subtotalPhp = items.reduce((sum, item) => sum + (parseFloat(item.line_total_php) || 0), 0);
             
             // Calculate tiered admin fee for this order
@@ -5227,7 +5248,15 @@
                 </div>
                 <div style="border-top: 1px solid var(--border); padding-top: 0.75rem; margin-top: 0.75rem;">
                     <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-                        <span style="color: var(--text-secondary); font-size: 0.9rem;">Subtotal:</span>
+                        <span style="color: var(--text-secondary); font-size: 0.9rem;">📦 Total Vials:</span>
+                        <span style="font-weight: 600;">${totalVials}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                        <span style="color: var(--text-secondary); font-size: 0.9rem;">Subtotal (USD):</span>
+                        <span style="font-weight: 600;">$${subtotalUsd.toFixed(2)}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                        <span style="color: var(--text-secondary); font-size: 0.9rem;">Subtotal (PHP):</span>
                         <span style="font-weight: 600;">₱${subtotalPhp.toFixed(2)}</span>
                     </div>
                     <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
@@ -5367,6 +5396,8 @@
             const adminFee = totalVials > 0 ? Math.ceil(totalVials / 50) * 300 : 0;
             const grandTotal = totalPhp + adminFee;
             
+            const confirmationTotalVialsEl = document.getElementById('confirmation-total-vials');
+            if (confirmationTotalVialsEl) confirmationTotalVialsEl.textContent = totalVials;
             document.getElementById('confirmation-subtotal-usd').textContent = `$${totalUsd.toFixed(2)}`;
             document.getElementById('confirmation-subtotal-php').textContent = `₱${totalPhp.toFixed(2)}`;
             document.getElementById('confirmation-admin-fee').textContent = `₱${adminFee.toFixed(2)}`;
@@ -5708,6 +5739,8 @@
             const adminFee = totalVials > 0 ? Math.ceil(totalVials / 50) * 300 : 0;
             const grandTotal = order.subtotal_php + adminFee;
             
+            const modalTotalVials = document.getElementById('modal-total-vials');
+            if (modalTotalVials) modalTotalVials.textContent = totalVials;
             if (modalOrderId) modalOrderId.textContent = order.order_id;
             if (modalSubtotalUsd) modalSubtotalUsd.textContent = `$${order.subtotal_usd.toFixed(2)}`;
             if (modalSubtotalPhp) modalSubtotalPhp.textContent = `₱${order.subtotal_php.toFixed(2)}`;
