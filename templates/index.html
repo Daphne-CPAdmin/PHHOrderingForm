@@ -2515,7 +2515,7 @@
                     </div>
                     <div class="summary-row">
                         <span class="summary-label">Admin Fee</span>
-                        <span class="summary-value">₱{{ "%.2f"|format(admin_fee) }}</span>
+                        <span class="summary-value" id="confirmation-admin-fee">₱300.00</span>
                     </div>
                     <div class="summary-row grand-total">
                         <span class="summary-label">Grand Total</span>
@@ -3362,7 +3362,9 @@
             const empty = cartSection.querySelector(`.cart-empty[data-supplier="${supplier}"]`);
             // Get the regular cart-items element (not the new-order-items)
             let items = cartSection.querySelector(`.cart-items[data-supplier="${supplier}"]:not(.new-order-items)`);
-            const summary = cartSection.querySelector(`.cart-summary[data-supplier="${supplier}"]:not(.new-order-summary)`);
+            // Get the main cart-summary (not the one inside new-order-section)
+            const allSummaries = cartSection.querySelectorAll(`.cart-summary[data-supplier="${supplier}"]`);
+            const summary = Array.from(allSummaries).find(el => !el.classList.contains('new-order-summary'));
             const submitBtn = cartSection.querySelector(`.submit-order[data-supplier="${supplier}"]`);
             const paidOrderSection = cartSection.querySelector(`.paid-order-section[data-supplier="${supplier}"]`);
             const paidOrderItems = cartSection.querySelector(`.paid-order-items[data-supplier="${supplier}"]`);
@@ -5243,10 +5245,35 @@
             const itemsToCalculate = items || cartItems;
             const totalUsd = itemsToCalculate.reduce((sum, item) => sum + (item.line_total_usd || 0), 0);
             const totalPhp = itemsToCalculate.reduce((sum, item) => sum + (item.line_total_php || 0), 0) || (totalUsd * EXCHANGE_RATE);
-            const grandTotal = totalPhp + ADMIN_FEE;
+            
+            // Calculate tiered admin fee based on total vials
+            let totalVials = 0;
+            const productsCache = window._productsCache || window.products || [];
+            
+            itemsToCalculate.forEach(item => {
+                const productCode = item.product_code;
+                const orderType = item.order_type || 'Vial';
+                const qty = parseFloat(item.qty) || 0;
+                
+                if (qty <= 0) return;
+                
+                const product = productsCache.find(p => p.code === productCode);
+                const vialsPerKit = product?.vials_per_kit || VIALS_PER_KIT || 10;
+                
+                if (orderType === 'Kit') {
+                    totalVials += qty * vialsPerKit;
+                } else {
+                    totalVials += qty;
+                }
+            });
+            
+            // Tiered admin fee: ₱300 for every 50 vials (or part thereof)
+            const adminFee = totalVials > 0 ? Math.ceil(totalVials / 50) * 300 : 0;
+            const grandTotal = totalPhp + adminFee;
             
             document.getElementById('confirmation-subtotal-usd').textContent = `$${totalUsd.toFixed(2)}`;
             document.getElementById('confirmation-subtotal-php').textContent = `₱${totalPhp.toFixed(2)}`;
+            document.getElementById('confirmation-admin-fee').textContent = `₱${adminFee.toFixed(2)}`;
             document.getElementById('confirmation-grand-total').textContent = `₱${grandTotal.toFixed(2)}`;
         }
         
