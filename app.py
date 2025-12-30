@@ -2387,6 +2387,8 @@ def _fetch_consolidated_order_stats():
         total_completed_kits_count = sum(s['total_completed_kits_count'] for s in stats_by_supplier.values())
         total_incomplete_vials_count = sum(s['total_incomplete_vials_count'] for s in stats_by_supplier.values())
         
+        print(f"📊 [Order Stats] Overall totals: ${total_completed_kits_usd:.2f} completed kits, ${total_incomplete_vials_usd:.2f} incomplete vials")
+        
         return {
             'by_supplier': stats_by_supplier,
             'total_completed_kits_usd': total_completed_kits_usd,
