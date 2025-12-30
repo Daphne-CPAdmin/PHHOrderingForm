@@ -3328,8 +3328,9 @@
             if (!cartSection) return;
             
             const empty = cartSection.querySelector(`.cart-empty[data-supplier="${supplier}"]`);
-            const items = cartSection.querySelector(`.cart-items[data-supplier="${supplier}"]`);
-            const summary = cartSection.querySelector(`.cart-summary[data-supplier="${supplier}"]`);
+            // Get the regular cart-items element (not the new-order-items)
+            const items = cartSection.querySelector(`.cart-items[data-supplier="${supplier}"]:not(.new-order-items)`);
+            const summary = cartSection.querySelector(`.cart-summary[data-supplier="${supplier}"]:not(.new-order-summary)`);
             const submitBtn = cartSection.querySelector(`.submit-order[data-supplier="${supplier}"]`);
             const paidOrderSection = cartSection.querySelector(`.paid-order-section[data-supplier="${supplier}"]`);
             const paidOrderItems = cartSection.querySelector(`.paid-order-items[data-supplier="${supplier}"]`);
