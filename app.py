@@ -2269,8 +2269,11 @@ def _fetch_consolidated_order_stats():
         if not orders:
             orders = []
         
+        print(f"📊 [Order Stats] Fetched {len(orders)} orders from PepHaul Entry tab")
+        
         products = get_products()
         product_prices = {p['code']: {'kit_price': p['kit_price'], 'vial_price': p['vial_price']} for p in products}
+        product_vials_map = {p['code']: p.get('vials_per_kit', VIALS_PER_KIT) for p in products}
         
         # Get inventory stats to calculate actual kits_generated (includes kits formed from vials)
         inventory = get_inventory_stats()
@@ -2376,6 +2379,7 @@ def _fetch_consolidated_order_stats():
                 'total_incomplete_vials_count': total_incomplete_vials_count,
                 'combined_total_usd': combined_total_usd
             }
+            print(f"📊 [Order Stats] {supplier}: {len(supplier_orders)} orders, ${total_completed_kits_usd:.2f} completed kits, ${total_incomplete_vials_usd:.2f} incomplete vials")
         
         # Also calculate overall totals for backward compatibility
         total_completed_kits_usd = sum(s['total_completed_kits_usd'] for s in stats_by_supplier.values())

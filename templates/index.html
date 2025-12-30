@@ -3944,29 +3944,31 @@
                 payOrderBtn.disabled = false;
                 payOrderBtn.title = isPaid ? 'Order already paid' : 'Pay for your submitted order';
                 
-                // Show Cancel Order button - disable when order form is locked, cancelled, locked, paid, or awaiting payment confirmation
+                // Show Cancel Order button - enable when order form is OPEN (not locked)
+                // Disable only when: cancelled, locked by admin, paid, or awaiting payment confirmation
                 const isCancelled = pendingOrder.status === 'Cancelled';
                 const isLocked = pendingOrder.locked === true;
                 const isPaidStatus = pendingOrder.payment_status && (pendingOrder.payment_status === 'Paid' || pendingOrder.payment_status.toLowerCase() === 'paid');
                 const isAwaitingConfirmation = pendingOrder.payment_status === 'Waiting for Confirmation';
-                const shouldHideCancel = orderFormLocked || isCancelled || isLocked || isPaidStatus || isAwaitingConfirmation;
+                // Enable cancel when order form is OPEN (orderFormLocked is false)
+                const shouldHideCancel = isCancelled || isLocked || isPaidStatus || isAwaitingConfirmation;
                 
                 cancelOrderBtn.style.display = shouldHideCancel ? 'none' : 'block';
                 cancelOrderBtn.disabled = shouldHideCancel;
                 if (shouldHideCancel) {
-                    if (orderFormLocked) {
-                        cancelOrderBtn.title = 'Order form is locked - cannot cancel orders';
-                    } else if (isPaidStatus) {
+                    if (isPaidStatus) {
                         cancelOrderBtn.title = 'Cannot cancel order - payment has been confirmed';
                     } else if (isAwaitingConfirmation) {
                         cancelOrderBtn.title = 'Cannot cancel order - payment confirmation pending';
                     } else if (isLocked) {
                         cancelOrderBtn.title = 'Cannot cancel order - order is locked by admin';
+                    } else if (isCancelled) {
+                        cancelOrderBtn.title = 'Order is already cancelled';
                     } else {
                         cancelOrderBtn.title = 'Cannot cancel order';
                     }
                 } else {
-                    cancelOrderBtn.title = 'Cancel this order (cannot be undone)';
+                    cancelOrderBtn.title = 'Cancel this order - will delete all rows (cannot be undone)';
                 }
                 
                 // Show "Add Shipping Details" button only if column W (mailing_address) is empty
