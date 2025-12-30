@@ -1753,6 +1753,34 @@
             <p class="header-subtitle">Your access to high purity (99%) affordable peptide reservations</p>
         </header>
 
+        <!-- Supplier Filter Section -->
+        {% if suppliers|length > 1 %}
+        <div class="card" style="margin-bottom: 2rem; border: 2px solid #8b5cf6;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                <div>
+                    <h2 style="font-size: 1.25rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                        🏢 Supplier Filter
+                    </h2>
+                    <p style="color: var(--text-muted); font-size: 0.9rem;">
+                        Filter the pricelist display by supplier. Choose to show YIWU, WWB, or both.
+                    </p>
+                </div>
+                <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+                    <div id="supplier-filter-buttons" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                        <button id="supplier-filter-all" class="btn supplier-filter-btn active" data-filter="all" style="padding: 0.75rem 1.5rem; background: #8b5cf6; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600;">
+                            All Suppliers
+                        </button>
+                        {% for supplier in suppliers %}
+                        <button class="btn supplier-filter-btn" data-filter="{{ supplier }}" data-supplier-name="{{ supplier }}" style="padding: 0.75rem 1.5rem; background: #c084fc; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600;">
+                            {{ supplier }}
+                        </button>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
         <!-- Consolidated Order Stats Banner - Per Supplier -->
         {% if not order_form_locked %}
         {% for supplier in suppliers %}
