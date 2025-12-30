@@ -3860,7 +3860,26 @@ def api_submit_order():
                 }), 500
         
         total_php = total_usd * exchange_rate
-        grand_total_php = total_php + ADMIN_FEE_PHP
+        
+        # Calculate tiered admin fee based on total vials
+        total_vials = 0
+        for item in items_with_prices:
+            qty = float(item.get('qty', 0))
+            order_type = item.get('order_type', 'Vial')
+            product_code = item.get('product_code', '')
+            
+            # Find product to get vials_per_kit
+            product = next((p for p in products if p['code'] == product_code), None)
+            vials_per_kit = product.get('vials_per_kit', 10) if product else 10
+            
+            if order_type == 'Kit':
+                total_vials += qty * vials_per_kit
+            else:
+                total_vials += qty
+        
+        # Tiered admin fee: ₱300 for every 50 vials (or part thereof)
+        admin_fee_php = math.ceil(total_vials / 50) * 300 if total_vials > 0 else 0
+        grand_total_php = total_php + admin_fee_php
         
         order_data = {
             'full_name': data.get('full_name', '').strip(),
@@ -3900,6 +3919,10 @@ def api_submit_order():
 <b>Items:</b>
 {items_text}
 
+<b>Subtotal (USD):</b> ${total_usd:,.2f}
+<b>Subtotal (PHP):</b> ₱{total_php:,.2f}
+<b>Total Vials:</b> {int(total_vials)} vials
+<b>Admin Fee:</b> ₱{admin_fee_php:,.2f} (₱300 per 50 vials)
 <b>Grand Total:</b> ₱{grand_total_php:,.2f}
 <b>Status:</b> Pending Payment"""
             send_telegram_notification(telegram_msg)
