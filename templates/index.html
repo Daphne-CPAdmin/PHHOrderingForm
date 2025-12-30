@@ -3845,10 +3845,11 @@
             const hasRemovedItems = supplierOriginalItems.length > 0 && 
                 (supplierCartItems.length < supplierOriginalItems.length || 
                  supplierOriginalItems.some(origItem => {
-                     // Check if original item is missing from cart
+                     // Check if original item is missing from cart (match by product_code, order_type, AND supplier)
                      return !supplierCartItems.some(cartItem => 
                          cartItem.product_code === origItem.product_code && 
-                         cartItem.order_type === origItem.order_type
+                         cartItem.order_type === origItem.order_type &&
+                         (cartItem.supplier || 'Default') === (origItem.supplier || 'Default')
                      );
                  }));
             
