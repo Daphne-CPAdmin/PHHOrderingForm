@@ -1666,6 +1666,13 @@
                 radial-gradient(ellipse at 50% 50%, rgba(217, 119, 6, 0.08) 0%, transparent 50%);
         }
         {% endif %}
+        
+        /* Force cart-summary to be visible when display is set to block */
+        .cart-summary[style*="display: block"] {
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+        }
     </style>
 </head>
 <body>
@@ -3760,6 +3767,7 @@
                 // Ensure summary is visible after all updates (especially after items cloning)
                 if (summary) {
                     summary.style.display = 'block';
+                    summary.style.visibility = 'visible';
                     console.log(`[updateSupplierCart] Summary re-shown after calculations for supplier: ${supplier}`);
                 }
             }
