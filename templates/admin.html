@@ -1143,6 +1143,7 @@
                     loadOrderGoal();
                     loadTheme();
                     loadTimelineEntries();
+                    loadPepHaulTabs(); // Load available tabs
                 } else {
                     document.getElementById('login-error').textContent = 'Invalid password';
                     document.getElementById('login-error').style.display = 'block';
@@ -1177,15 +1178,22 @@
                     loadOrderGoal();
                     loadTheme();
                     loadTimelineEntries();
+                    loadPepHaulTabs(); // Load available tabs
                 }
             } catch (e) {
                 // If this fails, user can still log in manually.
+                console.error('Boot admin error:', e);
             }
         }
 
         // Enter key for login
-        document.getElementById('admin-password').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') login();
+        document.addEventListener('DOMContentLoaded', () => {
+            const passwordInput = document.getElementById('admin-password');
+            if (passwordInput) {
+                passwordInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') handleLogin();
+                });
+            }
         });
 
         // Order Form Lock State

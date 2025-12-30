@@ -5891,18 +5891,21 @@ def get_pephaul_worksheet(spreadsheet=None):
 @app.route('/api/admin/pephaul-tabs', methods=['GET'])
 def api_admin_list_pephaul_tabs():
     """Get list of available PepHaul Entry tabs"""
-    if not session.get('is_admin'):
-        return jsonify({'error': 'Unauthorized'}), 401
-    
-    if not sheets_client:
-        return jsonify({'error': 'Sheets not configured'}), 500
-    
     try:
+        if not session.get('is_admin'):
+            return jsonify({'error': 'Unauthorized'}), 401
+        
+        if not sheets_client:
+            print("❌ Sheets client not configured")
+            return jsonify({'error': 'Sheets not configured'}), 500
+        
+        print(f"📋 Fetching PepHaul Entry tabs from Google Sheets...")
         spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
         all_sheets = spreadsheet.worksheets()
         
         # Filter tabs that start with "PepHaul Entry"
         pephaul_tabs = [ws.title for ws in all_sheets if ws.title.startswith('PepHaul Entry')]
+        print(f"📋 Found {len(pephaul_tabs)} PepHaul Entry tabs: {pephaul_tabs}")
         
         # Sort tabs: "PepHaul Entry-01" first, then other numbered ones, then old "PepHaul Entry"
         def sort_key(name):
@@ -5922,6 +5925,7 @@ def api_admin_list_pephaul_tabs():
         pephaul_tabs.sort(key=sort_key)
         
         current_tab = get_current_pephaul_tab()
+        print(f"📋 Current tab: {current_tab}")
         
         return jsonify({
             'success': True,
@@ -5929,10 +5933,10 @@ def api_admin_list_pephaul_tabs():
             'current_tab': current_tab
         })
     except Exception as e:
-        print(f"Error listing tabs: {e}")
+        print(f"❌ Error listing tabs: {e}")
         import traceback
         traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': str(e), 'details': 'Check server logs for more information'}), 500
 
 @app.route('/api/admin/pephaul-tabs/create', methods=['POST'])
 def api_admin_create_pephaul_tab():
@@ -5991,29 +5995,34 @@ def api_admin_create_pephaul_tab():
 @app.route('/api/admin/pephaul-tabs/switch', methods=['POST'])
 def api_admin_switch_pephaul_tab():
     """Switch to a different PepHaul Entry tab"""
-    if not session.get('is_admin'):
-        return jsonify({'error': 'Unauthorized'}), 401
-    
-    if not sheets_client:
-        return jsonify({'error': 'Sheets not configured'}), 500
-    
-    data = request.json or {}
-    tab_name = data.get('tab_name', '').strip()
-    
-    if not tab_name:
-        return jsonify({'error': 'Tab name is required'}), 400
-    
     try:
+        if not session.get('is_admin'):
+            return jsonify({'error': 'Unauthorized'}), 401
+        
+        if not sheets_client:
+            print("❌ Sheets client not configured")
+            return jsonify({'error': 'Sheets not configured'}), 500
+        
+        data = request.json or {}
+        tab_name = data.get('tab_name', '').strip()
+        
+        if not tab_name:
+            return jsonify({'error': 'Tab name is required'}), 400
+        
+        print(f"🔄 Switching to PepHaul Entry tab: {tab_name}")
         spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
         
         # Verify tab exists
         try:
             worksheet = spreadsheet.worksheet(tab_name)
-        except:
+            print(f"✅ Tab '{tab_name}' found")
+        except Exception as e:
+            print(f"❌ Tab '{tab_name}' not found: {e}")
             return jsonify({'error': f'Tab "{tab_name}" not found'}), 404
         
         # Set as current tab
         set_current_pephaul_tab(tab_name)
+        print(f"✅ Set current tab to: {tab_name}")
         
         # Clear cache to force reload from new tab
         clear_cache('orders')
@@ -6032,10 +6041,10 @@ def api_admin_switch_pephaul_tab():
             'message': f'Switched to tab: {tab_name}'
         })
     except Exception as e:
-        print(f"Error switching tab: {e}")
+        print(f"❌ Error switching tab: {e}")
         import traceback
         traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': str(e), 'details': 'Check server logs for more information'}), 500
 
 @app.route('/api/admin/orders/backfill-suppliers', methods=['POST'])
 def api_admin_backfill_suppliers():
