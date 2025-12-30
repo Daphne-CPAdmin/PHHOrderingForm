@@ -2013,6 +2013,17 @@
                     <div class="cart-items" data-supplier="{{ supplier }}" style="display: none;"></div>
 
                     <div class="cart-summary" data-supplier="{{ supplier }}" style="display: none; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border);">
+                        <!-- Kits/Vials Summary -->
+                        <div class="kits-vials-summary" data-supplier="{{ supplier }}" style="margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border);">
+                            <div class="summary-row" style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                                <span class="summary-label" style="color: var(--text-secondary); font-size: 0.9rem;">✅ Complete Kits</span>
+                                <span class="summary-value complete-kits-count" data-supplier="{{ supplier }}" style="font-weight: 600; color: var(--accent-emerald);">0</span>
+                            </div>
+                            <div class="summary-row" style="display: flex; justify-content: space-between;">
+                                <span class="summary-label" style="color: var(--text-secondary); font-size: 0.9rem;">⚠️ Incomplete Vials</span>
+                                <span class="summary-value incomplete-vials-count" data-supplier="{{ supplier }}" style="font-weight: 600; color: var(--accent-amber);">0</span>
+                            </div>
+                        </div>
                         <div class="summary-row" style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
                             <span class="summary-label" style="color: var(--text-secondary);">Subtotal (USD)</span>
                             <span class="summary-value summary-usd" data-supplier="{{ supplier }}" style="font-weight: 600;">$0.00</span>
@@ -3646,6 +3657,46 @@
                 }
                 
                 const grandTotal = totalPhp + ADMIN_FEE;
+                
+                // Calculate complete kits and incomplete vials for this supplier
+                let totalCompleteKits = 0;
+                let totalIncompleteVials = 0;
+                
+                // Get products cache to look up vials_per_kit
+                const productsCache = window._productsCache || window.products || [];
+                
+                supplierCartItems.forEach(item => {
+                    const productCode = item.product_code;
+                    const orderType = item.order_type || 'Vial';
+                    const qty = parseFloat(item.qty) || 0;
+                    
+                    if (qty <= 0) return;
+                    
+                    // Find product to get vials_per_kit
+                    const product = productsCache.find(p => p.code === productCode);
+                    const vialsPerKit = product?.vials_per_kit || VIALS_PER_KIT || 10;
+                    
+                    let totalVials = 0;
+                    if (orderType === 'Kit') {
+                        totalVials = qty * vialsPerKit;
+                    } else {
+                        totalVials = qty;
+                    }
+                    
+                    // Calculate complete kits and incomplete vials for this product
+                    const completeKits = Math.floor(totalVials / vialsPerKit);
+                    const incompleteVials = totalVials % vialsPerKit;
+                    
+                    totalCompleteKits += completeKits;
+                    totalIncompleteVials += incompleteVials;
+                });
+                
+                // Update kits/vials summary displays for this supplier
+                const completeKitsEl = cartSection.querySelector(`.complete-kits-count[data-supplier="${supplier}"]`);
+                const incompleteVialsEl = cartSection.querySelector(`.incomplete-vials-count[data-supplier="${supplier}"]`);
+                
+                if (completeKitsEl) completeKitsEl.textContent = `${totalCompleteKits} kit${totalCompleteKits !== 1 ? 's' : ''}`;
+                if (incompleteVialsEl) incompleteVialsEl.textContent = `${totalIncompleteVials} vial${totalIncompleteVials !== 1 ? 's' : ''}`;
                 
                 // Update summary displays for this supplier
                 const summaryUsdEl = cartSection.querySelector(`.summary-usd[data-supplier="${supplier}"]`);
