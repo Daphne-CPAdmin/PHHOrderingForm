@@ -2034,7 +2034,7 @@
                         </div>
                         <div class="summary-row" style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
                             <span class="summary-label" style="color: var(--text-secondary);">Admin Fee</span>
-                            <span class="summary-value" style="font-weight: 600;">₱{{ "%.2f"|format(admin_fee) }}</span>
+                            <span class="summary-value admin-fee-value" data-supplier="{{ supplier }}" style="font-weight: 600;">₱300.00</span>
                         </div>
                         <div class="summary-row grand-total" style="display: flex; justify-content: space-between; margin-top: 0.5rem; padding-top: 0.5rem; border-top: 2px solid var(--accent-amber);">
                             <span class="summary-label" style="color: var(--accent-amber); font-weight: 700; font-size: 1.1rem;">Grand Total</span>
@@ -3679,14 +3679,39 @@
                     totalUsd = totalPhp / EXCHANGE_RATE;
                 }
                 
-                const grandTotal = totalPhp + ADMIN_FEE;
-                
-                // Calculate complete kits and incomplete vials for this supplier
-                let totalCompleteKits = 0;
-                let totalIncompleteVials = 0;
+                // Calculate complete kits and incomplete vials for this supplier (for admin fee calculation)
+                let totalVials = 0;
                 
                 // Get products cache to look up vials_per_kit
                 const productsCache = window._productsCache || window.products || [];
+                
+                supplierCartItems.forEach(item => {
+                    const productCode = item.product_code;
+                    const orderType = item.order_type || 'Vial';
+                    const qty = parseFloat(item.qty) || 0;
+                    
+                    if (qty <= 0) return;
+                    
+                    // Find product to get vials_per_kit
+                    const product = productsCache.find(p => p.code === productCode);
+                    const vialsPerKit = product?.vials_per_kit || VIALS_PER_KIT || 10;
+                    
+                    if (orderType === 'Kit') {
+                        totalVials += qty * vialsPerKit;
+                    } else {
+                        totalVials += qty;
+                    }
+                });
+                
+                // Calculate tiered admin fee: ₱300 for every 50 vials (or part thereof)
+                // 1-50 vials = ₱300, 51-100 vials = ₱600, 101-150 vials = ₱900, etc.
+                const adminFee = Math.ceil(totalVials / 50) * 300;
+                
+                const grandTotal = totalPhp + adminFee;
+                
+                // Calculate complete kits and incomplete vials for display
+                let totalCompleteKits = 0;
+                let totalIncompleteVials = 0;
                 
                 supplierCartItems.forEach(item => {
                     const productCode = item.product_code;
@@ -3724,11 +3749,19 @@
                 // Update summary displays for this supplier
                 const summaryUsdEl = cartSection.querySelector(`.summary-usd[data-supplier="${supplier}"]`);
                 const summaryPhpEl = cartSection.querySelector(`.summary-php[data-supplier="${supplier}"]`);
+                const adminFeeEl = cartSection.querySelector(`.admin-fee-value[data-supplier="${supplier}"]`);
                 const grandTotalEl = cartSection.querySelector(`.grand-total-value[data-supplier="${supplier}"]`);
                 
                 if (summaryUsdEl) summaryUsdEl.textContent = `$${totalUsd.toFixed(2)}`;
                 if (summaryPhpEl) summaryPhpEl.textContent = `₱${totalPhp.toFixed(2)}`;
+                if (adminFeeEl) adminFeeEl.textContent = `₱${adminFee.toFixed(2)}`;
                 if (grandTotalEl) grandTotalEl.textContent = `₱${grandTotal.toFixed(2)}`;
+                
+                // Ensure summary is visible after all updates (especially after items cloning)
+                if (summary) {
+                    summary.style.display = 'block';
+                    console.log(`[updateSupplierCart] Summary re-shown after calculations for supplier: ${supplier}`);
+                }
             }
             
             // Update button visibility for this supplier
