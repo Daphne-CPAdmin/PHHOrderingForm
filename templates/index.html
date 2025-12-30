@@ -3543,8 +3543,12 @@
                     console.log(`[updateSupplierCart] Items innerHTML set for supplier: ${supplier}, items element:`, items);
                     console.log(`[updateSupplierCart] Items element children count after innerHTML:`, items.children.length);
                     
-                    // Attach event listeners using event delegation (attach to original, not clone)
-                    items.addEventListener('click', function(e) {
+                    // Remove any existing listeners by cloning and replacing
+                    const clonedItems = items.cloneNode(true);
+                    items.parentNode.replaceChild(clonedItems, items);
+                    
+                    // Attach event listener to the new element
+                    clonedItems.addEventListener('click', function(e) {
                         try {
                             const btn = e.target.closest('.qty-btn-minus, .qty-btn-plus');
                             if (btn) {
@@ -3562,6 +3566,9 @@
                             showToast('❌ Error updating quantity. Please try again.', 3000);
                         }
                     });
+                    console.log(`[updateSupplierCart] Event listeners attached for supplier: ${supplier}`);
+                } else {
+                    console.error(`[updateSupplierCart] Items element is null for supplier: ${supplier}`);
                 }
                 
                 // Calculate totals for this supplier
