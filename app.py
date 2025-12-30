@@ -2428,7 +2428,8 @@ def _fetch_consolidated_order_stats():
 
 def get_consolidated_order_stats():
     """Get consolidated order stats with caching"""
-    return get_cached('order_stats', _fetch_consolidated_order_stats, cache_duration=300)  # 5 minutes - derived data, can cache longer
+    # Use shorter cache duration to ensure stats reflect current PepHaul Entry tab
+    return get_cached('order_stats', _fetch_consolidated_order_stats, cache_duration=180)  # 3 minutes - match orders cache duration
 
 # Routes
 @app.route('/')
