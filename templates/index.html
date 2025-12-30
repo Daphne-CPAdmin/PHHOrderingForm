@@ -3826,11 +3826,20 @@
             const supplierCartItems = cartItems.filter(item => (item.supplier || 'Default') === supplier);
             
             // Check if there's a pending order for this supplier (including locked ones for status checks)
-            const pendingOrder = existingCustomerOrders.find(o => 
-                o.status !== 'Cancelled' && 
-                !o.locked && 
-                o.supplier === supplier
-            );
+            // Match by supplier field OR by checking if order items belong to this supplier
+            const pendingOrder = existingCustomerOrders.find(o => {
+                if (o.status === 'Cancelled' || o.locked) return false;
+                // Check if order has supplier field that matches
+                if (o.supplier === supplier) return true;
+                // If no supplier field, check if any items belong to this supplier
+                if (o.items && o.items.length > 0) {
+                    return o.items.some(item => {
+                        const product = allProducts?.find(p => p.code === item.product_code);
+                        return product && (product.supplier || 'Default') === supplier;
+                    });
+                }
+                return false;
+            });
             const anyPendingOrder = existingCustomerOrders.find(o => 
                 o.status !== 'Cancelled' && 
                 o.supplier === supplier
