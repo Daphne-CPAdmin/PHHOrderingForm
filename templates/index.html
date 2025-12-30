@@ -3506,9 +3506,16 @@
                 if (empty) empty.style.display = 'block';
                 if (items) items.style.display = 'none';
                 if (summary) summary.style.display = 'none';
+                // Hide kits/vials summary when empty
+                const kitsVialsSummary = cartSection.querySelector(`.kits-vials-summary[data-supplier="${supplier}"]`);
+                if (kitsVialsSummary) kitsVialsSummary.style.display = 'none';
                 if (submitBtn) submitBtn.disabled = true;
                 return;
             }
+            
+            // Show kits/vials summary when there are items
+            const kitsVialsSummary = cartSection.querySelector(`.kits-vials-summary[data-supplier="${supplier}"]`);
+            if (kitsVialsSummary) kitsVialsSummary.style.display = 'block';
             
             // For non-paid orders or when no paid order exists, show regular cart
             // Show regular cart if there's no paid order OR if there's a paid order but no new items
