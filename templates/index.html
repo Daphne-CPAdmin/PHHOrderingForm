@@ -3885,10 +3885,12 @@
                 // Hide Submit Order button (for new orders)
                 submitBtn.style.display = 'none';
                 
-                // Show Update Order button - disable if order form is locked or no changes
+                // Show Update Order button - always show when there's a pending order
+                // Disable if order form is locked or no changes (but still visible so user can see it)
                 updateOrderBtn.style.display = 'block';
                 const shouldDisableUpdate = orderFormLocked || !hasChanges || supplierCartItems.length === 0;
                 updateOrderBtn.disabled = shouldDisableUpdate;
+                console.log(`[updateSupplierSubmitButtons] Supplier: ${supplier}, pendingOrder: ${pendingOrder.order_id}, hasChanges: ${hasChanges}, shouldDisableUpdate: ${shouldDisableUpdate}, supplierCartItems.length: ${supplierCartItems.length}`);
                 if (orderFormLocked) {
                     updateOrderBtn.title = 'Order form is locked - cannot update orders';
                 } else if (!hasChanges) {
