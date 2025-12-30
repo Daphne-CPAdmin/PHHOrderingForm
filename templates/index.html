@@ -4163,12 +4163,26 @@
                                 qty: item.qty
                             }));
                             
-                            updateCart();
+                            console.log(`[checkReturningCustomer] Loaded ${cartItems.length} items into cartItems:`, cartItems);
+                            updateCart(); // This calls updateSupplierCart for each supplier
                             saveCart();
                             updateSubmitButtonText(); // Update buttons after loading existing items
                             updateOrderSummaryStatusTags();
                             updateEditingControls();
                             showToast(`✅ Loaded ${cartItems.length} item(s) from your existing order`, 3000);
+                            
+                            // Force update of all supplier carts to ensure items display
+                            if (SUPPLIERS && SUPPLIERS.length > 0) {
+                                SUPPLIERS.forEach(supplier => {
+                                    const paidOrder = existingCustomerOrders.find(o => 
+                                        o.status !== 'Cancelled' && 
+                                        o.payment_status && 
+                                        o.payment_status.toLowerCase() === 'paid' &&
+                                        (o.supplier === supplier || (!o.supplier && supplier === 'Default'))
+                                    );
+                                    updateSupplierCart(supplier, paidOrder);
+                                });
+                            }
                         } else {
                             // No pending unpaid order, clear cart and reset order ID
                             // Paid orders will be shown in locked section via updateCart()
