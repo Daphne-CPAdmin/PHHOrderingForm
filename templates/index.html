@@ -3516,21 +3516,26 @@
                         const qtyBtnPlusStyle = isEditable ?
                             'width: 28px; height: 28px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--accent-teal); font-size: 1.2rem; font-weight: 600; line-height: 1; pointer-events: auto; z-index: 10; position: relative;' :
                             'width: 28px; height: 28px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: not-allowed; display: flex; align-items: center; justify-content: center; color: var(--accent-teal); font-size: 1.2rem; font-weight: 600; line-height: 1; pointer-events: none; z-index: 10; position: relative; opacity: 0.5;';
+                        // Format product code for tag (first 3-4 characters, uppercase)
+                        const productCodeTag = item.product_code ? item.product_code.substring(0, 4).toUpperCase() : '';
+                        
                         return `
-                            <div class="cart-item" style="${isExisting ? 'border-left: 3px solid var(--accent-amber);' : ''}">
-                                <button class="cart-item-remove" onclick="removeItem(${itemIndex})" ${!canRemove ? 'disabled' : ''} style="${removeBtnStyle}" ${isExisting && orderFormLocked ? 'title="Cannot remove items from existing orders when order form is locked"' : ''}>×</button>
-                                <div class="cart-item-header">
-                                    <span class="cart-item-name">${item.product_name}${hasChanged ? ' <span style="font-size: 0.75rem; color: var(--accent-teal);">(Updated)</span>' : ''}</span>
-                                    <span class="cart-item-code">${item.product_code}</span>
+                            <div class="cart-item" style="position: relative; padding: 1rem; margin-bottom: 0.75rem; background: white; border-radius: 8px; border: 1px solid var(--border); ${isExisting ? 'border-left: 3px solid var(--accent-amber);' : ''}">
+                                ${productCodeTag ? `<div style="position: absolute; top: 0.5rem; right: 0.5rem; display: flex; align-items: center; gap: 0.25rem;">
+                                    <span style="background: rgba(236, 72, 153, 0.1); color: var(--accent-rose); padding: 0.25rem 0.5rem; border-radius: 12px; font-size: 0.75rem; font-weight: 600;">${productCodeTag}</span>
+                                    <button class="cart-item-remove" onclick="removeItem(${itemIndex})" ${!canRemove ? 'disabled' : ''} style="${removeBtnStyle}" ${isExisting && orderFormLocked ? 'title="Cannot remove items from existing orders when order form is locked"' : ''}>×</button>
+                                </div>` : `<button class="cart-item-remove" onclick="removeItem(${itemIndex})" ${!canRemove ? 'disabled' : ''} style="${removeBtnStyle}" ${isExisting && orderFormLocked ? 'title="Cannot remove items from existing orders when order form is locked"' : ''}>×</button>`}
+                                <div class="cart-item-header" style="margin-bottom: 0.5rem;">
+                                    <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.25rem;">${item.product_name}${hasChanged ? ' <span style="font-size: 0.75rem; color: var(--accent-teal);">(Updated)</span>' : ''}</div>
+                                    <div style="font-size: 0.85rem; color: var(--text-secondary);">${item.order_type} × <span id="qty-${itemIndex}">${item.qty}</span></div>
                                 </div>
-                                <div class="cart-item-details" style="display: flex; align-items: center; gap: 0.75rem;">
-                                    <span style="flex: 1;">${item.order_type} × <span id="qty-${itemIndex}">${item.qty}</span></span>
+                                <div class="cart-item-details" style="display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;">
                                     <div style="display: flex; align-items: center; gap: 0.5rem; background: var(--bg-input); border-radius: 8px; padding: 0.25rem;">
                                         <button type="button" class="qty-btn-minus" data-index="${itemIndex}" data-action="decrease" ${!isEditable ? 'disabled' : ''} style="${qtyBtnStyle}">−</button>
                                         <span id="qty-display-${itemIndex}" style="min-width: 30px; text-align: center; font-weight: 600; color: var(--text-primary);">${item.qty}</span>
                                         <button type="button" class="qty-btn-plus" data-index="${itemIndex}" data-action="increase" ${!isEditable ? 'disabled' : ''} style="${qtyBtnPlusStyle}">+</button>
                                     </div>
-                                    <span class="cart-item-price">₱<span id="price-${itemIndex}">${(item.line_total_php || 0).toFixed(2)}</span></span>
+                                    <span class="cart-item-price" style="font-weight: 600; color: var(--text-primary);">₱<span id="price-${itemIndex}">${(item.line_total_php || 0).toFixed(2)}</span></span>
                                 </div>
                             </div>
                         `;
