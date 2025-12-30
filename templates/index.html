@@ -4844,11 +4844,19 @@
         document.addEventListener('click', (e) => {
             if (e.target.classList.contains('cancel-order-btn')) {
                 const supplier = e.target.getAttribute('data-supplier');
-                const pendingOrder = existingCustomerOrders.find(o => 
-                    o.status !== 'Cancelled' && 
-                    !o.locked && 
-                    (o.supplier === supplier || (!o.supplier && supplier === 'Default'))
-                );
+                
+                // Find any order (locked or unlocked) that has items for this supplier
+                const pendingOrder = existingCustomerOrders.find(o => {
+                    if (o.status === 'Cancelled') return false;
+                    
+                    // Check if this order has items for the current supplier
+                    const hasSupplierItems = o.items && o.items.some(item => {
+                        const itemSupplier = item.supplier || 'Default';
+                        return itemSupplier === supplier;
+                    });
+                    
+                    return hasSupplierItems;
+                });
                 
                 if (!pendingOrder) {
                     showToast('No pending order found to cancel', 3000);
