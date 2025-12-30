@@ -2041,7 +2041,22 @@ def _fetch_products_from_sheets():
                 'supplier': normalized_supplier
             })
         
-        print(f"✅ Successfully loaded {len(products)} products from Google Sheets")
+        print(f"✅ Successfully loaded {len(products)} products from '{tab_name}' tab")
+        
+        # Debug: Show supplier breakdown
+        suppliers_found = {}
+        for p in products:
+            supplier = p.get('supplier', 'Default')
+            suppliers_found[supplier] = suppliers_found.get(supplier, 0) + 1
+        
+        print(f"   📊 Products by supplier: {suppliers_found}")
+        
+        # Verify YIWU and WWB suppliers are present
+        supplier_keys_upper = [s.upper() for s in suppliers_found.keys()]
+        if 'YIWU' not in supplier_keys_upper:
+            print(f"   ⚠️ Warning: YIWU supplier not found in products")
+        if 'WWB' not in supplier_keys_upper:
+            print(f"   ⚠️ Warning: WWB supplier not found in products")
         
         # Debug: Show sample products including LEMBOT if present
         lembot_found = [p for p in products if 'LEMBOT' in str(p.get('code', '')).upper()]
