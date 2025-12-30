@@ -4752,6 +4752,25 @@
             }
         });
         
+        // Handle supplier-specific Cancel Order buttons using event delegation
+        document.addEventListener('click', (e) => {
+            if (e.target.classList.contains('cancel-order-btn')) {
+                const supplier = e.target.getAttribute('data-supplier');
+                const pendingOrder = existingCustomerOrders.find(o => 
+                    o.status !== 'Cancelled' && 
+                    !o.locked && 
+                    (o.supplier === supplier || (!o.supplier && supplier === 'Default'))
+                );
+                
+                if (!pendingOrder) {
+                    showToast('No pending order found to cancel', 3000);
+                    return;
+                }
+                
+                cancelOrder(pendingOrder.order_id, pendingOrder.telegram || '');
+            }
+        });
+        
         // Handle supplier-specific Update Order buttons using event delegation
         document.addEventListener('click', (e) => {
             if (e.target.classList.contains('update-order-btn')) {
