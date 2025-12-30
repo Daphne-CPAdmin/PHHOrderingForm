@@ -3815,52 +3815,83 @@ def api_submit_order():
             }), 500
         
         for key, item in consolidated.items():
+            # Validate item has product_code
+            product_code = item.get('product_code')
+            if not product_code:
+                print(f"❌ Item missing product_code: {item}")
+                return jsonify({
+                    'success': False,
+                    'error': f'Item is missing product_code. Item data: {item}'
+                }), 400
+            
             # Match product by code AND supplier
             # Supplier should always be set (defaults to 'Default' if not provided)
             supplier = item.get('supplier', 'Default')
+            print(f"🔍 Looking for product: code={product_code}, supplier={supplier}")
+            
             # Try to find product with matching code AND supplier
-            product = next((p for p in products if p['code'] == item['product_code'] and p.get('supplier', 'Default') == supplier), None)
+            product = next((p for p in products if p['code'] == product_code and p.get('supplier', 'Default') == supplier), None)
             # Fallback: if not found, try without supplier match (for backward compatibility)
             if not product:
-                product = next((p for p in products if p['code'] == item['product_code']), None)
+                print(f"⚠️ Product {product_code} not found with supplier {supplier}, trying without supplier match")
+                product = next((p for p in products if p['code'] == product_code), None)
             
             if not product:
+                print(f"❌ Product {product_code} not found in products list")
+                print(f"   Available products: {[p['code'] for p in products[:10]]}...")  # Show first 10
                 return jsonify({
                     'success': False,
-                    'error': f'Product {item["product_code"]} not found' + (f' for supplier {supplier}' if supplier else '')
+                    'error': f'Product {product_code} not found' + (f' for supplier {supplier}' if supplier else '')
                 }), 404
+            
+            print(f"✅ Found product: {product.get('name', 'Unknown')} (code: {product_code}, supplier: {product.get('supplier', 'Default')})")
             
             # Always use supplier from product (product is source of truth)
             # This ensures supplier is always populated correctly
             supplier = product.get('supplier', 'Default')
             
             try:
-                unit_price = product['kit_price'] if item.get('order_type') == 'Kit' else product['vial_price']
-                if not unit_price or unit_price <= 0:
+                order_type = item.get('order_type', 'Vial')
+                qty = float(item.get('qty', 0))
+                
+                if qty <= 0:
+                    print(f"❌ Invalid quantity for {product_code}: {qty}")
                     return jsonify({
                         'success': False,
-                        'error': f'Invalid price for product {item["product_code"]}'
+                        'error': f'Invalid quantity for product {product_code}'
                     }), 400
                 
-                line_total_usd = unit_price * item['qty']
+                unit_price = product.get('kit_price') if order_type == 'Kit' else product.get('vial_price')
+                if not unit_price or unit_price <= 0:
+                    print(f"❌ Invalid price for {product_code}: unit_price={unit_price}, order_type={order_type}")
+                    print(f"   Product data: kit_price={product.get('kit_price')}, vial_price={product.get('vial_price')}")
+                    return jsonify({
+                        'success': False,
+                        'error': f'Invalid price for product {product_code} ({order_type})'
+                    }), 400
+                
+                line_total_usd = unit_price * qty
                 line_total_php = line_total_usd * exchange_rate
                 
                 items_with_prices.append({
-                    'product_code': item['product_code'],
-                    'product_name': product['name'],
-                    'order_type': item.get('order_type', 'Vial'),
+                    'product_code': product_code,
+                    'product_name': product.get('name', 'Unknown Product'),
+                    'order_type': order_type,
                     'supplier': supplier,  # Always from product
-                    'qty': item['qty'],
+                    'qty': qty,
                     'unit_price_usd': unit_price,
                     'line_total_usd': line_total_usd,
                     'line_total_php': line_total_php
                 })
                 total_usd += line_total_usd
+                print(f"✅ Added item: {product.get('name')} ({order_type} x{qty}) = ${line_total_usd:.2f}")
             except (KeyError, TypeError, ValueError) as e:
-                print(f"❌ Error calculating price for {item['product_code']}: {e}")
+                print(f"❌ Error calculating price for {product_code}: {e}")
+                import traceback
+                traceback.print_exc()
                 return jsonify({
                     'success': False,
-                    'error': f'Error calculating price for product {item["product_code"]}'
+                    'error': f'Error calculating price for product {product_code}: {str(e)}'
                 }), 500
         
         total_php = total_usd * exchange_rate

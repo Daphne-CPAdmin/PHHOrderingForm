@@ -5640,10 +5640,26 @@
                     // Convert consolidated map to array
                     const itemsToSubmit = Array.from(consolidatedMap.values());
                     
-                    // Validate all items have valid quantities
-                    const invalidItems = itemsToSubmit.filter(item => !item.qty || item.qty <= 0);
+                    // Validate all items have required fields
+                    const invalidItems = itemsToSubmit.filter(item => {
+                        if (!item.product_code) {
+                            console.error('Item missing product_code:', item);
+                            return true;
+                        }
+                        if (!item.qty || item.qty <= 0) {
+                            console.error('Item has invalid quantity:', item);
+                            return true;
+                        }
+                        if (!item.order_type) {
+                            console.error('Item missing order_type:', item);
+                            return true;
+                        }
+                        return false;
+                    });
+                    
                     if (invalidItems.length > 0) {
-                        showToast('❌ Error: Some items have invalid quantities. Please check your order.', 3000);
+                        console.error('Invalid items found:', invalidItems);
+                        showToast('❌ Error: Some items are missing required fields. Please refresh and try again.', 5000);
                         btn.disabled = false;
                         btn.textContent = 'Confirm & Submit Order';
                         return;
