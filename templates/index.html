@@ -3364,7 +3364,13 @@
             let items = cartSection.querySelector(`.cart-items[data-supplier="${supplier}"]:not(.new-order-items)`);
             // Get the main cart-summary (not the one inside new-order-section)
             const allSummaries = cartSection.querySelectorAll(`.cart-summary[data-supplier="${supplier}"]`);
+            console.log(`[updateSupplierCart] Found ${allSummaries.length} cart-summary elements for ${supplier}`);
+            allSummaries.forEach((el, idx) => {
+                console.log(`[updateSupplierCart] Summary ${idx}: classList=${Array.from(el.classList).join(', ')}, innerHTML length=${el.innerHTML.length}, offsetHeight=${el.offsetHeight}`);
+            });
             const summary = Array.from(allSummaries).find(el => !el.classList.contains('new-order-summary'));
+            console.log(`[updateSupplierCart] Selected summary element:`, summary);
+            console.log(`[updateSupplierCart] Selected summary innerHTML length:`, summary?.innerHTML.length);
             const submitBtn = cartSection.querySelector(`.submit-order[data-supplier="${supplier}"]`);
             const paidOrderSection = cartSection.querySelector(`.paid-order-section[data-supplier="${supplier}"]`);
             const paidOrderItems = cartSection.querySelector(`.paid-order-items[data-supplier="${supplier}"]`);
