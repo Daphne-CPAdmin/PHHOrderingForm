@@ -673,6 +673,13 @@
             gap: 2rem;
             margin-top: 2rem;
         }
+        
+        /* When supplier-carts-grid is inside the side-by-side flex container, stack vertically to match Customer Order Section width */
+        #view-new-order > div[style*="display: flex"] .supplier-carts-grid {
+            grid-template-columns: 1fr;
+            gap: 1.5rem;
+        }
+        
         @media (max-width: 1024px) { 
             .main-grid { 
                 grid-template-columns: 1fr;
