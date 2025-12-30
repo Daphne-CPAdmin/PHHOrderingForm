@@ -3691,7 +3691,7 @@
                 }
                 
                 // Calculate complete kits and incomplete vials for this supplier (for admin fee calculation)
-                let totalVials = 0;
+                let totalVialsForAdminFee = 0;
                 
                 // Get products cache to look up vials_per_kit
                 const productsCache = window._productsCache || window.products || [];
@@ -3708,15 +3708,15 @@
                     const vialsPerKit = product?.vials_per_kit || VIALS_PER_KIT || 10;
                     
                     if (orderType === 'Kit') {
-                        totalVials += qty * vialsPerKit;
+                        totalVialsForAdminFee += qty * vialsPerKit;
                     } else {
-                        totalVials += qty;
+                        totalVialsForAdminFee += qty;
                     }
                 });
                 
                 // Calculate tiered admin fee: ₱300 for every 50 vials (or part thereof)
                 // 1-50 vials = ₱300, 51-100 vials = ₱600, 101-150 vials = ₱900, etc.
-                const adminFee = Math.ceil(totalVials / 50) * 300;
+                const adminFee = totalVialsForAdminFee > 0 ? Math.ceil(totalVialsForAdminFee / 50) * 300 : 0;
                 
                 const grandTotal = totalPhp + adminFee;
                 
