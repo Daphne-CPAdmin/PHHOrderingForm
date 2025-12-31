@@ -923,8 +923,12 @@ def set_order_goal(goal_amount):
     
     return True
 
-def _fetch_orders_from_sheets():
-    """Internal function to fetch orders from sheets (called by cache)"""
+def _fetch_orders_from_sheets(tab_name=None):
+    """Internal function to fetch orders from sheets (called by cache)
+    
+    Args:
+        tab_name: Optional tab name to fetch from. If None, uses get_current_pephaul_tab()
+    """
     if not sheets_client:
         return []
     
@@ -935,8 +939,8 @@ def _fetch_orders_from_sheets():
         all_worksheets = [ws.title for ws in spreadsheet.worksheets()]
         print(f"📋 Available worksheets in sheet: {all_worksheets}")
         
-        # Get current tab name dynamically
-        current_tab = get_current_pephaul_tab()
+        # Get current tab name dynamically (use provided tab_name or fallback to current)
+        current_tab = tab_name if tab_name else get_current_pephaul_tab()
         
         # Check if current tab exists, with fallback logic
         if current_tab not in all_worksheets:
@@ -1142,7 +1146,7 @@ def _enrich_orders_with_supplier(orders):
 def get_orders_from_sheets():
     """Read existing orders from PepHaul Entry tab (cached)"""
     tab_name = get_current_pephaul_tab()
-    orders = get_cached(f'orders_{tab_name}', _fetch_orders_from_sheets, cache_duration=180)  # 3 minutes - balance freshness/performance
+    orders = get_cached(f'orders_{tab_name}', lambda: _fetch_orders_from_sheets(tab_name), cache_duration=180)  # 3 minutes - balance freshness/performance
     # Enrich orders with supplier information if missing
     return _enrich_orders_with_supplier(orders)
 
@@ -3687,16 +3691,25 @@ def api_orders_lookup():
     if not telegram:
         return jsonify([])
     
+    # Accept optional tab_name parameter from frontend, fallback to current tab
+    requested_tab = request.args.get('tab_name', '').strip()
+    if requested_tab:
+        tab_name = requested_tab
+        print(f"📋 Using requested tab: {tab_name}")
+    else:
+        tab_name = get_current_pephaul_tab()
+        print(f"📋 Using current tab: {tab_name}")
+    
     # Use shorter cache duration (30 seconds) for faster order lookup (tab-scoped)
-    tab_name = get_current_pephaul_tab()
-    orders = get_cached(f'orders_{tab_name}', _fetch_orders_from_sheets, cache_duration=30)
+    # Create a lambda that passes tab_name to _fetch_orders_from_sheets
+    orders = get_cached(f'orders_{tab_name}', lambda: _fetch_orders_from_sheets(tab_name), cache_duration=30)
     
     # Normalize telegram username (remove @ if present for comparison)
     telegram_normalized = telegram.lstrip('@') if telegram else ''
     
     # Debug: Log the lookup attempt
-    print(f"🔍 Looking up orders for telegram: '{telegram}' (normalized: '{telegram_normalized}')")
-    print(f"📊 Total orders in cache: {len(orders)}")
+    print(f"🔍 Looking up orders for telegram: '{telegram}' (normalized: '{telegram_normalized}') in tab: '{tab_name}'")
+    print(f"📊 Total orders in cache for tab '{tab_name}': {len(orders)}")
     
     # Debug: Show sample of what's in the cache
     if orders and len(orders) > 0:
@@ -3828,8 +3841,8 @@ def api_orders_lookup():
     if len(result) == 0 and matched_count == 0:
         print(f"⚠️ No matches found, clearing cache and retrying...")
         clear_cache_prefix('orders_')
-        tab_name = get_current_pephaul_tab()
-        orders = get_cached(f'orders_{tab_name}', _fetch_orders_from_sheets, cache_duration=30)
+        # Use the same tab_name (either requested or current)
+        orders = get_cached(f'orders_{tab_name}', lambda: _fetch_orders_from_sheets(tab_name), cache_duration=30)
         print(f"📊 Retry: Total orders after cache clear: {len(orders)}")
         
         # Retry the lookup with improved column detection

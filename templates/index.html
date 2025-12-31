@@ -125,6 +125,27 @@
             z-index: 1; 
         }
 
+        /* Timeline view should align with main content width and hide non-timeline UI elements */
+        body.timeline-only .stats-banner,
+        body.timeline-only .rate-banner,
+        body.timeline-only #timeline-section,
+        body.timeline-only .locked-banner,
+        body.timeline-only .orders-summary-section,
+        body.timeline-only .customer-summary-section,
+        body.timeline-only #view-new-order {
+            display: none !important;
+        }
+
+        body.timeline-only #view-order-timeline {
+            display: block !important;
+        }
+
+        body.timeline-only #view-order-timeline .card {
+            max-width: 1400px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
         /* Navigation */
         .nav-bar {
             display: flex;
@@ -2484,7 +2505,7 @@
 
         <!-- Order Timeline View -->
         <div id="view-order-timeline" class="view-content" style="display: none;">
-            <div class="card" style="width: 100%; margin: 0 auto;">
+            <div class="card" style="max-width: 1400px; margin: 0 auto;">
                 <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem;">
                     <div style="background: linear-gradient(135deg, #d4a574, #f9a8d4); padding: 1rem; border-radius: 16px; display: flex; align-items: center; justify-content: center;">
                         <span style="font-size: 2rem;">📅</span>
@@ -2841,18 +2862,8 @@
         function applyNonViewVisibilityForActiveView(viewId) {
             const timelineOnly = viewId === 'view-order-timeline';
 
-            // Hide ANY non-view section inside .container when in Timeline view
-            const container = document.querySelector('.container');
-            if (container) {
-                Array.from(container.children).forEach(child => {
-                    if (child.matches('nav.nav-bar')) return;
-                    if (child.matches('header.header')) return;
-                    if (child.id === 'view-order-timeline') return;
-                    // view-new-order is already display:none when timeline is active, but keep it hidden too
-                    if (timelineOnly) child.hidden = true;
-                    else child.hidden = false;
-                });
-            }
+            // Robust toggle: use body class so other JS can't accidentally re-show hidden sections
+            document.body.classList.toggle('timeline-only', timelineOnly);
         }
         
         // Navigation tab click handlers
@@ -4549,8 +4560,10 @@
             // Debounce the lookup
             customerLookupTimeout = setTimeout(async () => {
                 try {
-                    console.log('Looking up orders for telegram:', telegram);
-                    const response = await fetch(`/api/orders/lookup?telegram=${encodeURIComponent(telegram)}`);
+                    // Get current tab name (prefer localStorage, fallback to template variable)
+                    const tabName = localStorage.getItem('currentPepHaulTab') || CURRENT_PEPHAUL_TAB || 'PepHaul Entry-01';
+                    console.log('Looking up orders for telegram:', telegram, 'in tab:', tabName);
+                    const response = await fetch(`/api/orders/lookup?telegram=${encodeURIComponent(telegram)}&tab_name=${encodeURIComponent(tabName)}`);
                     const orders = await response.json();
                     console.log('Found orders:', orders);
                     
