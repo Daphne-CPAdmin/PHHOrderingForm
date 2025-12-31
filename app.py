@@ -4760,12 +4760,33 @@ def api_add_items(order_id=None):
         items_with_prices = []
         for idx, item in enumerate(items):
             try:
-                product = next((p for p in products if p['code'] == item['product_code']), None)
+                # Normalize product_code and supplier for comparison (strip whitespace, handle case)
+                product_code = str(item['product_code']).strip()
+                item_supplier = str(item.get('supplier', 'Default')).strip()
+                
+                # Try to find product with matching code AND supplier (case-insensitive, trimmed)
+                product = None
+                for p in products:
+                    p_code = str(p.get('code', '')).strip()
+                    p_supplier = str(p.get('supplier', 'Default')).strip()
+                    # Case-insensitive comparison for both code and supplier
+                    if p_code.upper() == product_code.upper() and p_supplier.upper() == item_supplier.upper():
+                        product = p
+                        break
+                
+                # Fallback: if not found with supplier match, try without supplier (backward compatibility)
+                if not product:
+                    product = next((p for p in products if str(p.get('code', '')).strip().upper() == product_code.upper()), None)
+                
                 if not product:
                     return jsonify({
                         'success': False,
                         'error': f'Product {item["product_code"]} not found'
                     }), 404
+                
+                # Always use supplier from product (product is source of truth)
+                # This ensures supplier is always populated correctly
+                supplier = product.get('supplier', 'Default')
                 
                 unit_price = product['kit_price'] if item.get('order_type') == 'Kit' else product['vial_price']
                 if not unit_price or unit_price <= 0:
@@ -4781,6 +4802,7 @@ def api_add_items(order_id=None):
                     'product_code': item['product_code'],
                     'product_name': product['name'],
                     'order_type': item.get('order_type', 'Vial'),
+                    'supplier': supplier,  # CRITICAL: Always include supplier from product
                     'qty': item['qty'],
                     'unit_price_usd': unit_price,
                     'line_total_usd': line_total_usd,
