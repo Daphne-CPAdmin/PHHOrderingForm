@@ -1488,45 +1488,18 @@ def add_items_to_order(order_id, new_items, exchange_rate, telegram_username=Non
             print(f"✅ Created new order {new_order_id} for additional items (original order {order_id} preserved)")
             
         else:
-            # Order is unpaid - add items to existing order (replace all rows)
-            # Find ALL rows for this order
+            # Order is unpaid - REPLACE all items (not add to existing)
+            # Find ALL rows for this order so we can delete them
             all_order_rows = []
             for row_num, row in enumerate(all_values[1:], start=2):
                 if len(row) > col_indices['order_id'] and row[col_indices['order_id']] == order_id:
                     all_order_rows.append(row_num)
             
-            # Get existing items to preserve them
-            existing_items = []
-            for row_num in all_order_rows:
-                if row_num != first_order_row:  # Skip first row
-                    row_data = all_values[row_num - 1]  # 0-indexed
-                    if len(row_data) > col_indices['product_code'] and row_data[col_indices['product_code']]:
-                        # This is an item row
-                        existing_items.append({
-                            'supplier': row_data[col_indices['supplier']] if len(row_data) > col_indices['supplier'] else '',
-                            'product_code': row_data[col_indices['product_code']] if len(row_data) > col_indices['product_code'] else '',
-                            'product_name': row_data[headers.index('Product Name')] if 'Product Name' in headers and len(row_data) > headers.index('Product Name') else '',
-                            'order_type': row_data[col_indices['order_type']] if len(row_data) > col_indices['order_type'] else '',
-                            'qty': int(row_data[col_indices['qty']]) if len(row_data) > col_indices['qty'] and row_data[col_indices['qty']] else 0,
-                            'unit_price_usd': float(row_data[col_indices['unit_price']]) if len(row_data) > col_indices['unit_price'] and row_data[col_indices['unit_price']] else 0,
-                            'line_total_usd': float(row_data[col_indices['line_total_usd']]) if len(row_data) > col_indices['line_total_usd'] and row_data[col_indices['line_total_usd']] else 0,
-                            'line_total_php': float(row_data[col_indices['line_total_php']]) if len(row_data) > col_indices['line_total_php'] and row_data[col_indices['line_total_php']] else 0,
-                        })
-            
-            # Combine existing items with new items (consolidate duplicates)
-            all_items = existing_items + items_to_add
-            consolidated_items = {}
-            for item in all_items:
-                key = f"{item['product_code']}_{item.get('order_type', 'Vial')}"
-                if key in consolidated_items:
-                    consolidated_items[key]['qty'] += item.get('qty', 0)
-                    consolidated_items[key]['line_total_usd'] += item.get('line_total_usd', 0)
-                    consolidated_items[key]['line_total_php'] += item.get('line_total_php', 0)
-                else:
-                    consolidated_items[key] = item.copy()
-            
-            # Filter out 0 quantity items
-            final_items = [item for item in consolidated_items.values() if item.get('qty', 0) > 0]
+            # CRITICAL FIX: Use only new items - they represent the complete order state
+            # The frontend sends ALL items with current quantities (not deltas)
+            # So we should REPLACE existing items, not add to them
+            # This fixes the bug where updating 10 kits to 2 kits resulted in 12 kits (10+2)
+            final_items = [item for item in items_to_add if item.get('qty', 0) > 0]
             
             # Delete ALL rows for this order
             if all_order_rows:
