@@ -1071,7 +1071,12 @@
 
 
     <script>
+        // Initialize variables early to avoid temporal dead zone errors
         let isLoggedIn = false;
+        let allOrders = [];
+        
+        // Get suppliers from template - MUST be declared before any functions that use it
+        const ADMIN_SUPPLIERS = {{ suppliers|tojson|safe }};
 
         // Login function - will be attached via addEventListener
         async function handleLogin() {
@@ -1098,7 +1103,7 @@
                     loadOrderGoal();
                     loadTheme();
                     loadTimelineEntries();
-                    loadPepHaulTabs(); // Load available tabs
+                    loadTabSettings(); // Load available tabs and settings
                 } else {
                     document.getElementById('login-error').textContent = 'Invalid password';
                     document.getElementById('login-error').style.display = 'block';
@@ -1133,7 +1138,7 @@
                     loadOrderGoal();
                     loadTheme();
                     loadTimelineEntries();
-                    loadPepHaulTabs(); // Load available tabs
+                    loadTabSettings(); // Load available tabs and settings
                 }
             } catch (e) {
                 // If this fails, user can still log in manually.
@@ -1222,6 +1227,11 @@
                 updateFormLockUI(data.is_locked, data.message);
             } catch (error) {
                 console.error('Error loading order form status:', error);
+                // Handle case where elements might not exist yet
+                const statusEl = document.getElementById('order-form-status');
+                if (statusEl) {
+                    statusEl.textContent = 'Error loading status';
+                }
             }
         }
 
@@ -1446,6 +1456,12 @@
             const messageContainer = document.getElementById('lock-message-container');
             const toggleBtn = document.getElementById('toggle-form-lock');
 
+            // Add null checks to prevent errors
+            if (!statusEl || !iconEl || !toggleBtn) {
+                console.warn('Form lock UI elements not found');
+                return;
+            }
+
             if (isLocked) {
                 statusEl.textContent = 'LOCKED';
                 statusEl.style.background = 'rgba(244, 114, 182, 0.2)';
@@ -1453,7 +1469,7 @@
                 iconEl.textContent = '🔒';
                 toggleBtn.textContent = 'Unlock Form';
                 toggleBtn.style.background = '#a78bfa';
-                messageContainer.style.display = 'block';
+                if (messageContainer) messageContainer.style.display = 'block';
             } else {
                 statusEl.textContent = 'OPEN';
                 statusEl.style.background = 'rgba(167, 139, 250, 0.2)';
@@ -1461,7 +1477,7 @@
                 iconEl.textContent = '🔓';
                 toggleBtn.textContent = 'Lock Form';
                 toggleBtn.style.background = '#f472b6';
-                messageContainer.style.display = 'none';
+                if (messageContainer) messageContainer.style.display = 'none';
             }
 
             if (message) {
@@ -1469,28 +1485,34 @@
             }
         }
 
-        document.getElementById('toggle-form-lock').addEventListener('click', async () => {
-            const newLockState = !orderFormLocked;
-            const message = getLockMessageHtml() || 'Orders are currently closed. Thank you for your patience!';
-            
-            try {
-                const response = await fetch('/api/admin/lock-order-form', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ is_locked: newLockState, message: message })
+        // Setup event listeners when DOM is ready
+        document.addEventListener('DOMContentLoaded', () => {
+            const toggleBtn = document.getElementById('toggle-form-lock');
+            if (toggleBtn) {
+                toggleBtn.addEventListener('click', async () => {
+                    const newLockState = !orderFormLocked;
+                    const message = getLockMessageHtml() || 'Orders are currently closed. Thank you for your patience!';
+                    
+                    try {
+                        const response = await fetch('/api/admin/lock-order-form', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ is_locked: newLockState, message: message })
+                        });
+                        
+                        const data = await response.json();
+                        if (data.success) {
+                            orderFormLocked = newLockState;
+                            updateFormLockUI(newLockState, message);
+                            showToast(newLockState ? 'Order form is now LOCKED!' : 'Order form is now OPEN!');
+                        } else {
+                            showToast('Failed to update lock status');
+                        }
+                    } catch (error) {
+                        console.error('Error toggling form lock:', error);
+                        showToast('Error updating lock status');
+                    }
                 });
-                
-                const data = await response.json();
-                if (data.success) {
-                    orderFormLocked = newLockState;
-                    updateFormLockUI(newLockState, message);
-                    showToast(newLockState ? 'Order form is now LOCKED!' : 'Order form is now OPEN!');
-                } else {
-                    showToast('Failed to update lock status');
-                }
-            } catch (error) {
-                console.error('Error toggling form lock:', error);
-                showToast('Error updating lock status');
             }
         });
 
@@ -1890,9 +1912,6 @@
                 btn.textContent = '➕ Add Timeline Entry';
             }
         });
-        
-        // Get suppliers from template
-        const ADMIN_SUPPLIERS = {{ suppliers|tojson|safe }};
         
         // Load Products - Per Supplier
         async function loadProducts() {
@@ -2577,8 +2596,6 @@
         }
 
         // ===== ORDERS MANAGEMENT =====
-        let allOrders = [];
-
         async function loadOrders() {
             try {
                 console.log('📊 Admin: Fetching orders from /api/admin/orders...');
@@ -3247,58 +3264,110 @@
         // Load available PepHaul Entry tabs and populate settings selector
         async function loadTabSettings() {
             try {
-                const response = await fetch('/api/admin/all-tab-settings', {
-                    credentials: 'same-origin'
-                });
+                // Load tabs from API
+                const tabsResponse = await fetch('/api/admin/pephaul-tabs', { credentials: 'same-origin' });
+                if (!tabsResponse.ok) {
+                    throw new Error(`Failed to load tabs: ${tabsResponse.status}`);
+                }
+                const tabsData = await tabsResponse.json();
+                const tabs = tabsData.tabs || [];
+                const currentTab = tabsData.current_tab || (tabs.length > 0 ? tabs[0] : 'PepHaul Entry-01');
                 
-                if (!response.ok) {
-                    throw new Error(`Failed to load tab settings: ${response.status}`);
+                // Update tab selector dropdown
+                const tabSelector = document.getElementById('tab-settings-selector');
+                if (tabSelector) {
+                    if (tabs.length === 0) {
+                        tabSelector.innerHTML = '<option value="">No tabs available</option>';
+                    } else {
+                        tabSelector.innerHTML = tabs.map(tab => 
+                            `<option value="${tab}" ${tab === currentTab ? 'selected' : ''}>${tab}</option>`
+                        ).join('');
+                    }
                 }
                 
-                const result = await response.json();
-                const tabs = result.tabs || [];
-                
-                // Get current tab from server
-                const currentTabResponse = await fetch('/api/admin/pephaul-tabs', { credentials: 'same-origin' });
-                const currentTabData = await currentTabResponse.json();
-                const currentTab = currentTabData.current_tab || 'PepHaul Entry-01';
-                
-                // Update tab selector
-                const selector = document.getElementById('tab-settings-selector');
-                selector.innerHTML = tabs.map(tab => 
-                    `<option value="${tab.tab_name}" ${tab.tab_name === currentTab ? 'selected' : ''}>${tab.tab_name}</option>`
-                ).join('');
-                
                 // Load settings for current tab
-                if (tabs.length > 0) {
-                    const firstTab = tabs.find(t => t.tab_name === currentTab) || tabs[0];
-                    updateTabSettingsUI(firstTab);
+                if (tabs.length > 0 && currentTab) {
+                    try {
+                        const settingsResponse = await fetch(`/api/admin/tab-settings?tab_name=${encodeURIComponent(currentTab)}`, {
+                            credentials: 'same-origin'
+                        });
+                        if (settingsResponse.ok) {
+                            const settingsData = await settingsResponse.json();
+                            if (settingsData.success) {
+                                updateTabSettingsUI(settingsData);
+                            } else {
+                                // If no settings exist, create default settings object
+                                updateTabSettingsUI({
+                                    tab_name: currentTab,
+                                    supplier: '',
+                                    is_locked: false
+                                });
+                            }
+                        } else {
+                            // If settings endpoint fails, use default
+                            updateTabSettingsUI({
+                                tab_name: currentTab,
+                                supplier: '',
+                                is_locked: false
+                            });
+                        }
+                    } catch (settingsError) {
+                        console.warn('Could not load settings for tab, using defaults:', settingsError);
+                        updateTabSettingsUI({
+                            tab_name: currentTab,
+                            supplier: '',
+                            is_locked: false
+                        });
+                    }
                 }
                 
             } catch (error) {
                 console.error('Error loading tab settings:', error);
+                const tabSelector = document.getElementById('tab-settings-selector');
+                if (tabSelector) {
+                    tabSelector.innerHTML = '<option value="">Error loading tabs</option>';
+                }
                 showToast('⚠️ Could not load tab settings');
             }
         }
 
         // Update UI with tab settings
         function updateTabSettingsUI(settings) {
-            document.getElementById('tab-supplier-selector').value = settings.supplier || '';
-            document.getElementById('tab-lock-selector').value = settings.is_locked ? 'true' : 'false';
+            const supplierSelector = document.getElementById('tab-supplier-selector');
+            const lockSelector = document.getElementById('tab-lock-selector');
             
-            // Update current status display
+            if (supplierSelector) {
+                supplierSelector.value = settings.supplier || '';
+            }
+            if (lockSelector) {
+                lockSelector.value = settings.is_locked ? 'true' : 'false';
+            }
+            
+            // Update current status display (if elements exist)
             const statusDisplay = document.getElementById('current-tab-status');
-            statusDisplay.style.display = 'block';
-            document.getElementById('current-tab-display').textContent = settings.tab_name;
-            document.getElementById('current-supplier-display').textContent = settings.supplier || 'Not set';
+            if (statusDisplay) {
+                statusDisplay.style.display = 'block';
+            }
+            
+            const tabDisplay = document.getElementById('current-tab-display');
+            if (tabDisplay) {
+                tabDisplay.textContent = settings.tab_name;
+            }
+            
+            const supplierDisplay = document.getElementById('current-supplier-display');
+            if (supplierDisplay) {
+                supplierDisplay.textContent = settings.supplier || 'Not set';
+            }
             
             const lockDisplay = document.getElementById('current-lock-display');
-            if (settings.is_locked) {
-                lockDisplay.textContent = '🔒 Locked';
-                lockDisplay.style.color = '#f87171';
-            } else {
-                lockDisplay.textContent = '🔓 Open';
-                lockDisplay.style.color = '#10b981';
+            if (lockDisplay) {
+                if (settings.is_locked) {
+                    lockDisplay.textContent = '🔒 Locked';
+                    lockDisplay.style.color = '#f87171';
+                } else {
+                    lockDisplay.textContent = '🔓 Open';
+                    lockDisplay.style.color = '#10b981';
+                }
             }
         }
 
