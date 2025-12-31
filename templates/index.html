@@ -1743,7 +1743,9 @@
         <nav class="nav-bar">
             <div class="nav-tabs">
                 <button class="nav-tab active" data-view="new-order">Customer Order Section</button>
+                {% if order_form_locked %}
                 <button class="nav-tab" data-view="order-timeline">📅 Order Timeline</button>
+                {% endif %}
             </div>
             <a href="/admin" class="nav-tab admin">Admin Panel</a>
         </nav>
