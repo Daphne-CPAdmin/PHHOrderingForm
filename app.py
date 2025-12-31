@@ -2607,6 +2607,23 @@ def get_consolidated_order_stats():
     return get_cached(f'order_stats_{tab_name}', _fetch_consolidated_order_stats, cache_duration=180)  # 3 minutes - match orders cache duration
 
 # Routes
+@app.route('/health')
+def health_check():
+    """Health check endpoint for deployment"""
+    try:
+        # Quick checks to ensure app is working
+        current_tab = get_current_pephaul_tab()
+        return jsonify({
+            'status': 'healthy',
+            'current_tab': current_tab,
+            'timestamp': datetime.now().isoformat()
+        }), 200
+    except Exception as e:
+        return jsonify({
+            'status': 'unhealthy',
+            'error': str(e)
+        }), 500
+
 @app.route('/')
 def index():
     """Main order form page"""
