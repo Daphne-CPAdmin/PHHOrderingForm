@@ -45,6 +45,72 @@ def _normalize_order_sheet_headers(headers):
     - If first header cell is blank, treat it as 'Order ID' (common real-world issue)
     - Any other blank headers become 'Unnamed_{idx}'
     """
+    def _canonical_order_key(key: str) -> str:
+        """
+        Canonicalize known PepHaul Entry column names (handles case/underscore/spacing variations).
+        This prevents subtle header drift from breaking paid/unpaid visibility across tabs.
+        """
+        ks = str(key or '').strip()
+        k = ks.lower().strip()
+        k = k.replace('_', ' ')
+        k = ' '.join(k.split())  # collapse whitespace
+
+        # Core columns
+        if k in ('order id', 'orderid'):
+            return 'Order ID'
+        if k in ('order date', 'date'):
+            return 'Order Date'
+        if k in ('telegram username', 'telegram', 'tg', 'username'):
+            return 'Telegram Username'
+        if k in ('full name', 'name'):
+            return 'Name'
+        if k in ('supplier',):
+            return 'Supplier'
+
+        # Product line columns
+        if k in ('product code', 'code', 'productcode'):
+            return 'Product Code'
+        if k in ('product name', 'product', 'productname'):
+            return 'Product Name'
+        if k in ('order type', 'type'):
+            return 'Order Type'
+        if k in ('qty', 'quantity', 'q t y'):
+            return 'QTY'
+        if k in ('unit price usd', 'usd unit price', 'unit price', 'price usd'):
+            return 'Unit Price USD'
+        if k in ('line total usd', 'total usd'):
+            return 'Line Total USD'
+        if k in ('exchange rate', 'rate'):
+            return 'Exchange Rate'
+        if k in ('line total php', 'total php'):
+            return 'Line Total PHP'
+
+        # Order-level columns (usually first row only)
+        if k in ('admin fee php', 'admin fee'):
+            return 'Admin Fee PHP'
+        if k in ('grand total php', 'grand total'):
+            return 'Grand Total PHP'
+        if k in ('order status', 'status'):
+            return 'Order Status'
+        if k in ('locked', 'is locked', 'lock'):
+            return 'Locked'
+        if k in ('payment status', 'payment', 'confirmed paid?', 'confirmed paid'):
+            return 'Payment Status'
+        if k in ('remarks', 'remark', 'note', 'notes'):
+            return 'Remarks'
+        if k in ('link to payment', 'payment link', 'payment screenshot link', 'payment screenshot', 'payment screenshot url'):
+            return 'Link to Payment'
+        if k in ('payment date',):
+            return 'Payment Date'
+        if k in ('contact number', 'phone', 'phone number'):
+            return 'Contact Number'
+        if k in ('mailing address', 'address', 'shipping address'):
+            return 'Mailing Address'
+        if k in ('tracking number', 'tracking', 'tracking no', 'tracking #'):
+            return 'Tracking Number'
+
+        return ks
+
     normalized = []
     for idx, h in enumerate(headers or []):
         hs = str(h).strip()
@@ -53,7 +119,7 @@ def _normalize_order_sheet_headers(headers):
                 hs = 'Order ID'
             else:
                 hs = f'Unnamed_{idx}'
-        normalized.append(hs)
+        normalized.append(_canonical_order_key(hs))
     return normalized
 
 def _normalize_order_record_keys(record):
@@ -65,11 +131,15 @@ def _normalize_order_record_keys(record):
     """
     if not isinstance(record, dict):
         return record
+    # Reuse the same canonicalization rules as headers
+    def _canonical_order_key(key: str) -> str:
+        return _normalize_order_sheet_headers([key])[0] if key is not None else 'Order ID'
     out = {}
     for k, v in record.items():
         ks = str(k).strip()
         if not ks:
             ks = 'Order ID'
+        ks = _canonical_order_key(ks)
         # Prefer existing non-empty values if we collide
         if ks in out:
             existing = out.get(ks, '')
@@ -3536,6 +3606,44 @@ def api_public_timeline():
     tab_name = request.args.get('tab_name') or get_current_pephaul_tab()
     entries = get_timeline_entries(tab_name)
     return jsonify({'tab_name': tab_name, 'entries': entries})
+
+
+def _fetch_pephaul_tabs():
+    """Fetch available PepHaul Entry tabs from the spreadsheet."""
+    if not sheets_client:
+        return []
+    spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
+    titles = [ws.title for ws in spreadsheet.worksheets()]
+    tabs = [t for t in titles if str(t).strip().lower().startswith('pephaul entry')]
+
+    def _sort_key(name: str):
+        # Prefer numeric sort for "PepHaul Entry-01", fallback to name
+        s = str(name)
+        import re
+        m = re.search(r'(\d+)\s*$', s.replace('_', '-'))
+        if not m:
+            m = re.search(r'pephaul\s*entry[-\s]*(\d+)', s, flags=re.IGNORECASE)
+        if m:
+            try:
+                return (0, int(m.group(1)))
+            except Exception:
+                pass
+        return (1, s)
+
+    return sorted(tabs, key=_sort_key)
+
+
+@app.route('/api/pephaul-tabs')
+def api_pephaul_tabs():
+    """Public: list available PepHaul Entry tabs (for Timeline selector)."""
+    try:
+        tabs = get_cached('pephaul_tabs', _fetch_pephaul_tabs, cache_duration=60)
+        return jsonify({'success': True, 'current_tab': get_current_pephaul_tab(), 'tabs': tabs})
+    except Exception as e:
+        print(f"Error in api_pephaul_tabs: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'current_tab': get_current_pephaul_tab(), 'tabs': []}), 500
 
 @app.route('/api/admin/theme', methods=['POST'])
 def api_set_theme():
