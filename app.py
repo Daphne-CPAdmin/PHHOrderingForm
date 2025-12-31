@@ -1024,19 +1024,29 @@ def _fetch_orders_from_sheets(tab_name=None):
         # Otherwise, use get_all_records but validate row count and fall back to manual parsing if needed.
         records = []
         if header_looks_valid:
-            records = worksheet.get_all_records()
-            if not isinstance(records, list):
-                print(f"⚠️ get_all_records() did not return a list, got: {type(records)}")
-                records = []
-            if records:
-                records = [_normalize_order_record_keys(r) for r in records]
-            print(f"📋 get_all_records() returned {len(records)} records")
+            try:
+                records = worksheet.get_all_records()
+                if not isinstance(records, list):
+                    print(f"⚠️ get_all_records() did not return a list, got: {type(records)}")
+                    records = []
+                if records:
+                    records = [_normalize_order_record_keys(r) for r in records]
+                print(f"📋 get_all_records() returned {len(records)} records")
 
-            expected_count = len(all_values) - 1
-            if len(records) != expected_count:
-                print(f"⚠️ WARNING: Record count mismatch! Expected {expected_count}, got {len(records)}")
-                print(f"📋 Building records manually from raw values to capture all rows...")
-                header_looks_valid = False  # force manual path below
+                expected_count = len(all_values) - 1
+                if len(records) != expected_count:
+                    print(f"⚠️ WARNING: Record count mismatch! Expected {expected_count}, got {len(records)}")
+                    print(f"📋 Building records manually from raw values to capture all rows...")
+                    header_looks_valid = False  # force manual path below
+            except Exception as e:
+                error_msg = str(e)
+                # Catch "header row is not unique" error and fall back to manual parsing
+                if 'header row' in error_msg.lower() and 'not unique' in error_msg.lower():
+                    print(f"⚠️ Header row has duplicate columns in '{current_tab}'. Falling back to positional parsing.")
+                    header_looks_valid = False  # force manual path below
+                else:
+                    # Re-raise other exceptions
+                    raise
 
         if not header_looks_valid:
             manual_records = []
