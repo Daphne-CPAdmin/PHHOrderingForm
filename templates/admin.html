@@ -722,6 +722,44 @@
                         </div>
                     </div>
                 </div>
+                
+                <!-- Supplier Assignment Table -->
+                <div style="margin-top: 2rem; border-top: 2px solid #e5e7eb; padding-top: 2rem;">
+                    <h3 style="font-size: 1.1rem; font-weight: 600; color: var(--text-primary); margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                        🔒 Locked Supplier Assignments
+                        <span style="font-size: 0.75rem; font-weight: normal; color: var(--text-muted); background: #fef3c7; padding: 0.25rem 0.5rem; border-radius: 4px;">
+                            One supplier per tab
+                        </span>
+                    </h3>
+                    <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem;">
+                        Each PepHaul Entry tab is locked to exactly one supplier. This prevents confusion during ordering.
+                    </p>
+                    
+                    <div class="table-container">
+                        <table class="products-table" style="width: 100%;">
+                            <thead>
+                                <tr style="background: #f9fafb;">
+                                    <th style="text-align: left; padding: 0.75rem 1rem; font-weight: 600; color: var(--text-secondary); border-bottom: 2px solid #e5e7eb;">
+                                        PepHaul Entry Tab
+                                    </th>
+                                    <th style="text-align: left; padding: 0.75rem 1rem; font-weight: 600; color: var(--text-secondary); border-bottom: 2px solid #e5e7eb;">
+                                        Assigned Supplier
+                                    </th>
+                                    <th style="text-align: center; padding: 0.75rem 1rem; font-weight: 600; color: var(--text-secondary); border-bottom: 2px solid #e5e7eb;">
+                                        Status
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody id="supplier-assignments-tbody">
+                                <tr>
+                                    <td colspan="3" style="text-align: center; padding: 2rem; color: var(--text-muted);">
+                                        Loading supplier assignments...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
 
             <!-- Timeline Management -->
@@ -3503,6 +3541,9 @@
                     }
                 }
                 
+                // Load supplier assignments table
+                await loadSupplierAssignmentsTable();
+                
             } catch (error) {
                 console.error('Error loading tab settings:', error);
                 const tabSelector = document.getElementById('tab-settings-selector');
@@ -3510,6 +3551,98 @@
                     tabSelector.innerHTML = '<option value="">Error loading tabs</option>';
                 }
                 showToast('⚠️ Could not load tab settings');
+            }
+        }
+        
+        // Load supplier assignments table showing all tabs and their locked suppliers
+        async function loadSupplierAssignmentsTable() {
+            const tbody = document.getElementById('supplier-assignments-tbody');
+            if (!tbody) return;
+            
+            try {
+                // Fetch all tabs
+                const tabsResponse = await fetch('/api/admin/pephaul-tabs', { credentials: 'same-origin' });
+                if (!tabsResponse.ok) {
+                    throw new Error('Failed to load tabs');
+                }
+                const tabsData = await tabsResponse.json();
+                const tabs = tabsData.tabs || [];
+                
+                if (tabs.length === 0) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="3" style="text-align: center; padding: 2rem; color: var(--text-muted);">
+                                No PepHaul Entry tabs available
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+                
+                // Build table rows
+                let html = '';
+                for (const tab of tabs) {
+                    try {
+                        // Fetch settings for each tab
+                        const settingsResponse = await fetch(`/api/admin/tab-settings?tab_name=${encodeURIComponent(tab)}`, {
+                            credentials: 'same-origin'
+                        });
+                        
+                        let supplier = 'Not assigned';
+                        let statusHtml = '<span style="color: #f59e0b; font-weight: 600;">⚠️ No supplier</span>';
+                        
+                        if (settingsResponse.ok) {
+                            const settingsData = await settingsResponse.json();
+                            if (settingsData.success && settingsData.supplier) {
+                                supplier = settingsData.supplier;
+                                statusHtml = '<span style="color: #10b981; font-weight: 600;">✓ Locked</span>';
+                            }
+                        }
+                        
+                        html += `
+                            <tr style="border-bottom: 1px solid #e5e7eb;">
+                                <td style="padding: 0.75rem 1rem; font-weight: 500; color: var(--text-primary);">
+                                    ${tab}
+                                </td>
+                                <td style="padding: 0.75rem 1rem; color: var(--text-primary);">
+                                    <span style="background: ${supplier === 'Not assigned' ? '#fef3c7' : '#d1fae5'}; padding: 0.25rem 0.75rem; border-radius: 4px; font-weight: 500;">
+                                        ${supplier}
+                                    </span>
+                                </td>
+                                <td style="padding: 0.75rem 1rem; text-align: center;">
+                                    ${statusHtml}
+                                </td>
+                            </tr>
+                        `;
+                    } catch (error) {
+                        console.error(`Error loading settings for tab ${tab}:`, error);
+                        html += `
+                            <tr style="border-bottom: 1px solid #e5e7eb;">
+                                <td style="padding: 0.75rem 1rem; font-weight: 500; color: var(--text-primary);">
+                                    ${tab}
+                                </td>
+                                <td style="padding: 0.75rem 1rem; color: var(--text-muted);">
+                                    Error loading
+                                </td>
+                                <td style="padding: 0.75rem 1rem; text-align: center;">
+                                    <span style="color: #ef4444;">❌ Error</span>
+                                </td>
+                            </tr>
+                        `;
+                    }
+                }
+                
+                tbody.innerHTML = html;
+                
+            } catch (error) {
+                console.error('Error loading supplier assignments table:', error);
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="3" style="text-align: center; padding: 2rem; color: #ef4444;">
+                            Error loading supplier assignments
+                        </td>
+                    </tr>
+                `;
             }
         }
 
