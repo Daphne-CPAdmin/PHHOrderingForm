@@ -1743,9 +1743,7 @@
         <nav class="nav-bar">
             <div class="nav-tabs">
                 <button class="nav-tab active" data-view="new-order">Customer Order Section</button>
-                {% if order_form_locked %}
                 <button class="nav-tab" data-view="order-timeline">📅 Order Timeline</button>
-                {% endif %}
             </div>
             <a href="/admin" class="nav-tab admin">Admin Panel</a>
         </nav>
@@ -1844,21 +1842,6 @@
                 {% else %}
                     The order form is currently locked. New orders cannot be submitted at this time. Please check back later!
                 {% endif %}
-            </div>
-        </div>
-        {% endif %}
-
-        <!-- Timeline Section - Only show when form is locked -->
-        {% if order_form_locked %}
-        <div id="timeline-section" style="display: none; margin-bottom: 2rem;">
-            <div class="card" style="border: 2px solid #fbbf24; background: linear-gradient(135deg, rgba(251, 191, 36, 0.05) 0%, rgba(251, 191, 36, 0.02) 100%);">
-                <h2 style="font-size: 1.5rem; font-weight: 700; color: var(--text-primary); margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
-                    📅 Order Timeline
-                </h2>
-                <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.5rem;">Track the latest updates and transaction details</p>
-                <div id="timeline-content" style="min-height: 100px;">
-                    <div style="text-align: center; padding: 2rem; color: var(--text-muted);">Loading timeline...</div>
-                </div>
             </div>
         </div>
         {% endif %}
@@ -2093,27 +2076,6 @@
             </div>
         </div>
         {% endif %}
-
-        <!-- Order Timeline Section -->
-        <div id="order-timeline-section" class="orders-summary-section" style="display: none;">
-            <div class="card">
-                <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
-                    <div style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); padding: 0.75rem; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
-                        <span style="font-size: 1.5rem;">📅</span>
-                    </div>
-                    <div>
-                        <h2 style="margin: 0; font-size: 1.25rem;">Order Timeline</h2>
-                        <p style="color: var(--text-muted); font-size: 0.85rem; margin: 0;">Track your order history across all PepHaul Entry tabs</p>
-                    </div>
-                </div>
-                
-                <div id="order-timeline-content" style="min-height: 100px;">
-                    <div style="text-align: center; padding: 2rem; color: var(--text-muted);">
-                        <p>Loading order timeline...</p>
-                    </div>
-                </div>
-            </div>
-        </div>
 
         <!-- View My Orders Section -->
         <div id="my-orders-section" class="orders-summary-section" style="display: none;">
@@ -2970,13 +2932,6 @@
                 supplierFilter = event.data.filter;
                 localStorage.setItem('supplierFilter', supplierFilter);
                 applySupplierFilterToPage();
-            }
-            // Listen for tab switch messages to reload timeline
-            if (event.data && event.data.type === 'tabSwitched') {
-                const orderFormLocked = {{ order_form_locked|tojson }};
-                if (orderFormLocked) {
-                    loadTimeline(); // Reload timeline for new tab
-                }
             }
         });
         
@@ -4703,9 +4658,6 @@
                 
                 // Update customer summary with the orders table (grouped by Order ID, same as admin panel)
                 updateCustomerSummary(filteredOrders);
-                
-                // Show order timeline
-                showOrderTimeline(filteredOrders);
             } catch (error) {
                 console.error('Error loading all orders for summary:', error);
                 summaryContent.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--text-muted);"><p>Error loading orders. Please refresh the page.</p></div>';
@@ -4832,116 +4784,6 @@
             tableHtml += '</div>';
             
             summaryContent.innerHTML = tableHtml;
-        }
-        
-        function showOrderTimeline(orders) {
-            const section = document.getElementById('order-timeline-section');
-            const content = document.getElementById('order-timeline-content');
-            
-            if (!orders || orders.length === 0) {
-                section.style.display = 'none';
-                return;
-            }
-            
-            // Group orders by PepHaul Entry tab (order date as proxy for tab/batch)
-            const ordersByDate = {};
-            orders.forEach(order => {
-                const orderDate = order.order_date || 'Unknown';
-                if (!ordersByDate[orderDate]) {
-                    ordersByDate[orderDate] = [];
-                }
-                ordersByDate[orderDate].push(order);
-            });
-            
-            // Sort dates in descending order (most recent first)
-            const sortedDates = Object.keys(ordersByDate).sort((a, b) => {
-                if (a === 'Unknown') return 1;
-                if (b === 'Unknown') return -1;
-                return new Date(b) - new Date(a);
-            });
-            
-            let timelineHtml = '<div style="position: relative; padding-left: 2rem;">';
-            timelineHtml += '<div style="position: absolute; left: 0.5rem; top: 0; bottom: 0; width: 2px; background: linear-gradient(to bottom, #8b5cf6, #c084fc);"></div>';
-            
-            sortedDates.forEach((date, dateIndex) => {
-                const dateOrders = ordersByDate[date];
-                const formattedDate = date !== 'Unknown' ? new Date(date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'Unknown Date';
-                
-                timelineHtml += '<div style="margin-bottom: 2rem; position: relative;">';
-                timelineHtml += '<div style="position: absolute; left: -1.75rem; width: 1rem; height: 1rem; border-radius: 50%; background: #8b5cf6; border: 3px solid var(--bg-primary); box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.2);"></div>';
-                timelineHtml += `<div style="background: var(--bg-secondary); border-radius: 12px; padding: 1.5rem; border: 2px solid var(--border);">`;
-                timelineHtml += `<div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">`;
-                timelineHtml += `<span style="font-size: 1.25rem;">📅</span>`;
-                timelineHtml += `<h3 style="margin: 0; font-size: 1.1rem; color: var(--accent-primary);">${formattedDate}</h3>`;
-                timelineHtml += `<span style="color: var(--text-muted); font-size: 0.9rem;">(${dateOrders.length} order${dateOrders.length !== 1 ? 's' : ''})</span>`;
-                timelineHtml += `</div>`;
-                
-                // Show orders for this date
-                dateOrders.forEach((order, orderIndex) => {
-                    const paymentStatus = order.payment_status || 'Unpaid';
-                    const isPaid = paymentStatus.toLowerCase() === 'paid';
-                    const isWaitingForConfirmation = paymentStatus.toLowerCase() === 'waiting for confirmation';
-                    const hasTrackingNumber = order._hasTrackingNumber === true;
-                    
-                    // Status styling
-                    let statusIcon, statusText, statusColor;
-                    if (hasTrackingNumber && isPaid) {
-                        statusIcon = '🚚';
-                        statusText = 'Fulfilled';
-                        statusColor = '#10b981';
-                    } else if (isPaid) {
-                        statusIcon = '✅';
-                        statusText = 'Paid';
-                        statusColor = '#10b981';
-                    } else if (isWaitingForConfirmation) {
-                        statusIcon = '⏳';
-                        statusText = 'Waiting for Confirmation';
-                        statusColor = '#3b82f6';
-                    } else {
-                        statusIcon = '💳';
-                        statusText = 'Unpaid';
-                        statusColor = '#f59e0b';
-                    }
-                    
-                    timelineHtml += `<div style="background: var(--bg-primary); border-radius: 8px; padding: 1rem; margin-bottom: ${orderIndex < dateOrders.length - 1 ? '0.75rem' : '0'}; border-left: 3px solid ${statusColor};">`;
-                    timelineHtml += `<div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.5rem;">`;
-                    timelineHtml += `<div style="display: flex; align-items: center; gap: 0.75rem;">`;
-                    timelineHtml += `<span style="font-family: 'JetBrains Mono', monospace; font-weight: 600; color: var(--accent-primary);">${order.order_id || 'N/A'}</span>`;
-                    timelineHtml += `<span style="display: inline-block; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600; background: rgba(${statusColor === '#10b981' ? '16, 185, 129' : statusColor === '#3b82f6' ? '59, 130, 246' : '245, 158, 11'}, 0.1); color: ${statusColor};">${statusIcon} ${statusText}</span>`;
-                    timelineHtml += `</div>`;
-                    
-                    // Calculate total from items
-                    const total = (order.items || []).reduce((sum, item) => sum + (item.line_total_php || 0), 0);
-                    const adminFee = order.admin_fee_php || 0;
-                    const grandTotal = total + adminFee;
-                    timelineHtml += `<span style="font-weight: 700; color: var(--accent-amber);">₱${grandTotal.toLocaleString('en-PH', {minimumFractionDigits: 2})}</span>`;
-                    timelineHtml += `</div>`;
-                    
-                    // Show items count
-                    const itemsCount = (order.items || []).length;
-                    const totalVials = (order.items || []).reduce((sum, item) => {
-                        const qty = parseFloat(item.qty) || 0;
-                        const orderType = item.order_type || 'Vial';
-                        const vialsPerKit = item.vials_per_kit || 10;
-                        return sum + (orderType === 'Kit' ? qty * vialsPerKit : qty);
-                    }, 0);
-                    
-                    timelineHtml += `<div style="color: var(--text-muted); font-size: 0.85rem; display: flex; gap: 1rem; flex-wrap: wrap;">`;
-                    timelineHtml += `<span>📦 ${itemsCount} product${itemsCount !== 1 ? 's' : ''}</span>`;
-                    timelineHtml += `<span>💉 ${totalVials} vial${totalVials !== 1 ? 's' : ''}</span>`;
-                    timelineHtml += `</div>`;
-                    
-                    timelineHtml += `</div>`;
-                });
-                
-                timelineHtml += `</div>`;
-                timelineHtml += `</div>`;
-            });
-            
-            timelineHtml += '</div>';
-            
-            content.innerHTML = timelineHtml;
-            section.style.display = 'block';
         }
         
         function showMyOrdersSection(orders) {
@@ -5193,9 +5035,6 @@
             empty.style.display = 'none';
             section.style.display = 'block';
             
-            // Show order timeline for this customer
-            showOrderTimeline(filteredOrders);
-            
             // Scroll to show the orders section
             setTimeout(() => {
                 section.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -5326,28 +5165,48 @@
         });
         
         // Handle supplier-specific Cancel Order buttons using event delegation
+        // NOTE: Some historical orders/items may not have per-item supplier populated consistently,
+        // so we prioritize cancelling the currently selected unpaid order (if any), then fall back.
         document.addEventListener('click', (e) => {
             if (e.target.classList.contains('cancel-order-btn')) {
-                const supplier = e.target.getAttribute('data-supplier');
-                
-                // Find any order (locked or unlocked) that has items for this supplier
-                const pendingOrder = existingCustomerOrders.find(o => {
+                const supplier = (e.target.getAttribute('data-supplier') || '').trim();
+
+                const normalizeSupplier = (s) => String(s || 'Default').trim();
+                const isCancellableOrder = (o) => {
+                    if (!o) return false;
                     if (o.status === 'Cancelled') return false;
-                    
-                    // Check if this order has items for the current supplier
-                    const hasSupplierItems = o.items && o.items.some(item => {
-                        const itemSupplier = item.supplier || 'Default';
-                        return itemSupplier === supplier;
-                    });
-                    
-                    return hasSupplierItems;
-                });
-                
+                    if (o.locked === true) return false;
+                    const paymentStatus = (o.payment_status || '').toLowerCase();
+                    if (paymentStatus === 'paid') return false;
+                    if (paymentStatus === 'waiting for confirmation') return false;
+                    return true;
+                };
+
+                // 1) Prefer the currentOrderId (what the user is actively editing / viewing)
+                let pendingOrder = null;
+                if (currentOrderId) {
+                    pendingOrder = existingCustomerOrders.find(o => o.order_id === currentOrderId && isCancellableOrder(o)) || null;
+                }
+
+                // 2) If not found, try match by supplier (best effort)
+                if (!pendingOrder && supplier) {
+                    pendingOrder = existingCustomerOrders.find(o => {
+                        if (!isCancellableOrder(o)) return false;
+                        const items = o.items || [];
+                        return items.some(item => normalizeSupplier(item.supplier) === supplier);
+                    }) || null;
+                }
+
+                // 3) Final fallback: any cancellable order for this telegram
                 if (!pendingOrder) {
-                    showToast('No pending order found to cancel', 3000);
+                    pendingOrder = existingCustomerOrders.find(o => isCancellableOrder(o)) || null;
+                }
+
+                if (!pendingOrder) {
+                    showToast('No active unpaid order found to cancel', 3000);
                     return;
                 }
-                
+
                 cancelOrder(pendingOrder.order_id, pendingOrder.telegram || '');
             }
         });
@@ -6831,9 +6690,6 @@
             if (orderFormLocked) {
                 loadAllOrdersForSummary();
             }
-            
-            // Load timeline
-            loadTimeline();
         });
         
         async function saveMailingAddress() {
