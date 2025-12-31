@@ -2913,6 +2913,16 @@ def index():
                 incomplete_kits_by_supplier[supplier] = []
             incomplete_kits_by_supplier[supplier].append(product)
         
+        # Ensure ALL products have an inventory attribute (even if empty)
+        # This prevents template errors when accessing product.inventory
+        for product in products:
+            if 'inventory' not in product:
+                product['inventory'] = {
+                    'total_vials': 0, 'kits_generated': 0, 'remaining_vials': 0,
+                    'slots_to_next_kit': VIALS_PER_KIT, 'max_kits': MAX_KITS_DEFAULT, 'is_locked': False,
+                    'vials_per_kit': VIALS_PER_KIT
+                }
+        
         # Get unique suppliers - include all suppliers that have products
         # Stats banners will show for all suppliers (with 0 values if no orders)
         suppliers = sorted(set(products_by_supplier.keys())) if products_by_supplier else ['Default']
