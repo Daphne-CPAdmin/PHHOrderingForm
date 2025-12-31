@@ -2835,8 +2835,18 @@ def index():
         # Supplier context for this PepHaul Entry tab:
         # - used to keep non-comparison sections PepHaul-tab scoped (single supplier per entry)
         # - supplier filter itself is used only for ordering UI + Column E assignment
-        supplier_filter = get_supplier_filter_for_tab(current_tab)
-        tab_supplier = supplier_filter if supplier_filter.lower() != 'all' else infer_supplier_from_orders()
+        try:
+            supplier_filter = get_supplier_filter_for_tab(current_tab)
+            tab_supplier = supplier_filter if supplier_filter and supplier_filter.lower() != 'all' else infer_supplier_from_orders()
+            # Ensure tab_supplier is never None or empty
+            if not tab_supplier or not tab_supplier.strip():
+                tab_supplier = suppliers[0] if suppliers and len(suppliers) > 0 else 'Default'
+        except Exception as e:
+            print(f"⚠️ Error determining tab_supplier: {e}")
+            import traceback
+            traceback.print_exc()
+            tab_supplier = suppliers[0] if suppliers and len(suppliers) > 0 else 'Default'
+            supplier_filter = 'all'
         
         return render_template('index.html', 
                              products=products, 

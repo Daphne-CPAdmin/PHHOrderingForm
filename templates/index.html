@@ -2809,7 +2809,7 @@
         const VIALS_PER_KIT = {{ vials_per_kit|default(10)|tojson }};
         const SUPPLIERS = {{ suppliers|tojson|safe }};
         const CURRENT_PEPHAUL_TAB = {{ current_tab|default('PepHaul Entry-01')|tojson }};
-        const TAB_SUPPLIER = {{ tab_supplier|default('Default')|tojson }};
+        const TAB_SUPPLIER = {{ (tab_supplier|default('Default'))|tojson }};
         const INITIAL_SUPPLIER_FILTER = {{ supplier_filter|default('all')|tojson }};
         
         // Current PepHaul tab selection (synced from Admin Panel via postMessage)
