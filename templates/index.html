@@ -5811,6 +5811,10 @@
         
         // Remove item from confirmation modal
         function removeFromConfirmation(index) {
+            // Get the supplier from the item being removed or use stored supplier context
+            const itemToRemove = cartItems[index];
+            const supplier = itemToRemove ? (itemToRemove.supplier || null) : (window.currentSubmitSupplier || null);
+            
             cartItems.splice(index, 1);
             
             if (cartItems.length === 0) {
@@ -5820,8 +5824,8 @@
                 return;
             }
             
-            // Update confirmation modal
-            showOrderConfirmationModal();
+            // Update confirmation modal with supplier context
+            showOrderConfirmationModal(supplier);
             
             // Update main cart display
             updateCart();
