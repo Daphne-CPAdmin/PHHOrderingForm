@@ -565,6 +565,28 @@
                 </div>
             </div>
 
+            <!-- PepHaul Entry Tab Selector -->
+            <div class="card" style="margin-bottom: 2rem; border: 2px solid #8b5cf6; background: linear-gradient(135deg, rgba(139, 92, 246, 0.05) 0%, rgba(192, 132, 252, 0.05) 100%);">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                    <div style="flex: 1;">
+                        <h2 style="font-size: 1.25rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                            📋 View PepHaul Entry Tab
+                        </h2>
+                        <p style="color: var(--text-muted); font-size: 0.9rem;">
+                            Select which PepHaul Entry tab to display. All data (orders, products, customers) will be filtered for the selected tab.
+                        </p>
+                    </div>
+                    <div style="min-width: 250px;">
+                        <select id="admin-tab-viewer-selector" class="form-input" style="width: 100%; font-weight: 600; font-size: 1rem; padding: 0.875rem 1rem;">
+                            <option value="">Loading tabs...</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="admin-tab-viewer-status" style="margin-top: 1rem; padding: 0.75rem; background: rgba(139, 92, 246, 0.1); border-radius: 8px; display: none;">
+                    <span style="font-size: 0.85rem; color: #7c3aed; font-weight: 500;"></span>
+                </div>
+            </div>
+
             <!-- Order Form Status -->
             <div class="card" style="margin-bottom: 2rem; border: 2px solid #f472b6;">
                 <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
@@ -1158,6 +1180,7 @@
                     loadOrderGoal();
                     loadTheme();
                     loadTimelineEntries();
+                    loadAdminTabViewer(); // Load tabs for admin tab viewer
                     loadTabSettings(); // Load available tabs and settings
                     setupNewFeatures(); // Setup button event listeners after login
                 } else {
@@ -1194,6 +1217,7 @@
                     loadOrderGoal();
                     loadTheme();
                     loadTimelineEntries();
+                    loadAdminTabViewer(); // Load tabs for admin tab viewer
                     loadTabSettings(); // Load available tabs and settings
                     setupNewFeatures(); // Setup button event listeners after boot
                 }
@@ -3323,6 +3347,102 @@
             }
         }
 
+        // Load available PepHaul Entry tabs for admin tab viewer selector
+        async function loadAdminTabViewer() {
+            try {
+                const tabsResponse = await fetch('/api/admin/pephaul-tabs', { credentials: 'same-origin' });
+                if (!tabsResponse.ok) {
+                    throw new Error(`Failed to load tabs: ${tabsResponse.status}`);
+                }
+                const tabsData = await tabsResponse.json();
+                const tabs = tabsData.tabs || [];
+                const currentTab = tabsData.current_tab || (tabs.length > 0 ? tabs[0] : 'PepHaul Entry-01');
+                
+                // Update admin tab viewer selector
+                const viewerSelector = document.getElementById('admin-tab-viewer-selector');
+                if (viewerSelector) {
+                    if (tabs.length === 0) {
+                        viewerSelector.innerHTML = '<option value="">No tabs available</option>';
+                    } else {
+                        viewerSelector.innerHTML = tabs.map(tab => 
+                            `<option value="${tab}" ${tab === currentTab ? 'selected' : ''}>${tab}</option>`
+                        ).join('');
+                    }
+                }
+                
+                // Update status display
+                const statusEl = document.getElementById('admin-tab-viewer-status');
+                if (statusEl) {
+                    statusEl.style.display = 'block';
+                    statusEl.querySelector('span').textContent = `Currently viewing: ${currentTab}`;
+                }
+            } catch (error) {
+                console.error('Error loading tabs for viewer:', error);
+                const viewerSelector = document.getElementById('admin-tab-viewer-selector');
+                if (viewerSelector) {
+                    viewerSelector.innerHTML = '<option value="">Error loading tabs</option>';
+                }
+            }
+        }
+
+        // Handle admin tab viewer selection change
+        async function onAdminTabViewerChange() {
+            const selectedTab = document.getElementById('admin-tab-viewer-selector').value;
+            if (!selectedTab) return;
+            
+            const statusEl = document.getElementById('admin-tab-viewer-status');
+            if (statusEl) {
+                statusEl.querySelector('span').textContent = `Switching to ${selectedTab}...`;
+                statusEl.style.display = 'block';
+            }
+            
+            try {
+                const response = await fetch('/api/admin/pephaul-tabs/switch', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tab_name: selectedTab })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    showToast(`✅ Switched to ${selectedTab}!`);
+                    
+                    // Update status
+                    if (statusEl) {
+                        statusEl.querySelector('span').textContent = `Currently viewing: ${selectedTab}`;
+                    }
+                    
+                    // Reload all data for the new tab
+                    loadProducts();
+                    loadOrders();
+                    loadCustomerSummary();
+                    loadTimelineEntries();
+                    loadTabSettings(); // Reload tab settings for the new tab
+                    
+                    // Reload the page after a short delay to ensure all data is refreshed
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 500);
+                } else {
+                    showToast('❌ Failed to switch tab: ' + (result.error || 'Unknown error'));
+                    if (statusEl) {
+                        statusEl.style.display = 'none';
+                    }
+                    // Reset selector to current tab
+                    loadAdminTabViewer();
+                }
+            } catch (error) {
+                console.error('Error switching tab:', error);
+                showToast('❌ Error switching tab: ' + error.message);
+                if (statusEl) {
+                    statusEl.style.display = 'none';
+                }
+                // Reset selector to current tab
+                loadAdminTabViewer();
+            }
+        }
+
         // Load available PepHaul Entry tabs and populate settings selector
         async function loadTabSettings() {
             try {
@@ -3508,6 +3628,8 @@
                     
                     // Reload tab settings to refresh the list
                     loadTabSettings();
+                    // Reload admin tab viewer to update current tab display
+                    loadAdminTabViewer();
                     
                     // Notify customer page
                     if (window.opener && !window.opener.closed) {
@@ -3547,6 +3669,7 @@
                 const result = await response.json();
                 if (result.success) {
                     showToast(`✅ Created new tab: ${result.tab_name}`);
+                    loadAdminTabViewer(); // Reload admin tab viewer
                     loadTabSettings(); // Reload tabs list
                     loadOrders(); // Reload orders to show new tab's data
                 } else {
@@ -3573,6 +3696,13 @@
             if (exportBtn && !exportBtn.dataset.listenerAttached) {
                 exportBtn.addEventListener('click', exportPageAsHTML);
                 exportBtn.dataset.listenerAttached = 'true';
+            }
+            
+            // Admin Tab Viewer Selector
+            const adminTabViewerSelector = document.getElementById('admin-tab-viewer-selector');
+            if (adminTabViewerSelector && !adminTabViewerSelector.dataset.listenerAttached) {
+                adminTabViewerSelector.addEventListener('change', onAdminTabViewerChange);
+                adminTabViewerSelector.dataset.listenerAttached = 'true';
             }
             
             // Tab Settings Management
