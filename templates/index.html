@@ -5765,16 +5765,23 @@
                 ? cartItems.filter(item => (item.supplier || 'Default') === supplier)
                 : cartItems;
             
-            // Check if there's a paid order - if so, only show new items
+            // Check if there's a pending (unpaid) order to update
+            const pendingOrder = existingCustomerOrders.find(o => o.status !== 'Cancelled' && !o.locked);
+            
+            // Check if there's a paid order
             const paidOrder = existingCustomerOrders.find(o => 
                 o.status !== 'Cancelled' && 
                 o.payment_status && 
                 o.payment_status.toLowerCase() === 'paid'
             );
             
-            const itemsToShow = paidOrder ? 
-                filteredCartItems.filter(item => !item.isExisting || item.isNewOrder) : 
-                filteredCartItems;
+            // If updating an existing pending order, show ALL items (including updated existing items)
+            // If creating a new order and there's a paid order, only show new items
+            const itemsToShow = pendingOrder ? 
+                filteredCartItems : // Show all items when updating
+                (paidOrder ? 
+                    filteredCartItems.filter(item => !item.isExisting || item.isNewOrder) : // Only new items when creating with paid order
+                    filteredCartItems); // Show all items when creating new order without paid order
             
             // Render cart items with remove buttons
             itemsList.innerHTML = itemsToShow.map((item, i) => {
