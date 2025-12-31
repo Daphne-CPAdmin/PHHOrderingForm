@@ -2007,77 +2007,76 @@
 
                 <!-- Order Summary Section - Right Half -->
                 <div style="flex: 1; min-width: 0;">
-            <!-- Cart - One per Supplier - Side by Side -->
+            <!-- Cart - PepHaul Entry-XX based (one unified section) -->
             <div class="supplier-carts-grid" style="margin-top: 0;">
-                {% for supplier in suppliers %}
-                <div class="card supplier-cart" data-supplier="{{ supplier }}">
-                    <h2 class="card-title"><span class="icon">🛒</span> Order Summary - {{ supplier }}</h2>
+                <div class="card supplier-cart" data-supplier="{{ tab_supplier }}" data-pephaul-tab="{{ current_tab }}">
+                    <h2 class="card-title"><span class="icon">🛒</span> Order Summary - {{ current_tab }} <span style="font-weight: 500; color: var(--text-muted);">({{ tab_supplier }})</span></h2>
                     
                     <!-- Status Tags Container -->
-                    <div class="order-summary-status-tags" data-supplier="{{ supplier }}" style="margin-bottom: 1rem;"></div>
+                    <div class="order-summary-status-tags" data-supplier="{{ tab_supplier }}" data-pephaul-tab="{{ current_tab }}" style="margin-bottom: 1rem;"></div>
 
                     <!-- Paid Order Section (Locked) -->
-                    <div class="paid-order-section" data-supplier="{{ supplier }}" style="display: none; margin-bottom: 1.5rem; padding: 1rem; background: rgba(16, 185, 129, 0.05); border: 2px solid var(--accent-emerald); border-radius: 12px;">
+                    <div class="paid-order-section" data-supplier="{{ tab_supplier }}" data-pephaul-tab="{{ current_tab }}" style="display: none; margin-bottom: 1.5rem; padding: 1rem; background: rgba(16, 185, 129, 0.05); border: 2px solid var(--accent-emerald); border-radius: 12px;">
                         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem;">
                             <h3 style="font-size: 1rem; font-weight: 700; color: var(--accent-emerald); display: flex; align-items: center; gap: 0.5rem;">
                                 <span>🔒</span> Paid Order (Locked)
                             </h3>
-                            <div class="paid-order-id" data-supplier="{{ supplier }}" style="font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--text-muted);"></div>
+                            <div class="paid-order-id" data-supplier="{{ tab_supplier }}" data-pephaul-tab="{{ current_tab }}" style="font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--text-muted);"></div>
                         </div>
-                        <div class="paid-order-items" data-supplier="{{ supplier }}" style="margin-bottom: 0.75rem;"></div>
-                        <div class="paid-order-summary cart-summary" data-supplier="{{ supplier }}" style="border-top: 1px solid rgba(16, 185, 129, 0.2); padding-top: 0.75rem;"></div>
+                        <div class="paid-order-items" data-supplier="{{ tab_supplier }}" data-pephaul-tab="{{ current_tab }}" style="margin-bottom: 0.75rem;"></div>
+                        <div class="paid-order-summary cart-summary" data-supplier="{{ tab_supplier }}" data-pephaul-tab="{{ current_tab }}" style="border-top: 1px solid rgba(16, 185, 129, 0.2); padding-top: 0.75rem;"></div>
                     </div>
 
-                    <div class="cart-empty" data-supplier="{{ supplier }}">
+                    <div class="cart-empty" data-supplier="{{ tab_supplier }}" data-pephaul-tab="{{ current_tab }}">
                         <p>No items yet</p>
                     </div>
 
                     <!-- New Order Section (for items added after payment) -->
-                    <div class="new-order-section" data-supplier="{{ supplier }}" style="display: none; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 2px solid var(--accent-amber);">
+                    <div class="new-order-section" data-supplier="{{ tab_supplier }}" data-pephaul-tab="{{ current_tab }}" style="display: none; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 2px solid var(--accent-amber);">
                         <h3 style="font-size: 1rem; font-weight: 700; color: var(--accent-amber); margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
                             <span>➕</span> New Order
                         </h3>
-                        <div class="new-order-items cart-items" data-supplier="{{ supplier }}" style="display: none;"></div>
-                        <div class="new-order-summary cart-summary" data-supplier="{{ supplier }}" style="display: none;"></div>
+                        <div class="new-order-items cart-items" data-supplier="{{ tab_supplier }}" data-pephaul-tab="{{ current_tab }}" style="display: none;"></div>
+                        <div class="new-order-summary cart-summary" data-supplier="{{ tab_supplier }}" data-pephaul-tab="{{ current_tab }}" style="display: none;"></div>
                     </div>
 
-                    <div class="cart-items" data-supplier="{{ supplier }}" style="display: none;"></div>
+                    <div class="cart-items" data-supplier="{{ tab_supplier }}" data-pephaul-tab="{{ current_tab }}" style="display: none;"></div>
 
-                    <div class="cart-summary" data-supplier="{{ supplier }}" style="display: none; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border);">
+                    <div class="cart-summary" data-supplier="{{ tab_supplier }}" data-pephaul-tab="{{ current_tab }}" style="display: none; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border);">
                         <div class="summary-row" style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
                             <span class="summary-label" style="color: var(--text-secondary);">📦 Total Vials</span>
-                            <span class="summary-value total-vials-count" data-supplier="{{ supplier }}" style="font-weight: 600; color: var(--text-primary);">0</span>
+                            <span class="summary-value total-vials-count" data-supplier="{{ tab_supplier }}" data-pephaul-tab="{{ current_tab }}" style="font-weight: 600; color: var(--text-primary);">0</span>
                         </div>
                         <div class="summary-row" style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
                             <span class="summary-label" style="color: var(--text-secondary);">Subtotal (USD)</span>
-                            <span class="summary-value summary-usd" data-supplier="{{ supplier }}" style="font-weight: 600;">$0.00</span>
+                            <span class="summary-value summary-usd" data-supplier="{{ tab_supplier }}" data-pephaul-tab="{{ current_tab }}" style="font-weight: 600;">$0.00</span>
                         </div>
                         <div class="summary-row" style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
                             <span class="summary-label" style="color: var(--text-secondary);">Subtotal (PHP)</span>
-                            <span class="summary-value summary-php" data-supplier="{{ supplier }}" style="font-weight: 600;">₱0.00</span>
+                            <span class="summary-value summary-php" data-supplier="{{ tab_supplier }}" data-pephaul-tab="{{ current_tab }}" style="font-weight: 600;">₱0.00</span>
                         </div>
                         <div class="summary-row" style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
                             <span class="summary-label" style="color: var(--text-secondary);">Admin Fee <span style="font-size: 0.85em; color: var(--text-muted); font-weight: normal;">(₱300 per 50 vials)</span></span>
-                            <span class="summary-value admin-fee-value" data-supplier="{{ supplier }}" style="font-weight: 600;">₱300.00</span>
+                            <span class="summary-value admin-fee-value" data-supplier="{{ tab_supplier }}" data-pephaul-tab="{{ current_tab }}" style="font-weight: 600;">₱300.00</span>
                         </div>
                         <div class="summary-row grand-total" style="display: flex; justify-content: space-between; margin-top: 0.5rem; padding-top: 0.5rem; border-top: 2px solid var(--accent-amber);">
                             <span class="summary-label" style="color: var(--accent-amber); font-weight: 700; font-size: 1.1rem;">Grand Total</span>
-                            <span class="summary-value grand-total-value" data-supplier="{{ supplier }}" style="color: var(--accent-amber); font-weight: 700; font-size: 1.1rem;">₱0.00</span>
+                            <span class="summary-value grand-total-value" data-supplier="{{ tab_supplier }}" data-pephaul-tab="{{ current_tab }}" style="color: var(--accent-amber); font-weight: 700; font-size: 1.1rem;">₱0.00</span>
                         </div>
                     </div>
 
                     <!-- Shipping Details Button (shown for paid orders) -->
-                    <div class="shipping-details-button-container" data-supplier="{{ supplier }}" style="margin-top: 1rem; display: none;">
-                        <button type="button" class="btn btn-primary btn-full add-shipping-details-btn" data-supplier="{{ supplier }}">📬 Add Shipping Details</button>
+                    <div class="shipping-details-button-container" data-supplier="{{ tab_supplier }}" data-pephaul-tab="{{ current_tab }}" style="margin-top: 1rem; display: none;">
+                        <button type="button" class="btn btn-primary btn-full add-shipping-details-btn" data-supplier="{{ tab_supplier }}" data-pephaul-tab="{{ current_tab }}">📬 Add Shipping Details</button>
                     </div>
 
                     <!-- Button container for dynamic buttons (always visible, buttons controlled by JS) -->
-                    <div class="order-action-buttons" data-supplier="{{ supplier }}" style="margin-top: 1rem; display: flex; flex-direction: column; gap: 0.5rem;">
-                        <button type="button" class="btn btn-violet btn-full submit-order" data-supplier="{{ supplier }}" disabled>Submit Order - {{ supplier }}</button>
-                        <button type="button" class="btn btn-amber btn-full create-new-order-btn" data-supplier="{{ supplier }}" style="display: none;">➕ Create New Order</button>
-                        <button type="button" class="btn btn-violet btn-full update-order-btn" data-supplier="{{ supplier }}" style="display: none;">Update Order</button>
-                        <button type="button" class="btn btn-emerald btn-full pay-order-btn" data-supplier="{{ supplier }}" style="display: none;">💳 Pay Order</button>
-                        <button type="button" class="btn btn-rose btn-full cancel-order-btn" data-supplier="{{ supplier }}" style="display: none;">🗑️ Cancel Order</button>
+                    <div class="order-action-buttons" data-supplier="{{ tab_supplier }}" data-pephaul-tab="{{ current_tab }}" style="margin-top: 1rem; display: flex; flex-direction: column; gap: 0.5rem;">
+                        <button type="button" class="btn btn-violet btn-full submit-order" data-supplier="{{ tab_supplier }}" data-pephaul-tab="{{ current_tab }}" disabled>Submit Order - {{ current_tab }}</button>
+                        <button type="button" class="btn btn-amber btn-full create-new-order-btn" data-supplier="{{ tab_supplier }}" data-pephaul-tab="{{ current_tab }}" style="display: none;">➕ Create New Order</button>
+                        <button type="button" class="btn btn-violet btn-full update-order-btn" data-supplier="{{ tab_supplier }}" data-pephaul-tab="{{ current_tab }}" style="display: none;">Update Order</button>
+                        <button type="button" class="btn btn-emerald btn-full pay-order-btn" data-supplier="{{ tab_supplier }}" data-pephaul-tab="{{ current_tab }}" style="display: none;">💳 Pay Order</button>
+                        <button type="button" class="btn btn-rose btn-full cancel-order-btn" data-supplier="{{ tab_supplier }}" data-pephaul-tab="{{ current_tab }}" style="display: none;">🗑️ Cancel Order</button>
                     </div>
                     {% if order_form_locked %}
                     <div style="margin-top: 0.75rem; padding: 0.75rem; background: rgba(156, 163, 175, 0.1); border-radius: 8px; text-align: center; color: var(--text-muted); font-size: 0.9rem;">
@@ -2086,7 +2085,6 @@
                     {% endif %}
 
                 </div>
-                {% endfor %}
             </div>
                 </div>
             </div>
@@ -2118,7 +2116,7 @@
         <!-- View My Orders Section -->
         <div id="my-orders-section" class="orders-summary-section" style="display: none;">
             <div class="card">
-                <h2 class="card-title"><span class="icon">📦</span> My Orders</h2>
+                <h2 class="card-title"><span class="icon">📦</span> My Orders - {{ current_tab }} <span style="font-weight: 500; color: var(--text-muted);">({{ tab_supplier }})</span></h2>
                 <p style="color: var(--text-muted); margin-bottom: 1.5rem; font-size: 0.9rem;">View and manage your orders</p>
                 
                 <div style="margin-bottom: 1rem;">
@@ -2135,20 +2133,19 @@
             </div>
         </div>
 
-        <!-- Incomplete Kits Section - One per Supplier -->
+        <!-- Incomplete Kits Section - PepHaul Entry-XX based -->
         {% if not order_form_locked %}
-        {% for supplier in suppliers %}
-        <div class="orders-summary-section supplier-incomplete-kits" data-supplier="{{ supplier }}" style="border: 2px solid #f472b6;">
+        <div class="orders-summary-section supplier-incomplete-kits" data-supplier="{{ tab_supplier }}" data-pephaul-tab="{{ current_tab }}" style="border: 2px solid #f472b6;">
             <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
                 <div style="background: linear-gradient(135deg, #f472b6, #c084fc); padding: 0.75rem; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
                     <span style="font-size: 1.5rem;">⚠️</span>
                 </div>
                 <div>
-                    <h3 class="orders-summary-title" style="margin: 0;">Incomplete Kits - {{ supplier }}</h3>
+                    <h3 class="orders-summary-title" style="margin: 0;">Incomplete Kits - {{ current_tab }} <span style="font-weight: 500; color: var(--text-muted);">({{ tab_supplier }})</span></h3>
                     <p style="color: var(--text-muted); font-size: 0.85rem; margin: 0;">Products needing more vials to complete a kit (1 kit = 10 vials)</p>
                 </div>
             </div>
-            {% set supplier_incomplete_kits = incomplete_kits_by_supplier.get(supplier, []) %}
+            {% set supplier_incomplete_kits = incomplete_kits_by_supplier.get(tab_supplier, []) %}
             {% if supplier_incomplete_kits and supplier_incomplete_kits|length > 0 %}
             <div class="table-container" style="margin-top: 1rem; background: rgba(255, 255, 255, 0.4); padding: 1rem; border-radius: 12px;">
                 <table class="products-table" style="width: 100%;">
@@ -2322,7 +2319,6 @@
             </div>
             {% endif %}
         </div>
-        {% endfor %}
         {% endif %}
 
         <!-- Live Product Inventory Section - One per Supplier -->
@@ -3660,15 +3656,15 @@
                 o.payment_status.toLowerCase() === 'paid'
             );
             
-            // Update each supplier's cart separately
-            if (!SUPPLIERS || SUPPLIERS.length === 0) {
-                console.warn('No suppliers found');
+            // Update the active supplier's cart (PepHaul Entry-XX based - one section per tab)
+            const activeSupplier = TAB_SUPPLIER || (SUPPLIERS && SUPPLIERS.length > 0 ? SUPPLIERS[0] : 'Default');
+            if (!activeSupplier) {
+                console.warn('No active supplier found');
                 return;
             }
             
-            SUPPLIERS.forEach(supplier => {
-                updateSupplierCart(supplier, paidOrder);
-            });
+            // Only update the active supplier's cart section
+            updateSupplierCart(activeSupplier, paidOrder);
             
             // Update status tags and editing controls
             updateOrderSummaryStatusTags();
@@ -3717,9 +3713,21 @@
             const newOrderSummary = cartSection.querySelector(`.new-order-summary[data-supplier="${supplier}"]`);
             const createNewOrderBtn = cartSection.querySelector(`.create-new-order-btn[data-supplier="${supplier}"]`);
             
-            // Filter cart items by supplier
-            const supplierCartItems = cartItems.filter(item => (item.supplier || 'Default') === supplier);
-            console.log(`[updateSupplierCart] Supplier: ${supplier}, Total cart items: ${cartItems.length}, Supplier items: ${supplierCartItems.length}`, supplierCartItems);
+            // For existing orders, show ALL items in the active supplier's section (not filtered by supplier)
+            // This ensures Order Summary matches "My Orders" section
+            // Only filter by supplier when there's no existing order (new order scenario)
+            const hasExistingOrder = existingCustomerOrders && existingCustomerOrders.length > 0 && 
+                existingCustomerOrders.some(o => o.status !== 'Cancelled' && o.items && o.items.length > 0);
+            
+            // Get the active supplier for the current tab
+            const activeSupplier = TAB_SUPPLIER || (SUPPLIERS && SUPPLIERS.length > 0 ? SUPPLIERS[0] : 'Default');
+            
+            // If there's an existing order, show all items ONLY in the active supplier's section
+            // Otherwise, filter by supplier (for new orders)
+            const isActiveSupplier = supplier === activeSupplier;
+            const supplierCartItems = (hasExistingOrder && isActiveSupplier) ? cartItems : 
+                (hasExistingOrder ? [] : cartItems.filter(item => (item.supplier || 'Default') === supplier));
+            console.log(`[updateSupplierCart] Supplier: ${supplier}, Active: ${activeSupplier}, Total cart items: ${cartItems.length}, Displayed items: ${supplierCartItems.length} (hasExistingOrder: ${hasExistingOrder}, isActiveSupplier: ${isActiveSupplier})`, supplierCartItems);
             
             // Separate paid order items from new items for this supplier
             const paidOrderItemsList = paidOrder ? (paidOrder.items || []).filter(item => {
@@ -3907,7 +3915,18 @@
                 if (newOrderSection) newOrderSection.style.display = 'none';
             }
             
-            // Handle empty cart for this supplier
+            // When there's an existing order, only show items in the active supplier's section
+            // Hide other supplier sections to avoid confusion
+            if (hasExistingOrder && supplierCartItems.length === 0 && cartItems.length > 0) {
+                // This supplier section should be hidden (items are shown in active supplier's section)
+                if (empty) empty.style.display = 'block';
+                if (items) items.style.display = 'none';
+                if (summary) summary.style.display = 'none';
+                if (submitBtn) submitBtn.disabled = true;
+                return;
+            }
+            
+            // Handle empty cart for this supplier (when no existing order)
             if (supplierCartItems.length === 0 && paidOrderItemsList.length === 0) {
                 if (empty) empty.style.display = 'block';
                 if (items) items.style.display = 'none';
@@ -4032,10 +4051,12 @@
                     console.error(`[updateSupplierCart] Items element is null for supplier: ${supplier}`);
                 }
                 
-                // Calculate totals for this supplier
+                // Calculate totals across ALL items (not just this supplier's items) when there's an existing order
+                // This ensures Order Summary totals match "My Orders" section
+                const itemsToCalculate = hasExistingOrder ? cartItems : supplierCartItems;
                 let totalUsd = 0;
                 let totalPhp = 0;
-                supplierCartItems.forEach(item => {
+                itemsToCalculate.forEach(item => {
                     let itemUsd = parseFloat(item.line_total_usd);
                     let itemPhp = parseFloat(item.line_total_php);
                     
@@ -4078,13 +4099,14 @@
                     totalUsd = totalPhp / EXCHANGE_RATE;
                 }
                 
-                // Calculate complete kits and incomplete vials for this supplier (for admin fee calculation)
+                // Calculate complete kits and incomplete vials across ALL items (for admin fee calculation)
+                // This ensures admin fee matches "My Orders" section
                 let totalVialsForAdminFee = 0;
                 
                 // Get products cache to look up vials_per_kit
                 const productsCache = window._productsCache || window.products || [];
                 
-                supplierCartItems.forEach(item => {
+                itemsToCalculate.forEach(item => {
                     const productCode = item.product_code;
                     const orderType = item.order_type || 'Vial';
                     const qty = parseFloat(item.qty) || 0;
@@ -4351,14 +4373,13 @@
         
         // Function to update submit button text and state based on existing order
         function updateSubmitButtonText() {
-            // Update buttons for each supplier
-            if (!SUPPLIERS || SUPPLIERS.length === 0) {
+            // Update buttons for the active supplier (PepHaul Entry-XX based)
+            const activeSupplier = TAB_SUPPLIER || (SUPPLIERS && SUPPLIERS.length > 0 ? SUPPLIERS[0] : 'Default');
+            if (!activeSupplier) {
                 return;
             }
             
-            SUPPLIERS.forEach(supplier => {
-                updateSupplierSubmitButtons(supplier);
-            });
+            updateSupplierSubmitButtons(activeSupplier);
         }
         
         function updateSupplierSubmitButtons(supplier) {
@@ -4691,17 +4712,15 @@
                             updateEditingControls();
                             showToast(`✅ Loaded ${cartItems.length} item(s) from your existing order`, 3000);
                             
-                            // Force update of all supplier carts to ensure items display
-                            if (SUPPLIERS && SUPPLIERS.length > 0) {
-                                SUPPLIERS.forEach(supplier => {
-                                    const paidOrder = existingCustomerOrders.find(o => 
-                                        o.status !== 'Cancelled' && 
-                                        o.payment_status && 
-                                        o.payment_status.toLowerCase() === 'paid' &&
-                                        (o.supplier === supplier || (!o.supplier && supplier === 'Default'))
-                                    );
-                                    updateSupplierCart(supplier, paidOrder);
-                                });
+                            // Force update of the active supplier's cart to ensure items display
+                            const activeSupplier = TAB_SUPPLIER || (SUPPLIERS && SUPPLIERS.length > 0 ? SUPPLIERS[0] : 'Default');
+                            if (activeSupplier) {
+                                const paidOrder = existingCustomerOrders.find(o => 
+                                    o.status !== 'Cancelled' && 
+                                    o.payment_status && 
+                                    o.payment_status.toLowerCase() === 'paid'
+                                );
+                                updateSupplierCart(activeSupplier, paidOrder);
                             }
                         } else {
                             // No pending unpaid order, clear cart and reset order ID
