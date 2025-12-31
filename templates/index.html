@@ -5005,6 +5005,9 @@
             empty.style.display = 'none';
             section.style.display = 'block';
             
+            // Show order timeline for this customer
+            showOrderTimeline(filteredOrders);
+            
             // Scroll to show the orders section
             setTimeout(() => {
                 section.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
