@@ -118,6 +118,15 @@ def clear_cache(key=None):
         _cache.clear()
         _cache_timestamps.clear()
 
+def clear_cache_prefix(prefix: str):
+    """Clear cached keys starting with prefix (e.g., 'orders_')."""
+    if not prefix:
+        return
+    for k in list(_cache.keys()):
+        if isinstance(k, str) and k.startswith(prefix):
+            _cache.pop(k, None)
+            _cache_timestamps.pop(k, None)
+
 def resolve_telegram_recipient(recipient):
     """
     Resolve Telegram recipient to chat ID.
@@ -230,6 +239,34 @@ def send_telegram_notification(message, parse_mode='HTML'):
     return success_count > 0
 VIALS_PER_KIT = 10
 MAX_KITS_DEFAULT = 100  # Default max kits per product
+
+# Supplier filter is controlled from Admin Panel and should be applied per PepHaul Entry tab.
+# It is used to:
+# - filter products shown for ordering
+# - assign Column E (Supplier) for newly written order rows (if client doesn't send supplier)
+_pephaul_supplier_filter = {}  # tab_name -> supplier_filter ('all' or supplier name)
+
+def get_supplier_filter_for_tab(tab_name: str) -> str:
+    tab_name = str(tab_name or '').strip() or get_current_pephaul_tab()
+    return str(_pephaul_supplier_filter.get(tab_name, 'all') or 'all').strip() or 'all'
+
+def set_supplier_filter_for_tab(tab_name: str, supplier_filter: str) -> str:
+    tab_name = str(tab_name or '').strip() or get_current_pephaul_tab()
+    supplier_filter = str(supplier_filter or 'all').strip() or 'all'
+    _pephaul_supplier_filter[tab_name] = supplier_filter
+    return supplier_filter
+
+def infer_supplier_from_orders() -> str:
+    """Best-effort: infer current tab supplier from existing order rows (Column E)."""
+    try:
+        orders = get_orders_from_sheets()  # tab-scoped
+        for o in orders or []:
+            s = (o.get('Supplier') or o.get('supplier') or '').strip()
+            if s:
+                return s
+    except Exception:
+        pass
+    return 'Default'
 
 # Google Sheets and Drive Configuration
 sheets_client = None
@@ -1038,7 +1075,8 @@ def _enrich_orders_with_supplier(orders):
 
 def get_orders_from_sheets():
     """Read existing orders from PepHaul Entry tab (cached)"""
-    orders = get_cached('orders', _fetch_orders_from_sheets, cache_duration=180)  # 3 minutes - balance freshness/performance
+    tab_name = get_current_pephaul_tab()
+    orders = get_cached(f'orders_{tab_name}', _fetch_orders_from_sheets, cache_duration=180)  # 3 minutes - balance freshness/performance
     # Enrich orders with supplier information if missing
     return _enrich_orders_with_supplier(orders)
 
@@ -1164,13 +1202,23 @@ def save_order_to_sheets(order_data, order_id=None):
         
         # Prepare rows - ALL rows have Order ID, Date, Customer info for easy lookup
         rows_to_add = []
+        tab_name = get_current_pephaul_tab()
+        active_filter = get_supplier_filter_for_tab(tab_name)
         for i, item in enumerate(order_data['items']):
+            # Ensure Supplier column is populated (Column E)
+            item_supplier = (item.get('supplier') or '').strip()
+            if not item_supplier:
+                # Prefer current supplier filter if it is a concrete supplier; otherwise fall back to product supplier/Default.
+                if active_filter and active_filter.lower() != 'all':
+                    item_supplier = active_filter
+                else:
+                    item_supplier = (item.get('product_supplier') or 'Default')
             row = [
                 order_id,                           # Column A: Order ID
                 order_date,                         # Column B: Order Date
                 order_data['full_name'],            # Column C: Name
                 order_data['telegram'],             # Column D: Telegram Username
-                item.get('supplier', ''),           # Column E: Supplier
+                item_supplier,                      # Column E: Supplier
                 item['product_code'],               # Column F: Product Code
                 item.get('product_name', ''),       # Column G: Product Name
                 item['order_type'],                 # Column H: Order Type
@@ -1198,10 +1246,10 @@ def save_order_to_sheets(order_data, order_id=None):
             end_row = next_row + len(rows_to_add) - 1
             worksheet.update(f'A{next_row}:Y{end_row}', rows_to_add)
         
-        # Clear cache since orders changed
-        clear_cache('orders')
-        clear_cache('inventory')
-        clear_cache('order_stats')
+        # Clear cache since orders changed (tab-scoped keys)
+        clear_cache_prefix('orders_')
+        clear_cache_prefix('inventory_')
+        clear_cache_prefix('order_stats_')
         
         return order_id
         
@@ -1263,10 +1311,10 @@ def update_order_status(order_id, status=None, locked=None, payment_status=None,
             if col_payment_date is not None:
                 worksheet.update_cell(first_row, col_payment_date + 1, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
         
-        # Clear cache since orders changed
-        clear_cache('orders')
-        clear_cache('inventory')
-        clear_cache('order_stats')
+        # Clear cache since orders changed (tab-scoped keys)
+        clear_cache_prefix('orders_')
+        clear_cache_prefix('inventory_')
+        clear_cache_prefix('order_stats_')
         
         print(f"✅ Updated order {order_id}: status={status}, locked={locked}, payment_status={payment_status}")
         return True
@@ -1585,10 +1633,10 @@ def add_items_to_order(order_id, new_items, exchange_rate, telegram_username=Non
             
             print(f"✅ Updated order {order_id} with {len(final_items)} items")
         
-        # Clear cache since orders changed
-        clear_cache('orders')
-        clear_cache('inventory')
-        clear_cache('order_stats')
+        # Clear cache since orders changed (tab-scoped keys)
+        clear_cache_prefix('orders_')
+        clear_cache_prefix('inventory_')
+        clear_cache_prefix('order_stats_')
         
         return True
     except Exception as e:
@@ -1913,7 +1961,8 @@ def _fetch_inventory_stats():
 
 def get_inventory_stats():
     """Get inventory statistics with caching"""
-    return get_cached('inventory', _fetch_inventory_stats, cache_duration=300)  # 5 minutes - derived data, can cache longer
+    tab_name = get_current_pephaul_tab()
+    return get_cached(f'inventory_{tab_name}', _fetch_inventory_stats, cache_duration=300)  # 5 minutes - derived data, can cache longer
 
 def _fetch_products_from_sheets():
     """Internal function to fetch products from Price List tab, with fallback to alternate tab"""
@@ -2474,13 +2523,15 @@ def _fetch_consolidated_order_stats():
 def get_consolidated_order_stats():
     """Get consolidated order stats with caching"""
     # Use shorter cache duration to ensure stats reflect current PepHaul Entry tab
-    return get_cached('order_stats', _fetch_consolidated_order_stats, cache_duration=180)  # 3 minutes - match orders cache duration
+    tab_name = get_current_pephaul_tab()
+    return get_cached(f'order_stats_{tab_name}', _fetch_consolidated_order_stats, cache_duration=180)  # 3 minutes - match orders cache duration
 
 # Routes
 @app.route('/')
 def index():
     """Main order form page"""
     try:
+        current_tab = get_current_pephaul_tab()
         exchange_rate = get_exchange_rate()
         products = get_products()
         inventory = get_inventory_stats()
@@ -2700,6 +2751,12 @@ def index():
         
         order_goal = get_order_goal()
         current_theme = get_theme()
+
+        # Supplier context for this PepHaul Entry tab:
+        # - used to keep non-comparison sections PepHaul-tab scoped (single supplier per entry)
+        # - supplier filter itself is used only for ordering UI + Column E assignment
+        supplier_filter = get_supplier_filter_for_tab(current_tab)
+        tab_supplier = supplier_filter if supplier_filter.lower() != 'all' else infer_supplier_from_orders()
         
         return render_template('index.html', 
                              products=products, 
@@ -2709,6 +2766,9 @@ def index():
                              incomplete_kits=incomplete_kits,
                              incomplete_kits_by_supplier=incomplete_kits_by_supplier,
                              suppliers=suppliers,
+                             current_tab=current_tab,
+                             tab_supplier=tab_supplier,
+                             supplier_filter=supplier_filter,
                              exchange_rate=exchange_rate,
                              admin_fee=ADMIN_FEE_PHP,
                              vials_per_kit=VIALS_PER_KIT,
@@ -2729,8 +2789,25 @@ def index():
 def admin_panel():
     """Admin panel for managing products and orders"""
     products = get_products()
-    suppliers = sorted(set([p.get('supplier', 'Default') for p in products])) if products else ['Default']
-    return render_template('admin.html', suppliers=suppliers)
+    current_tab = get_current_pephaul_tab()
+
+    # Determine the active supplier for the current PepHaul Entry tab (one supplier per tab)
+    supplier_filter = get_supplier_filter_for_tab(current_tab)
+    if supplier_filter.lower() != 'all':
+        current_supplier = supplier_filter
+    else:
+        current_supplier = infer_supplier_from_orders()
+
+    all_suppliers = sorted(set([p.get('supplier', 'Default') for p in (products or [])])) or ['Default']
+    suppliers = [current_supplier]  # tab-scoped sections should only render once
+    return render_template(
+        'admin.html',
+        suppliers=suppliers,
+        all_suppliers=all_suppliers,
+        current_tab=current_tab,
+        tab_supplier=current_supplier,
+        supplier_filter=supplier_filter,
+    )
 
 @app.route('/api/admin/status')
 def admin_status():
@@ -2777,7 +2854,7 @@ def api_admin_debug_orders():
         }), 500
 
     try:
-        clear_cache('orders')
+        clear_cache_prefix('orders_')
         spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
         worksheet_titles = [ws.title for ws in spreadsheet.worksheets()]
 
@@ -3134,10 +3211,11 @@ def _fetch_timeline_entries(tab_name=None):
             for record in records:
                 # Filter by current PepHaul tab (match PepHaul Entry ID column)
                 # Support both old "PepHaul Number" and new "PepHaul Entry ID" column names
-                pephaul_entry_id = (
-                    record.get('PepHaul Entry ID', '') or 
+                pephaul_entry_id_raw = (
+                    record.get('PepHaul Entry ID', '') or
                     record.get('PepHaul Number', '')
-                ).strip()
+                )
+                pephaul_entry_id = str(pephaul_entry_id_raw).strip() if pephaul_entry_id_raw is not None else ''
                 
                 if pephaul_entry_id == tab_name and record.get('ID') and record.get('Date'):
                     entries.append({
@@ -3196,10 +3274,11 @@ def _fetch_all_timeline_entries():
             
             for record in records:
                 # Get PepHaul Entry ID (support both old and new column names)
-                pephaul_entry_id = (
-                    record.get('PepHaul Entry ID', '') or 
+                pephaul_entry_id_raw = (
+                    record.get('PepHaul Entry ID', '') or
                     record.get('PepHaul Number', '')
-                ).strip()
+                )
+                pephaul_entry_id = str(pephaul_entry_id_raw).strip() if pephaul_entry_id_raw is not None else ''
                 
                 # Include all entries (no filtering)
                 if record.get('ID') and record.get('Date'):
@@ -3456,7 +3535,7 @@ def api_public_timeline():
     """Get timeline entries for public display - tab-specific"""
     tab_name = request.args.get('tab_name') or get_current_pephaul_tab()
     entries = get_timeline_entries(tab_name)
-    return jsonify({'entries': entries})
+    return jsonify({'tab_name': tab_name, 'entries': entries})
 
 @app.route('/api/admin/theme', methods=['POST'])
 def api_set_theme():
@@ -3504,8 +3583,9 @@ def api_orders_lookup():
     if not telegram:
         return jsonify([])
     
-    # Use shorter cache duration (30 seconds) for faster order lookup
-    orders = get_cached('orders', _fetch_orders_from_sheets, cache_duration=30)
+    # Use shorter cache duration (30 seconds) for faster order lookup (tab-scoped)
+    tab_name = get_current_pephaul_tab()
+    orders = get_cached(f'orders_{tab_name}', _fetch_orders_from_sheets, cache_duration=30)
     
     # Normalize telegram username (remove @ if present for comparison)
     telegram_normalized = telegram.lstrip('@') if telegram else ''
@@ -3643,8 +3723,9 @@ def api_orders_lookup():
     # If no matches found, clear cache and retry once
     if len(result) == 0 and matched_count == 0:
         print(f"⚠️ No matches found, clearing cache and retrying...")
-        clear_cache('orders')
-        orders = get_cached('orders', _fetch_orders_from_sheets, cache_duration=30)
+        clear_cache_prefix('orders_')
+        tab_name = get_current_pephaul_tab()
+        orders = get_cached(f'orders_{tab_name}', _fetch_orders_from_sheets, cache_duration=30)
         print(f"📊 Retry: Total orders after cache clear: {len(orders)}")
         
         # Retry the lookup with improved column detection
@@ -4222,7 +4303,7 @@ def api_add_items(order_id=None):
                     if not order and order_lookup_attempts == 1:
                         # First attempt failed - clear cache and retry
                         print(f"⚠️ Order {order_id} not found on first attempt, clearing cache and retrying...")
-                        clear_cache('orders')
+                        clear_cache_prefix('orders_')
                         continue
                 elif telegram_username:
                     if not telegram_username or not telegram_username.strip():
@@ -4261,7 +4342,7 @@ def api_add_items(order_id=None):
                     if not order and order_lookup_attempts == 1:
                         # First attempt failed - clear cache and retry
                         print(f"⚠️ Order for telegram {telegram_username} not found on first attempt, clearing cache and retrying...")
-                        clear_cache('orders')
+                        clear_cache_prefix('orders_')
                         continue
                 else:
                     return jsonify({
@@ -4595,10 +4676,10 @@ def cleanup_zero_quantity_rows(order_id=None):
                 worksheet.delete_rows(row_num)
             print(f"🧹 Cleaned up {len(zero_qty_rows)} rows with 0 quantity" + (f" for order {order_id}" if order_id else ""))
             
-            # Clear cache
-            clear_cache('orders')
-            clear_cache('inventory')
-            clear_cache('order_stats')
+            # Clear cache (tab-scoped keys)
+            clear_cache_prefix('orders_')
+            clear_cache_prefix('inventory_')
+            clear_cache_prefix('order_stats_')
         
         return True
     except Exception as e:
@@ -4669,10 +4750,10 @@ def update_item_quantity(order_id, product_code, order_type, new_qty):
         if new_qty <= 0:
             if target_row != first_order_row:
                 worksheet.delete_rows(target_row)
-                # Clear cache and recalculate totals
-                clear_cache('orders')
-                clear_cache('inventory')
-                clear_cache('order_stats')
+                # Clear cache and recalculate totals (tab-scoped keys)
+                clear_cache_prefix('orders_')
+                clear_cache_prefix('inventory_')
+                clear_cache_prefix('order_stats_')
                 recalculate_order_total(order_id)
                 print(f"Deleted {product_code} row (qty=0) for order {order_id}")
                 return True
@@ -4728,10 +4809,10 @@ def update_item_quantity(order_id, product_code, order_type, new_qty):
             new_grand_total = new_subtotal_php + ADMIN_FEE_PHP
             worksheet.update(f'{chr(65 + grand_total_col)}{first_order_row}', [[new_grand_total]])
         
-        # Clear cache since orders changed
-        clear_cache('orders')
-        clear_cache('inventory')
-        clear_cache('order_stats')
+        # Clear cache since orders changed (tab-scoped keys)
+        clear_cache_prefix('orders_')
+        clear_cache_prefix('inventory_')
+        clear_cache_prefix('order_stats_')
         
         print(f"Updated {product_code} qty to {new_qty} for order {order_id}")
         return True
@@ -4883,9 +4964,9 @@ def delete_order_rows(order_id, telegram_username=None):
         print(f"✅ Successfully deleted all rows for order {order_id}" + (f" (Telegram: @{telegram_username})" if telegram_username else ""))
         
         # Clear cache since orders changed - this triggers automatic recalculation
-        clear_cache('orders')
-        clear_cache('inventory')
-        clear_cache('order_stats')
+        clear_cache_prefix('orders_')
+        clear_cache_prefix('inventory_')
+        clear_cache_prefix('order_stats_')
         
         # Force recalculation by getting fresh inventory stats
         # This ensures inventory is immediately updated after cancellation
@@ -5159,9 +5240,9 @@ def api_save_mailing_address(order_id):
         worksheet.update_cell(cell.row, 16, 'Yes')
         
         # Clear cache since orders changed
-        clear_cache('orders')
-        clear_cache('inventory')
-        clear_cache('order_stats')
+        clear_cache_prefix('orders_')
+        clear_cache_prefix('inventory_')
+        clear_cache_prefix('order_stats_')
         
         # Send notification to admin (non-blocking - don't fail if this fails)
         try:
@@ -5254,9 +5335,9 @@ def api_save_tracking_number(order_id):
         worksheet.update_cell(cell.row, 24, tracking_number)
         
         # Clear cache since orders changed
-        clear_cache('orders')
-        clear_cache('inventory')
-        clear_cache('order_stats')
+        clear_cache_prefix('orders_')
+        clear_cache_prefix('inventory_')
+        clear_cache_prefix('order_stats_')
         
         # Send notification to admin (non-blocking)
         try:
@@ -5502,7 +5583,7 @@ def api_admin_orders():
         return jsonify({'error': 'Unauthorized'}), 401
     
     # Clear cache to ensure fresh data (admin needs latest)
-    clear_cache('orders')
+    clear_cache_prefix('orders_')
     orders = get_orders_from_sheets()
     
     print(f"📊 Admin panel: Loaded {len(orders)} raw order records from sheets")
@@ -5649,6 +5730,32 @@ def api_admin_orders():
     sorted_orders = sorted(orders_with_items.values(), key=lambda x: x.get('order_date', '') or '', reverse=True)
     print(f"📊 Admin panel: Returning {len(sorted_orders)} orders to frontend (after filtering empty orders)")
     return jsonify(sorted_orders)
+
+
+@app.route('/api/admin/supplier-filter', methods=['GET', 'POST'])
+def api_admin_supplier_filter():
+    """Admin: get/set supplier filter for current PepHaul Entry tab."""
+    if not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    tab_name = request.args.get('tab_name') or get_current_pephaul_tab()
+
+    if request.method == 'GET':
+        supplier_filter = get_supplier_filter_for_tab(tab_name)
+        return jsonify({'tab_name': tab_name, 'supplier_filter': supplier_filter})
+
+    data = request.json or {}
+    supplier_filter = data.get('supplier_filter') or data.get('filter') or 'all'
+    supplier_filter = set_supplier_filter_for_tab(tab_name, supplier_filter)
+    return jsonify({'success': True, 'tab_name': tab_name, 'supplier_filter': supplier_filter})
+
+
+@app.route('/api/supplier-filter', methods=['GET'])
+def api_public_supplier_filter():
+    """Public: get supplier filter for current PepHaul Entry tab."""
+    tab_name = request.args.get('tab_name') or get_current_pephaul_tab()
+    supplier_filter = get_supplier_filter_for_tab(tab_name)
+    return jsonify({'tab_name': tab_name, 'supplier_filter': supplier_filter})
 
 @app.route('/api/admin/orders/<order_id>/confirm-payment', methods=['POST'])
 def api_admin_confirm_payment(order_id):
@@ -6010,10 +6117,10 @@ def api_admin_update_item(order_id):
         return jsonify({'error': 'Missing product_code or order_type'}), 400
     
     if update_item_quantity(order_id, product_code, order_type, new_qty):
-        # Clear cache and reload to ensure inventory is recalculated
-        clear_cache('orders')
-        clear_cache('inventory')
-        clear_cache('order_stats')
+        # Clear cache and reload to ensure inventory is recalculated (tab-scoped keys)
+        clear_cache_prefix('orders_')
+        clear_cache_prefix('inventory_')
+        clear_cache_prefix('order_stats_')
         # Recalculate order total
         recalculate_order_total(order_id)
         return jsonify({'success': True, 'message': 'Item updated successfully'})
@@ -6088,6 +6195,10 @@ def get_current_pephaul_tab():
     """Get the current active PepHaul Entry tab name"""
     # Try to get from session, fallback to default
     try:
+        # Customers should follow the globally selected PepHaul Entry tab.
+        # Only admins use the session-scoped tab switcher.
+        if not session.get('is_admin'):
+            return CURRENT_PEPHAUL_TAB
         return session.get('current_pephaul_tab', CURRENT_PEPHAUL_TAB)
     except:
         # If session not available (e.g., in background tasks), use default
@@ -6095,6 +6206,13 @@ def get_current_pephaul_tab():
 
 def set_current_pephaul_tab(tab_name):
     """Set the current active PepHaul Entry tab name"""
+    global CURRENT_PEPHAUL_TAB
+    # Update global default so customers (who may not have a session value set) follow the admin-selected tab
+    try:
+        if tab_name:
+            CURRENT_PEPHAUL_TAB = tab_name
+    except Exception:
+        pass
     try:
         session['current_pephaul_tab'] = tab_name
     except:
@@ -6274,14 +6392,11 @@ def api_admin_switch_pephaul_tab():
         set_current_pephaul_tab(tab_name)
         print(f"✅ Set current tab to: {tab_name}")
         
-        # Clear cache to force reload from new tab
-        clear_cache('orders')
-        clear_cache('inventory')
-        clear_cache('order_stats')
-        # Clear timeline cache for all tabs (will reload for new tab)
-        for key in list(_cache.keys()):
-            if key.startswith('timeline_entries_'):
-                clear_cache(key)
+        # Clear cache to force reload from new tab (tab-scoped keys)
+        clear_cache_prefix('orders_')
+        clear_cache_prefix('inventory_')
+        clear_cache_prefix('order_stats_')
+        clear_cache_prefix('timeline_entries_')
         
         print(f"✅ Switched to PepHaul Entry tab: {tab_name}")
         
@@ -6374,10 +6489,10 @@ def api_admin_backfill_suppliers():
                 batch = updates[i:i + batch_size]
                 worksheet.batch_update(batch)
             
-            # Clear cache to refresh data
-            clear_cache('orders')
-            clear_cache('inventory_stats')
-            clear_cache('consolidated_order_stats')
+            # Clear cache to refresh data (new tab-scoped keys)
+            clear_cache_prefix('orders_')
+            clear_cache_prefix('inventory_')
+            clear_cache_prefix('order_stats_')
         
         return jsonify({
             'success': True,
@@ -6433,9 +6548,9 @@ def api_admin_rename_pephaul_tab():
             set_current_pephaul_tab(new_name)
         
         # Clear cache
-        clear_cache('orders')
-        clear_cache('inventory')
-        clear_cache('order_stats')
+        clear_cache_prefix('orders_')
+        clear_cache_prefix('inventory_')
+        clear_cache_prefix('order_stats_')
         
         print(f"✅ Renamed tab from '{old_name}' to '{new_name}'")
         

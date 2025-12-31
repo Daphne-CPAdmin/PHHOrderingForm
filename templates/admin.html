@@ -612,7 +612,7 @@
                             <button id="supplier-filter-all" class="btn supplier-filter-btn active" data-filter="all" style="padding: 0.75rem 1.5rem; background: #8b5cf6; color: white;">
                                 All Suppliers
                             </button>
-                            {% for supplier in suppliers %}
+                            {% for supplier in all_suppliers %}
                             <button class="btn supplier-filter-btn" data-filter="{{ supplier }}" data-supplier-name="{{ supplier }}" style="padding: 0.75rem 1.5rem; background: #c084fc; color: white;">
                                 {{ supplier }}
                             </button>
@@ -825,12 +825,12 @@
                 </div>
             </div>
 
-            <!-- Customer Summary Section - One per Supplier -->
+            <!-- Customer Summary Section - One per PepHaul Entry (supplier is derived from tab) -->
             {% for supplier in suppliers %}
             <div class="card supplier-section" data-supplier="{{ supplier }}" style="margin-bottom: 2rem; border: 2px solid #c084fc;">
-                <h2 class="card-title" style="text-align: left; margin-bottom: 1rem;">👥 Customer Summary - {{ supplier }}</h2>
+                <h2 class="card-title" style="text-align: left; margin-bottom: 1rem;">👥 Customer Summary - {{ current_tab|default('PepHaul Entry') }}</h2>
                 <p style="color: var(--text-muted); margin-bottom: 1.5rem;">
-                    Overview of all customers showing unique orders, total vials, and grand totals (including PepHaul Admin fee) for {{ supplier }}.
+                    Overview of all customers showing unique orders, total vials, and grand totals (including PepHaul Admin fee) for {{ current_tab|default('PepHaul Entry') }}.
                 </p>
 
                 <div class="table-container">
@@ -853,12 +853,12 @@
             </div>
             {% endfor %}
 
-            <!-- Orders Management - One per Supplier -->
+            <!-- Orders Management - One per PepHaul Entry (supplier is derived from tab) -->
             {% for supplier in suppliers %}
             <div class="card supplier-section" data-supplier="{{ supplier }}" style="margin-bottom: 2rem;">
-                <h2 class="card-title" style="text-align: left; margin-bottom: 1rem;">📦 Orders Management - {{ supplier }}</h2>
+                <h2 class="card-title" style="text-align: left; margin-bottom: 1rem;">📦 Orders Management - {{ current_tab|default('PepHaul Entry') }}</h2>
                 <p style="color: var(--text-muted); margin-bottom: 1.5rem;">
-                    View all orders and confirm payments after verification for {{ supplier }}.
+                    View all orders and confirm payments after verification for {{ current_tab|default('PepHaul Entry') }}.
                 </p>
 
                 <div class="search-bar" style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem;">
@@ -1347,8 +1347,13 @@
             }
         });
 
-        // Supplier Filter Functions
-        let currentSupplierFilter = localStorage.getItem('supplierFilter') || 'all';
+        // Supplier Filter Functions (per PepHaul Entry tab)
+        const CURRENT_PEPHAUL_TAB = {{ current_tab|default('PepHaul Entry-01')|tojson }};
+        let currentSupplierFilter = {{ supplier_filter|default('all')|tojson }};
+        try {
+            const saved = localStorage.getItem(`supplierFilter_${CURRENT_PEPHAUL_TAB}`);
+            if (saved) currentSupplierFilter = saved;
+        } catch (e) {}
         
         function updateSupplierFilterUI(filter) {
             document.querySelectorAll('.supplier-filter-btn').forEach(btn => {
@@ -1363,29 +1368,39 @@
         }
         
         function applySupplierFilterToAdmin() {
-            // Show/hide supplier sections based on current filter
+            // IMPORTANT: Supplier filter should only affect ordering/pricelist display.
+            // We only filter the "Products" table card(s) (cards that contain `.products-tbody`).
             document.querySelectorAll('.supplier-section').forEach(section => {
+                const hasProductsTable = !!section.querySelector('.products-tbody');
+                if (!hasProductsTable) return;
+
                 const sectionSupplier = section.getAttribute('data-supplier');
-                let shouldShow = false;
-                
-                if (currentSupplierFilter === 'all') {
-                    shouldShow = true;
-                } else {
-                    // Filter matches supplier name exactly
-                    shouldShow = sectionSupplier === currentSupplierFilter;
-                }
-                
+                const shouldShow = (currentSupplierFilter === 'all') ? true : (sectionSupplier === currentSupplierFilter);
                 section.style.display = shouldShow ? 'block' : 'none';
             });
         }
         
-        function applySupplierFilter(filter) {
+        async function applySupplierFilter(filter) {
             currentSupplierFilter = filter;
-            localStorage.setItem('supplierFilter', filter);
+            try {
+                localStorage.setItem(`supplierFilter_${CURRENT_PEPHAUL_TAB}`, filter);
+                localStorage.setItem('supplierFilter', filter); // backward-compatible key
+            } catch (e) {}
             updateSupplierFilterUI(filter);
             
             // Apply filter to admin panel sections
             applySupplierFilterToAdmin();
+
+            // Persist on server (per tab) so customer side + order rows can align
+            try {
+                await fetch(`/api/admin/supplier-filter?tab_name=${encodeURIComponent(CURRENT_PEPHAUL_TAB)}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ supplier_filter: filter })
+                });
+            } catch (e) {
+                console.warn('Failed to persist supplier filter to server:', e);
+            }
             
             // Get supplier name for display
             const btn = document.querySelector(`[data-filter="${filter}"]`);
@@ -1404,7 +1419,7 @@
             // Apply filter to main page if it's open
             if (window.opener && !window.opener.closed) {
                 try {
-                    window.opener.postMessage({ type: 'supplierFilter', filter: filter }, '*');
+                    window.opener.postMessage({ type: 'supplierFilter', filter: filter, tab_name: CURRENT_PEPHAUL_TAB }, '*');
                 } catch (e) {
                     console.log('Could not communicate with main window');
                 }
@@ -2018,54 +2033,23 @@
             }
         }
         
-        // Load Customer Summary - Per Supplier
+        // Load Customer Summary - PepHaul Entry scoped
         async function loadCustomerSummary() {
             try {
                 const response = await fetch('/api/admin/customer-summary', { credentials: 'same-origin' });
                 const customers = await response.json();
                 
-                // Also get products and orders to match suppliers
-                const productsResponse = await fetch('/api/admin/products', { credentials: 'same-origin' });
-                const products = await productsResponse.json();
-                const ordersResponse = await fetch('/api/admin/orders', { credentials: 'same-origin' });
-                const orders = await ordersResponse.json();
-                
-                // Create a map of order IDs to suppliers based on order items
-                const orderSupplierMap = {};
-                orders.forEach(order => {
-                    order.items?.forEach(item => {
-                        const product = products.find(p => p.code === item.product_code);
-                        if (product) {
-                            const supplier = product.supplier || 'Default';
-                            if (!orderSupplierMap[order.order_id]) {
-                                orderSupplierMap[order.order_id] = new Set();
-                            }
-                            orderSupplierMap[order.order_id].add(supplier);
-                        }
-                    });
-                });
-                
-                // Group customers by supplier based on their orders
+                // This admin view is per PepHaul Entry tab (one supplier per tab), so show all customers for this tab.
                 ADMIN_SUPPLIERS.forEach(supplier => {
                     const tbody = document.querySelector(`.customer-summary-tbody[data-supplier="${supplier}"]`);
                     if (!tbody) return;
                     
-                    // Filter customers who have orders for this supplier
-                    const supplierCustomers = customers.filter(customer => {
-                        // Check if customer has any orders with products from this supplier
-                        const customerOrderIds = customer.order_numbers?.split(', ').map(id => id.trim()) || [];
-                        return customerOrderIds.some(orderId => {
-                            const suppliers = orderSupplierMap[orderId];
-                            return suppliers && suppliers.has(supplier);
-                        });
-                    });
-                    
-                    if (supplierCustomers.length === 0) {
-                        tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-muted);">No customers found for ${supplier}</td></tr>`;
+                    if (!customers || customers.length === 0) {
+                        tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-muted);">No customers found for ${CURRENT_PEPHAUL_TAB}</td></tr>`;
                         return;
                     }
                     
-                    tbody.innerHTML = supplierCustomers.map(customer => {
+                    tbody.innerHTML = customers.map(customer => {
                         // Determine payment status badge color
                         let paymentStatusClass = 'unpaid';
                         let paymentStatusIcon = '⏳';
@@ -2095,7 +2079,12 @@
                 
             } catch (error) {
                 console.error('Error loading customer summary:', error);
-                document.getElementById('customer-summary-tbody').innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: var(--accent-rose);">Error loading customer summary</td></tr>';
+                ADMIN_SUPPLIERS.forEach(supplier => {
+                    const tbody = document.querySelector(`.customer-summary-tbody[data-supplier="${supplier}"]`);
+                    if (tbody) {
+                        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: var(--accent-rose);">Error loading customer summary</td></tr>';
+                    }
+                });
             }
         }
 
@@ -2664,16 +2653,10 @@
                 
                 allOrders = orders;
                 
-                // Render orders per supplier
+                // This admin view is per PepHaul Entry tab (one supplier per tab),
+                // so render all orders without trying to infer supplier from pricelist codes.
                 ADMIN_SUPPLIERS.forEach(supplier => {
-                    const supplierOrders = orders.filter(order => {
-                        // Check if order has items from this supplier
-                        return order.items?.some(item => {
-                            const product = products.find(p => p.code === item.product_code);
-                            return product && (product.supplier || 'Default') === supplier;
-                        });
-                    });
-                    renderOrders(supplierOrders, supplier);
+                    renderOrders(orders, supplier);
                 });
             } catch (error) {
                 console.error('📊 Admin: Error loading orders:', error);

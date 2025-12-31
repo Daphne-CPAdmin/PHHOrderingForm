@@ -1846,6 +1846,25 @@
         </div>
         {% endif %}
 
+        <!-- Embedded Timeline Section - Only show when form is locked -->
+        {% if order_form_locked %}
+        <div id="timeline-section" style="display: none; margin-bottom: 2rem;">
+            <div class="card" style="border: 2px solid #fbbf24; background: linear-gradient(135deg, rgba(251, 191, 36, 0.05) 0%, rgba(251, 191, 36, 0.02) 100%);">
+                <h2 style="font-size: 1.5rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.25rem; display: flex; align-items: center; gap: 0.5rem;">
+                    📅 Order Timeline
+                </h2>
+                <p style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 1.5rem;">
+                    <span id="embedded-timeline-pephaul-label" style="font-weight: 700; color: var(--text-secondary);">PepHaul Entry</span>
+                    <span style="margin: 0 0.5rem; color: rgba(0,0,0,0.25);">•</span>
+                    Track the latest updates and transaction details
+                </p>
+                <div id="timeline-content" style="min-height: 100px;">
+                    <div style="text-align: center; padding: 2rem; color: var(--text-muted);">Loading timeline...</div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
         <!-- Rate Banner -->
         <div class="rate-banner">
             <div class="rate-item">
@@ -2474,7 +2493,11 @@
                     </div>
                     <div>
                         <h2 style="margin: 0; font-size: 1.75rem; font-weight: 700; color: var(--text-primary);">Order Timeline</h2>
-                        <p style="margin: 0; color: var(--text-muted); font-size: 0.95rem;">Track the latest updates and transaction details</p>
+                        <p style="margin: 0; color: var(--text-muted); font-size: 0.95rem;">
+                            <span id="timeline-view-pephaul-label" style="font-weight: 700; color: var(--text-secondary);">PepHaul Entry</span>
+                            <span style="margin: 0 0.5rem; color: rgba(0,0,0,0.25);">•</span>
+                            Track the latest updates and transaction details
+                        </p>
                     </div>
                 </div>
 
@@ -2772,6 +2795,19 @@
         const ADMIN_FEE = {{ admin_fee|default(300.0)|tojson }};
         const VIALS_PER_KIT = {{ vials_per_kit|default(10)|tojson }};
         const SUPPLIERS = {{ suppliers|tojson|safe }};
+        const CURRENT_PEPHAUL_TAB = {{ current_tab|default('PepHaul Entry-01')|tojson }};
+        const TAB_SUPPLIER = {{ tab_supplier|default('Default')|tojson }};
+        const INITIAL_SUPPLIER_FILTER = {{ supplier_filter|default('all')|tojson }};
+        
+        // Current PepHaul tab selection (synced from Admin Panel via postMessage)
+        let currentPepHaulTab = localStorage.getItem('currentPepHaulTab') || '';
+
+        function getTimelineApiUrl() {
+            if (currentPepHaulTab && currentPepHaulTab.trim()) {
+                return `/api/timeline?tab_name=${encodeURIComponent(currentPepHaulTab.trim())}`;
+            }
+            return '/api/timeline';
+        }
         
         // View Switching
         function switchView(viewId) {
@@ -2797,7 +2833,7 @@
             
             // Load timeline data when switching to timeline view
             if (viewId === 'view-order-timeline') {
-                loadGlobalTimeline();
+                loadPepHaulTimelineView();
             }
         }
         
@@ -2811,11 +2847,12 @@
             });
         });
         
-        // Global Timeline Functions
-        async function loadGlobalTimeline() {
+        // PepHaul Entry-scoped Timeline View (uses Timeline sheet + PepHaul Entry ID)
+        async function loadPepHaulTimelineView() {
             const loadingEl = document.getElementById('timeline-loading');
             const contentEl = document.getElementById('global-timeline-content');
             const emptyEl = document.getElementById('timeline-empty');
+            const labelEl = document.getElementById('timeline-view-pephaul-label');
             
             // Show loading
             if (loadingEl) loadingEl.style.display = 'block';
@@ -2823,17 +2860,27 @@
             if (emptyEl) emptyEl.style.display = 'none';
             
             try {
-                const response = await fetch('/api/timeline/all');
+                const response = await fetch(getTimelineApiUrl());
                 const result = await response.json();
-                
-                if (result.success && result.entries && result.entries.length > 0) {
-                    displayGlobalTimeline(result.entries);
+                const entries = result.entries || [];
+                const tabLabel = (result.tab_name || currentPepHaulTab || 'PepHaul Entry').trim();
+                if (labelEl) labelEl.textContent = tabLabel;
+
+                if (entries.length > 0) {
+                    // Reuse the embedded timeline renderer style (screenshot 3)
+                    contentEl.innerHTML = renderTimelineHtml(entries, tabLabel);
                     if (loadingEl) loadingEl.style.display = 'none';
                     if (contentEl) contentEl.style.display = 'block';
                 } else {
-                    // No entries
                     if (loadingEl) loadingEl.style.display = 'none';
-                    if (emptyEl) emptyEl.style.display = 'block';
+                    if (emptyEl) {
+                        emptyEl.style.display = 'block';
+                        emptyEl.innerHTML = `
+                            <span style="font-size: 3rem; display: block; margin-bottom: 1rem;">📭</span>
+                            <p style="font-size: 1.1rem; margin-bottom: 0.5rem; font-weight: 700;">No updates yet for ${escapeHTML(tabLabel)}</p>
+                            <p style="font-size: 0.9rem;">Timeline entries will appear here once added.</p>
+                        `;
+                    }
                 }
             } catch (error) {
                 console.error('Error loading timeline:', error);
@@ -2849,82 +2896,113 @@
             }
         }
         
-        function displayGlobalTimeline(entries) {
-            const contentEl = document.getElementById('global-timeline-content');
-            if (!contentEl) return;
-            
-            // Group entries by PepHaul Entry ID
-            const entriesByPepHaul = {};
-            entries.forEach(entry => {
-                const pepHaulId = entry.pephaul_entry_id || 'Unknown';
-                if (!entriesByPepHaul[pepHaulId]) {
-                    entriesByPepHaul[pepHaulId] = [];
+        // Render timeline HTML in "screenshot 3" style (used by both embedded + Order Timeline view)
+        function renderTimelineHtml(entries, tabLabel = 'PepHaul Entry') {
+            if (!entries || entries.length === 0) {
+                return `<div style="text-align: center; padding: 2rem; color: var(--text-muted); font-weight: 600;">No updates yet for ${escapeHTML(tabLabel)}.</div>`;
+            }
+
+            // Helper: parse date/time into a Date
+            function parseTimelineDate(dateStr, timeStr) {
+                if (!dateStr) return new Date(0);
+                let date = new Date(dateStr);
+                if (isNaN(date.getTime())) {
+                    const parts = String(dateStr).split('/');
+                    if (parts.length === 3) {
+                        date = new Date(parts[2], parts[0] - 1, parts[1]);
+                    }
                 }
-                entriesByPepHaul[pepHaulId].push(entry);
+                if (timeStr && !isNaN(date.getTime())) {
+                    const timeMatch = String(timeStr).match(/(\d+)\s*(AM|PM|am|pm)/i);
+                    if (timeMatch) {
+                        let hours = parseInt(timeMatch[1]);
+                        const isPM = /PM|pm/.test(timeMatch[2]);
+                        if (isPM && hours !== 12) hours += 12;
+                        if (!isPM && hours === 12) hours = 0;
+                        date.setHours(hours, 0, 0, 0);
+                    }
+                }
+                return date;
+            }
+
+            function getTimeDifference(date1, date2) {
+                const diffMs = Math.abs(date2 - date1);
+                const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+                const diffHours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                return { days: diffDays, hours: diffHours };
+            }
+
+            // Sort oldest->newest for the timeline flow
+            const sortedEntries = [...entries].sort((a, b) => {
+                const dateA = parseTimelineDate(a.date, a.time);
+                const dateB = parseTimelineDate(b.date, b.time);
+                return dateA - dateB;
             });
-            
-            // Sort PepHaul Entry IDs (Entry-01, Entry-02, etc.) - most recent first
-            const sortedPepHaulIds = Object.keys(entriesByPepHaul).sort((a, b) => {
-                // Extract numbers from "PepHaul Entry-XX" format
-                const numA = parseInt(a.match(/\d+/)?.[0] || '0');
-                const numB = parseInt(b.match(/\d+/)?.[0] || '0');
-                return numB - numA; // Descending order (most recent first)
-            });
-            
-            let html = '';
-            
-            sortedPepHaulIds.forEach((pepHaulId, index) => {
-                const pepHaulEntries = entriesByPepHaul[pepHaulId];
-                
-                // Sort entries by date and time (most recent first)
-                pepHaulEntries.sort((a, b) => {
-                    const dateA = new Date(`${a.date} ${a.time}`);
-                    const dateB = new Date(`${b.date} ${b.time}`);
-                    return dateB - dateA;
-                });
-                
+
+            // Total span
+            let totalTimeSpanHtml = '';
+            if (sortedEntries.length > 1) {
+                const firstEntry = sortedEntries[0];
+                const lastEntry = sortedEntries[sortedEntries.length - 1];
+                const firstDate = parseTimelineDate(firstEntry.date, firstEntry.time);
+                const lastDate = parseTimelineDate(lastEntry.date, lastEntry.time);
+                const totalDiff = getTimeDifference(firstDate, lastDate);
+                if (totalDiff.days > 0 || totalDiff.hours > 0) {
+                    const totalParts = [];
+                    if (totalDiff.days > 0) totalParts.push(`${totalDiff.days} day${totalDiff.days !== 1 ? 's' : ''}`);
+                    if (totalDiff.hours > 0) totalParts.push(`${totalDiff.hours} hour${totalDiff.hours !== 1 ? 's' : ''}`);
+                    totalTimeSpanHtml = `<div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 2px solid #e5e7eb; text-align: center;"><div style="font-size: 1.75rem; color: #374151; font-weight: 600;">📊 Total Timeline: ${totalParts.join(' and ')} from first to last update</div></div>`;
+                }
+            }
+
+            let html = '<div style="position: relative; padding-left: 2.5rem;">';
+            sortedEntries.forEach((entry, index) => {
+                const entryDate = parseTimelineDate(entry.date, entry.time);
+                const isLast = index === sortedEntries.length - 1;
+                const isFirst = index === 0;
+
+                let timeDiffHtml = '';
+                if (!isFirst) {
+                    const prevEntry = sortedEntries[index - 1];
+                    const prevDate = parseTimelineDate(prevEntry.date, prevEntry.time);
+                    const diff = getTimeDifference(prevDate, entryDate);
+                    if (diff.days > 0 || diff.hours > 0) {
+                        const diffParts = [];
+                        if (diff.days > 0) diffParts.push(`${diff.days} day${diff.days !== 1 ? 's' : ''}`);
+                        if (diff.hours > 0) diffParts.push(`${diff.hours} hour${diff.hours !== 1 ? 's' : ''}`);
+                        timeDiffHtml = `<div style="font-size: 0.75rem; color: #6b7280; margin-bottom: 0.5rem; font-weight: 500;">⏱️ ${diffParts.join(' and ')} since last update</div>`;
+                    }
+                }
+
+                const safeDate = escapeHTML(entry.date || '');
+                const safeTime = escapeHTML(entry.time || '');
+                const safeDetails = entry.details ? escapeHTML(entry.details) : '';
+
                 html += `
-                    <div style="margin-bottom: 3rem; border: 2px solid var(--accent-gold); border-radius: 16px; overflow: hidden; background: linear-gradient(135deg, rgba(212, 165, 116, 0.05) 0%, rgba(249, 168, 212, 0.03) 100%);">
-                        <div style="background: linear-gradient(135deg, #d4a574, #f9a8d4); padding: 1.25rem; display: flex; align-items: center; gap: 0.75rem;">
-                            <span style="font-size: 1.5rem;">📦</span>
-                            <h3 style="margin: 0; font-size: 1.3rem; font-weight: 700; color: white; text-shadow: 0 2px 4px rgba(0,0,0,0.2);">${pepHaulId}</h3>
-                            <span style="margin-left: auto; background: rgba(255,255,255,0.3); padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.85rem; font-weight: 600; color: white;">${pepHaulEntries.length} ${pepHaulEntries.length === 1 ? 'entry' : 'entries'}</span>
-                        </div>
-                        <div style="padding: 1.5rem; position: relative;">
-                            <div style="position: absolute; left: 2.5rem; top: 0; bottom: 0; width: 3px; background: linear-gradient(to bottom, #d4a574, #f9a8d4);"></div>
-                `;
-                
-                pepHaulEntries.forEach((entry, entryIndex) => {
-                    const isLast = entryIndex === pepHaulEntries.length - 1;
-                    html += `
-                        <div style="position: relative; margin-bottom: ${isLast ? '0' : '1.5rem'}; padding-left: 3.5rem;">
-                            <div style="position: absolute; left: 1.75rem; top: 0.5rem; width: 1.5rem; height: 1.5rem; border-radius: 50%; background: linear-gradient(135deg, #d4a574, #f9a8d4); border: 3px solid var(--bg-primary); box-shadow: 0 0 0 3px rgba(212, 165, 116, 0.2);"></div>
-                            <div style="background: var(--bg-card); border-radius: 12px; padding: 1.25rem; border: 1px solid var(--border); box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
-                                <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; flex-wrap: wrap;">
-                                    <span style="font-size: 1.25rem;">📅</span>
-                                    <span style="font-weight: 700; color: var(--text-primary); font-size: 1.05rem;">${entry.date || 'N/A'}</span>
-                                    <span style="color: var(--text-muted); font-size: 0.9rem;">•</span>
-                                    <span style="font-weight: 600; color: var(--accent-primary); font-size: 1rem;">⏰ ${entry.time || 'N/A'}</span>
-                                </div>
-                                <div style="color: var(--text-secondary); font-size: 0.95rem; line-height: 1.6; padding-left: 2rem;">
-                                    ${escapeHTML(entry.details || 'No details provided')}
-                                </div>
+                    <div style="position: relative; margin-bottom: ${isLast ? '0' : '1.5rem'};">
+                        <div style="position: absolute; left: -2.5rem; top: 0.5rem; width: 14px; height: 14px; background: #fbbf24; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 0 2px #fbbf24; z-index: 2;"></div>
+                        ${!isLast ? '<div style="position: absolute; left: -2rem; top: 1.25rem; width: 2px; height: calc(100% + 0.5rem); background: linear-gradient(to bottom, #fbbf24 0%, rgba(251, 191, 36, 0.3) 100%); z-index: 1;"></div>' : ''}
+                        <div style="position: absolute; left: -1.5rem; top: 0.5rem; width: 0; height: 0; border-top: 6px solid transparent; border-bottom: 6px solid transparent; border-right: 8px solid #fbbf24; z-index: 2;"></div>
+                        <div style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-left: 3px solid #fbbf24;">
+                            ${timeDiffHtml}
+                            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem; flex-wrap: wrap;">
+                                <span style="font-weight: 600; color: var(--text-primary); font-size: 0.95rem;">${safeDate}</span>
+                                ${safeTime ? `<span style="color: var(--text-secondary); font-size: 0.9rem;">• ${safeTime}</span>` : ''}
                             </div>
-                        </div>
-                    `;
-                });
-                
-                html += `
+                            <div style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.6; white-space: pre-wrap; margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid rgba(0,0,0,0.05);">${safeDetails || '<em style="color: #9ca3af;">No details provided</em>'}</div>
                         </div>
                     </div>
                 `;
             });
-            
-            contentEl.innerHTML = html;
+            html += '</div>';
+            html += totalTimeSpanHtml;
+            return html;
         }
         
-        // Supplier filter state
-        let supplierFilter = localStorage.getItem('supplierFilter') || 'all';
+        // Supplier filter state (controls ordering product list only; summaries are PepHaul Entry tab–scoped)
+        let supplierFilter = INITIAL_SUPPLIER_FILTER || (localStorage.getItem('supplierFilter') || 'all');
+        try { localStorage.setItem('supplierFilter', supplierFilter); } catch (e) {}
+        try { localStorage.setItem(`supplierFilter_${CURRENT_PEPHAUL_TAB}`, supplierFilter); } catch (e) {}
         
         // Listen for supplier filter changes from admin panel
         window.addEventListener('message', (event) => {
@@ -2933,39 +3011,52 @@
                 localStorage.setItem('supplierFilter', supplierFilter);
                 applySupplierFilterToPage();
             }
+            if (event.data && event.data.type === 'tabSwitched') {
+                const tabName = (event.data.tab_name || event.data.tabName || event.data.tab || '').trim();
+                if (tabName) {
+                    currentPepHaulTab = tabName;
+                    localStorage.setItem('currentPepHaulTab', currentPepHaulTab);
+                }
+
+                // Reload embedded timeline (only shows when locked)
+                if (typeof loadTimeline === 'function') {
+                    loadTimeline();
+                }
+
+                // Reload timeline view if currently visible
+                const timelineView = document.getElementById('view-order-timeline');
+                if (timelineView && timelineView.style.display !== 'none') {
+                    loadPepHaulTimelineView();
+                }
+            }
         });
         
         // Apply supplier filter on page load
         function applySupplierFilterToPage() {
             if (!SUPPLIERS || SUPPLIERS.length === 0) return;
-            
-            // Show/hide supplier sections based on filter
+
+            // Filter product dropdown by supplier (ordering only)
+            filterProductDropdownBySupplier();
+        }
+
+        function applyTabSupplierVisibility() {
+            // Non-comparison sections should be based only on PepHaul Entry tab (single supplier per entry).
+            // We keep the DOM structure, but only show the tab's supplier sections.
             document.querySelectorAll('.supplier-cart, .supplier-inventory, .supplier-active-orders, .supplier-incomplete-kits, .supplier-stats').forEach(section => {
-                const sectionSupplier = section.getAttribute('data-supplier');
-                let shouldShow = false;
-                
-                if (supplierFilter === 'all') {
-                    shouldShow = true;
-                } else {
-                    // Filter matches supplier name exactly
-                    shouldShow = sectionSupplier === supplierFilter;
-                }
-                
-                section.style.display = shouldShow ? 'block' : 'none';
+                const sectionSupplier = section.getAttribute('data-supplier') || '';
+                section.style.display = (sectionSupplier === TAB_SUPPLIER) ? 'block' : 'none';
             });
-            
-            // Price comparison section should always be visible (not filtered)
+
+            // Price comparison always visible
             const comparisonSection = document.querySelector('.orders-summary-section');
             if (comparisonSection && comparisonSection.querySelector('.card-title') && comparisonSection.querySelector('.card-title').textContent.includes('Price Comparison')) {
                 comparisonSection.style.display = 'block';
             }
-            
-            // Also filter product dropdown by supplier
-            filterProductDropdownBySupplier();
         }
         
         // Apply supplier filter on page load (filter controlled by admin panel only)
         document.addEventListener('DOMContentLoaded', () => {
+            applyTabSupplierVisibility();
             applySupplierFilterToPage();
         });
         
@@ -3394,7 +3485,10 @@
             const unitPrice = orderType === 'Kit' ? selectedProduct.kit_price : selectedProduct.vial_price;
             
             // Check if same product_code + order_type + supplier already exists in cart - consolidate!
-            const productSupplier = selectedProduct.supplier || 'Default';
+            // Supplier assignment rules:
+            // - If Admin has set a supplier filter (not "all"), use it for Column E (Supplier)
+            // - Otherwise fall back to product's supplier
+            const productSupplier = (supplierFilter && supplierFilter !== 'all') ? supplierFilter : (selectedProduct.supplier || 'Default');
             const existingIndex = cartItems.findIndex(item => 
                 item.product_code === selectedProduct.code && 
                 item.order_type === orderType &&
@@ -6546,6 +6640,7 @@
         async function loadTimeline() {
             const timelineSection = document.getElementById('timeline-section');
             const timelineContent = document.getElementById('timeline-content');
+            const labelEl = document.getElementById('embedded-timeline-pephaul-label');
             
             if (!timelineSection || !timelineContent) return;
             
@@ -6557,17 +6652,20 @@
             }
             
             try {
-                // Get current tab from session (will be set by admin panel or default)
-                const response = await fetch('/api/timeline');
+                // Get current tab (synced from admin panel via postMessage, fallback to server default)
+                const response = await fetch(getTimelineApiUrl());
                 if (!response.ok) {
                     throw new Error(`Failed to load timeline: ${response.status}`);
                 }
                 
                 const data = await response.json();
                 const entries = data.entries || [];
+                const tabLabel = (data.tab_name || currentPepHaulTab || 'PepHaul Entry').trim();
+                if (labelEl) labelEl.textContent = tabLabel;
                 
                 if (entries.length === 0) {
-                    timelineSection.style.display = 'none';
+                    timelineContent.innerHTML = `<div style="text-align: center; padding: 2rem; color: var(--text-muted); font-weight: 600;">📭 No updates yet for ${escapeHTML(tabLabel)}.</div>`;
+                    timelineSection.style.display = 'block';
                     return;
                 }
                 
@@ -6689,6 +6787,10 @@
             const orderFormLocked = {{ order_form_locked|tojson }};
             if (orderFormLocked) {
                 loadAllOrdersForSummary();
+                // Load embedded timeline (screenshot 3 style) when locked
+                if (typeof loadTimeline === 'function') {
+                    loadTimeline();
+                }
             }
         });
         
