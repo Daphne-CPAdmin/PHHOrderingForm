@@ -3401,8 +3401,9 @@
         function filterProductDropdownBySupplier() {
             if (!productDropdown) return;
             
-            // Get current supplier filter
-            const currentFilter = supplierFilter || 'all';
+            // CRITICAL: Use TAB_SUPPLIER (assigned supplier for this PepHaul Entry tab)
+            // This ensures customers only see products from the assigned supplier
+            const currentFilter = TAB_SUPPLIER || 'Default';
             
             // Get current search query
             const searchQuery = productSearch ? productSearch.value.toLowerCase().trim() : '';
@@ -3413,12 +3414,9 @@
             
             productDropdown.querySelectorAll('.product-option').forEach(option => {
                 const optionSupplier = option.dataset.supplier || 'Default';
-                let supplierMatch = true;
                 
-                // Apply supplier filter
-                if (currentFilter !== 'all') {
-                    supplierMatch = optionSupplier === currentFilter;
-                }
+                // Only show products from the assigned supplier
+                const supplierMatch = optionSupplier === currentFilter;
                 
                 // Apply search filter if query exists
                 let searchMatch = true;
@@ -3529,19 +3527,17 @@
             // Always show dropdown when there's input or when focused
             productDropdown.classList.add('show');
             
+            // CRITICAL: Use TAB_SUPPLIER (assigned supplier for this PepHaul Entry tab)
             // Filter products by name or code AND supplier, limit to first 7 matches
-            const currentFilter = supplierFilter || 'all';
+            const currentFilter = TAB_SUPPLIER || 'Default';
             let visibleCount = 0;
             const maxVisible = 7;
             
             productDropdown.querySelectorAll('.product-option').forEach(option => {
                 const optionSupplier = option.dataset.supplier || 'Default';
-                let supplierMatch = true;
                 
-                // Apply supplier filter
-                if (currentFilter !== 'all') {
-                    supplierMatch = optionSupplier === currentFilter;
-                }
+                // Only show products from the assigned supplier
+                const supplierMatch = optionSupplier === currentFilter;
                 
                 if (!query) {
                     // Show all matching supplier if empty query (limit to first 7)
