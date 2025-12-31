@@ -1743,6 +1743,7 @@
         <nav class="nav-bar">
             <div class="nav-tabs">
                 <button class="nav-tab active" data-view="new-order">Customer Order Section</button>
+                <button class="nav-tab" data-view="order-timeline">📅 Order Timeline</button>
             </div>
             <a href="/admin" class="nav-tab admin">Admin Panel</a>
         </nav>
@@ -2498,6 +2499,41 @@
         </div>
         {% endif %}
 
+        </div> <!-- End view-new-order -->
+
+        <!-- Order Timeline View -->
+        <div id="view-order-timeline" class="view-content" style="display: none;">
+            <div class="card" style="max-width: 1200px; margin: 0 auto;">
+                <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem;">
+                    <div style="background: linear-gradient(135deg, #d4a574, #f9a8d4); padding: 1rem; border-radius: 16px; display: flex; align-items: center; justify-content: center;">
+                        <span style="font-size: 2rem;">📅</span>
+                    </div>
+                    <div>
+                        <h2 style="margin: 0; font-size: 1.75rem; font-weight: 700; color: var(--text-primary);">Order Timeline</h2>
+                        <p style="margin: 0; color: var(--text-muted); font-size: 0.95rem;">Track the latest updates and transaction details</p>
+                    </div>
+                </div>
+
+                <!-- Loading State -->
+                <div id="timeline-loading" style="text-align: center; padding: 3rem;">
+                    <div style="display: inline-block; width: 40px; height: 40px; border: 4px solid var(--border); border-top-color: var(--accent-primary); border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                    <p style="color: var(--text-muted); margin-top: 1rem;">Loading timeline entries...</p>
+                </div>
+
+                <!-- Timeline Content Container -->
+                <div id="global-timeline-content" style="display: none;">
+                    <!-- Timeline entries will be populated here -->
+                </div>
+
+                <!-- Empty State -->
+                <div id="timeline-empty" style="display: none; text-align: center; padding: 3rem; color: var(--text-muted);">
+                    <span style="font-size: 3rem; display: block; margin-bottom: 1rem;">📭</span>
+                    <p style="font-size: 1.1rem; margin-bottom: 0.5rem; font-weight: 600;">No Timeline Entries Yet</p>
+                    <p style="font-size: 0.9rem;">Timeline entries will appear here once added</p>
+                </div>
+            </div>
+        </div>
+
     </div>
 
     <!-- Order Confirmation Modal (Before Submission) -->
@@ -2772,6 +2808,156 @@
         const ADMIN_FEE = {{ admin_fee|default(300.0)|tojson }};
         const VIALS_PER_KIT = {{ vials_per_kit|default(10)|tojson }};
         const SUPPLIERS = {{ suppliers|tojson|safe }};
+        
+        // View Switching
+        function switchView(viewId) {
+            // Hide all views
+            document.querySelectorAll('.view-content').forEach(view => {
+                view.style.display = 'none';
+            });
+            
+            // Show selected view
+            const selectedView = document.getElementById(viewId);
+            if (selectedView) {
+                selectedView.style.display = 'block';
+            }
+            
+            // Update nav tabs
+            document.querySelectorAll('.nav-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            const activeTab = document.querySelector(`.nav-tab[data-view="${viewId.replace('view-', '')}"]`);
+            if (activeTab) {
+                activeTab.classList.add('active');
+            }
+            
+            // Load timeline data when switching to timeline view
+            if (viewId === 'view-order-timeline') {
+                loadGlobalTimeline();
+            }
+        }
+        
+        // Navigation tab click handlers
+        document.addEventListener('DOMContentLoaded', () => {
+            document.querySelectorAll('.nav-tab[data-view]').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    const viewName = tab.getAttribute('data-view');
+                    switchView(`view-${viewName}`);
+                });
+            });
+        });
+        
+        // Global Timeline Functions
+        async function loadGlobalTimeline() {
+            const loadingEl = document.getElementById('timeline-loading');
+            const contentEl = document.getElementById('global-timeline-content');
+            const emptyEl = document.getElementById('timeline-empty');
+            
+            // Show loading
+            if (loadingEl) loadingEl.style.display = 'block';
+            if (contentEl) contentEl.style.display = 'none';
+            if (emptyEl) emptyEl.style.display = 'none';
+            
+            try {
+                const response = await fetch('/api/timeline/all');
+                const result = await response.json();
+                
+                if (result.success && result.entries && result.entries.length > 0) {
+                    displayGlobalTimeline(result.entries);
+                    if (loadingEl) loadingEl.style.display = 'none';
+                    if (contentEl) contentEl.style.display = 'block';
+                } else {
+                    // No entries
+                    if (loadingEl) loadingEl.style.display = 'none';
+                    if (emptyEl) emptyEl.style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Error loading timeline:', error);
+                if (loadingEl) loadingEl.style.display = 'none';
+                if (emptyEl) {
+                    emptyEl.style.display = 'block';
+                    emptyEl.innerHTML = `
+                        <span style="font-size: 3rem; display: block; margin-bottom: 1rem;">⚠️</span>
+                        <p style="font-size: 1.1rem; margin-bottom: 0.5rem; font-weight: 600;">Error Loading Timeline</p>
+                        <p style="font-size: 0.9rem;">Please try again later</p>
+                    `;
+                }
+            }
+        }
+        
+        function displayGlobalTimeline(entries) {
+            const contentEl = document.getElementById('global-timeline-content');
+            if (!contentEl) return;
+            
+            // Group entries by PepHaul Entry ID
+            const entriesByPepHaul = {};
+            entries.forEach(entry => {
+                const pepHaulId = entry.pephaul_entry_id || 'Unknown';
+                if (!entriesByPepHaul[pepHaulId]) {
+                    entriesByPepHaul[pepHaulId] = [];
+                }
+                entriesByPepHaul[pepHaulId].push(entry);
+            });
+            
+            // Sort PepHaul Entry IDs (Entry-01, Entry-02, etc.) - most recent first
+            const sortedPepHaulIds = Object.keys(entriesByPepHaul).sort((a, b) => {
+                // Extract numbers from "PepHaul Entry-XX" format
+                const numA = parseInt(a.match(/\d+/)?.[0] || '0');
+                const numB = parseInt(b.match(/\d+/)?.[0] || '0');
+                return numB - numA; // Descending order (most recent first)
+            });
+            
+            let html = '';
+            
+            sortedPepHaulIds.forEach((pepHaulId, index) => {
+                const pepHaulEntries = entriesByPepHaul[pepHaulId];
+                
+                // Sort entries by date and time (most recent first)
+                pepHaulEntries.sort((a, b) => {
+                    const dateA = new Date(`${a.date} ${a.time}`);
+                    const dateB = new Date(`${b.date} ${b.time}`);
+                    return dateB - dateA;
+                });
+                
+                html += `
+                    <div style="margin-bottom: 3rem; border: 2px solid var(--accent-gold); border-radius: 16px; overflow: hidden; background: linear-gradient(135deg, rgba(212, 165, 116, 0.05) 0%, rgba(249, 168, 212, 0.03) 100%);">
+                        <div style="background: linear-gradient(135deg, #d4a574, #f9a8d4); padding: 1.25rem; display: flex; align-items: center; gap: 0.75rem;">
+                            <span style="font-size: 1.5rem;">📦</span>
+                            <h3 style="margin: 0; font-size: 1.3rem; font-weight: 700; color: white; text-shadow: 0 2px 4px rgba(0,0,0,0.2);">${pepHaulId}</h3>
+                            <span style="margin-left: auto; background: rgba(255,255,255,0.3); padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.85rem; font-weight: 600; color: white;">${pepHaulEntries.length} ${pepHaulEntries.length === 1 ? 'entry' : 'entries'}</span>
+                        </div>
+                        <div style="padding: 1.5rem; position: relative;">
+                            <div style="position: absolute; left: 2.5rem; top: 0; bottom: 0; width: 3px; background: linear-gradient(to bottom, #d4a574, #f9a8d4);"></div>
+                `;
+                
+                pepHaulEntries.forEach((entry, entryIndex) => {
+                    const isLast = entryIndex === pepHaulEntries.length - 1;
+                    html += `
+                        <div style="position: relative; margin-bottom: ${isLast ? '0' : '1.5rem'}; padding-left: 3.5rem;">
+                            <div style="position: absolute; left: 1.75rem; top: 0.5rem; width: 1.5rem; height: 1.5rem; border-radius: 50%; background: linear-gradient(135deg, #d4a574, #f9a8d4); border: 3px solid var(--bg-primary); box-shadow: 0 0 0 3px rgba(212, 165, 116, 0.2);"></div>
+                            <div style="background: var(--bg-card); border-radius: 12px; padding: 1.25rem; border: 1px solid var(--border); box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+                                <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; flex-wrap: wrap;">
+                                    <span style="font-size: 1.25rem;">📅</span>
+                                    <span style="font-weight: 700; color: var(--text-primary); font-size: 1.05rem;">${entry.date || 'N/A'}</span>
+                                    <span style="color: var(--text-muted); font-size: 0.9rem;">•</span>
+                                    <span style="font-weight: 600; color: var(--accent-primary); font-size: 1rem;">⏰ ${entry.time || 'N/A'}</span>
+                                </div>
+                                <div style="color: var(--text-secondary); font-size: 0.95rem; line-height: 1.6; padding-left: 2rem;">
+                                    ${escapeHTML(entry.details || 'No details provided')}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                html += `
+                        </div>
+                    </div>
+                `;
+            });
+            
+            contentEl.innerHTML = html;
+        }
         
         // Supplier filter state
         let supplierFilter = localStorage.getItem('supplierFilter') || 'all';

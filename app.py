@@ -3162,6 +3162,66 @@ def get_timeline_entries(tab_name=None):
     cache_key = f'timeline_entries_{tab_name}'
     return get_cached(cache_key, lambda: _fetch_timeline_entries(tab_name), cache_duration=300)  # 5 minutes
 
+def _fetch_all_timeline_entries():
+    """Internal function to fetch ALL timeline entries from sheets (not filtered by tab)"""
+    entries = []
+    
+    timeline_tab_name = 'Timeline'
+    
+    if sheets_client:
+        try:
+            spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
+            
+            try:
+                worksheet = spreadsheet.worksheet(timeline_tab_name)
+            except Exception as e:
+                # Create Timeline sheet if doesn't exist
+                try:
+                    worksheet = spreadsheet.add_worksheet(title=timeline_tab_name, rows=100, cols=5)
+                    worksheet.update('A1:E1', [['ID', 'PepHaul Entry ID', 'Date', 'Time', 'Details of Transaction']])
+                    return []
+                except Exception as create_error:
+                    print(f"Error creating Timeline sheet: {create_error}")
+                    import traceback
+                    traceback.print_exc()
+                    return []
+            
+            try:
+                records = worksheet.get_all_records()
+            except Exception as e:
+                print(f"Error reading Timeline records: {e}")
+                import traceback
+                traceback.print_exc()
+                return []
+            
+            for record in records:
+                # Get PepHaul Entry ID (support both old and new column names)
+                pephaul_entry_id = (
+                    record.get('PepHaul Entry ID', '') or 
+                    record.get('PepHaul Number', '')
+                ).strip()
+                
+                # Include all entries (no filtering)
+                if record.get('ID') and record.get('Date'):
+                    entries.append({
+                        'id': str(record.get('ID', '')),
+                        'pephaul_entry_id': pephaul_entry_id or 'Unknown',
+                        'date': record.get('Date', ''),
+                        'time': record.get('Time', ''),
+                        'details': record.get('Details of Transaction', '')
+                    })
+        except Exception as e:
+            print(f"Error getting all timeline entries: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    return entries
+
+def get_all_timeline_entries():
+    """Get ALL timeline entries (cached) - not filtered by tab"""
+    cache_key = 'all_timeline_entries'
+    return get_cached(cache_key, _fetch_all_timeline_entries, cache_duration=300)  # 5 minutes
+
 def add_timeline_entry(date, time, details, tab_name=None):
     """Add timeline entry to sheets - single Timeline tab with PepHaul Entry ID"""
     import uuid
@@ -3223,6 +3283,26 @@ def add_timeline_entry(date, time, details, tab_name=None):
         import traceback
         traceback.print_exc()
         return False
+
+@app.route('/api/timeline/all')
+def api_get_all_timeline_entries():
+    """API endpoint to get ALL timeline entries (not filtered by tab)"""
+    try:
+        entries = get_all_timeline_entries()
+        return jsonify({
+            'success': True,
+            'entries': entries,
+            'count': len(entries)
+        })
+    except Exception as e:
+        print(f"Error in api_get_all_timeline_entries: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'entries': []
+        }), 500
 
 def delete_timeline_entry(entry_id, tab_name=None):
     """Delete timeline entry from sheets - single Timeline tab"""
