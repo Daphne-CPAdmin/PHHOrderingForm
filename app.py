@@ -2031,7 +2031,7 @@ def _fetch_products_from_sheets():
             
             # Normalize supplier and code (strip whitespace, ensure consistent format)
             normalized_supplier = str(supplier).strip() if supplier else 'Default'
-            normalized_code = code.strip() if code else ''
+            normalized_code = str(code).strip() if code else ''
             
             products.append({
                 'code': normalized_code,
