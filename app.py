@@ -8,6 +8,7 @@ import requests
 import json
 import os
 import base64
+import math
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from collections import defaultdict
@@ -4004,10 +4005,23 @@ def api_submit_order():
         for item in items_with_prices:
             qty = float(item.get('qty', 0))
             order_type = item.get('order_type', 'Vial')
-            product_code = item.get('product_code', '')
+            product_code = str(item.get('product_code', '')).strip()
+            supplier = str(item.get('supplier', 'Default')).strip()
             
-            # Find product to get vials_per_kit
-            product = next((p for p in products if p['code'] == product_code), None)
+            # Find product to get vials_per_kit (normalize comparison like earlier in code)
+            product = None
+            for p in products:
+                p_code = str(p.get('code', '')).strip()
+                p_supplier = str(p.get('supplier', 'Default')).strip()
+                # Case-insensitive comparison for both code and supplier
+                if p_code.upper() == product_code.upper() and p_supplier.upper() == supplier.upper():
+                    product = p
+                    break
+            
+            # Fallback: if not found with supplier match, try without supplier (backward compatibility)
+            if not product:
+                product = next((p for p in products if str(p.get('code', '')).strip().upper() == product_code.upper()), None)
+            
             vials_per_kit = product.get('vials_per_kit', 10) if product else 10
             
             if order_type == 'Kit':
@@ -6061,9 +6075,22 @@ def api_admin_list_pephaul_tabs():
         if not session.get('is_admin'):
             return jsonify({'error': 'Unauthorized'}), 401
         
+        # Try to initialize Google services if not already initialized
+        global sheets_client
         if not sheets_client:
-            print("❌ Sheets client not configured")
-            return jsonify({'error': 'Sheets not configured'}), 500
+            print("⚠️ Sheets client not initialized, attempting to initialize...")
+            init_google_services()
+        
+        if not sheets_client:
+            error_msg = (
+                'Google Sheets client not configured. '
+                'Please set GOOGLE_CREDENTIALS_JSON environment variable or place credentials.json file in project root.'
+            )
+            print(f"❌ {error_msg}")
+            return jsonify({
+                'error': error_msg,
+                'details': 'Google Sheets integration requires credentials. Check server logs for initialization errors.'
+            }), 500
         
         print(f"📋 Fetching PepHaul Entry tabs from Google Sheets...")
         spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
@@ -6102,7 +6129,11 @@ def api_admin_list_pephaul_tabs():
         print(f"❌ Error listing tabs: {e}")
         import traceback
         traceback.print_exc()
-        return jsonify({'error': str(e), 'details': 'Check server logs for more information'}), 500
+        return jsonify({
+            'error': str(e),
+            'details': 'Check server logs for more information',
+            'type': type(e).__name__
+        }), 500
 
 @app.route('/api/admin/pephaul-tabs/create', methods=['POST'])
 def api_admin_create_pephaul_tab():
@@ -6303,6 +6334,7 @@ def api_admin_backfill_suppliers():
     
     except Exception as e:
         print(f"❌ Error backfilling suppliers: {e}")
+        import traceback
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
 
