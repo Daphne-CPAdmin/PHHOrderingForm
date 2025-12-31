@@ -314,7 +314,8 @@ MAX_KITS_DEFAULT = 100  # Default max kits per product
 # It is used to:
 # - filter products shown for ordering
 # - assign Column E (Supplier) for newly written order rows (if client doesn't send supplier)
-_pephaul_supplier_filter = {}  # tab_name -> supplier_filter ('all' or supplier name)
+# Load supplier filters from persistent storage
+_pephaul_supplier_filter = _load_settings().get('supplier_filters', {})  # tab_name -> supplier_filter ('all' or supplier name)
 
 def get_supplier_filter_for_tab(tab_name: str) -> str:
     tab_name = str(tab_name or '').strip() or get_current_pephaul_tab()
@@ -324,6 +325,18 @@ def set_supplier_filter_for_tab(tab_name: str, supplier_filter: str) -> str:
     tab_name = str(tab_name or '').strip() or get_current_pephaul_tab()
     supplier_filter = str(supplier_filter or 'all').strip() or 'all'
     _pephaul_supplier_filter[tab_name] = supplier_filter
+    
+    # Save to persistent storage
+    try:
+        settings = _load_settings()
+        if 'supplier_filters' not in settings:
+            settings['supplier_filters'] = {}
+        settings['supplier_filters'][tab_name] = supplier_filter
+        _save_settings(settings)
+        print(f"✅ Persisted supplier filter for {tab_name}: {supplier_filter}")
+    except Exception as e:
+        print(f"⚠️ Could not persist supplier filter: {e}")
+    
     return supplier_filter
 
 def infer_supplier_from_orders() -> str:
@@ -6542,12 +6555,38 @@ Thank you! 💜"""
         return jsonify({'error': 'Failed to send Telegram message'}), 500
 
 
-# PepHaul Entry Tab Management
-CURRENT_PEPHAUL_TAB = 'PepHaul Entry-01'  # Default tab name
+# PepHaul Entry Tab Management with Persistent Storage
+SETTINGS_FILE = 'data/pephaul_settings.json'
+
+def _load_settings():
+    """Load persistent settings from JSON file"""
+    try:
+        if os.path.exists(SETTINGS_FILE):
+            with open(SETTINGS_FILE, 'r') as f:
+                return json.load(f)
+    except Exception as e:
+        print(f"⚠️ Could not load settings file: {e}")
+    return {}
+
+def _save_settings(settings):
+    """Save persistent settings to JSON file"""
+    try:
+        # Ensure data directory exists
+        os.makedirs(os.path.dirname(SETTINGS_FILE), exist_ok=True)
+        with open(SETTINGS_FILE, 'w') as f:
+            json.dump(settings, f, indent=2)
+        return True
+    except Exception as e:
+        print(f"⚠️ Could not save settings file: {e}")
+        return False
+
+# Initialize current tab from persistent storage
+_settings = _load_settings()
+CURRENT_PEPHAUL_TAB = _settings.get('current_pephaul_tab', 'PepHaul Entry-01')
 
 def get_current_pephaul_tab():
     """Get the current active PepHaul Entry tab name"""
-    # Try to get from session, fallback to default
+    # Try to get from session, fallback to persistent storage
     try:
         # Customers should follow the globally selected PepHaul Entry tab.
         # Only admins use the session-scoped tab switcher.
@@ -6555,18 +6594,23 @@ def get_current_pephaul_tab():
             return CURRENT_PEPHAUL_TAB
         return session.get('current_pephaul_tab', CURRENT_PEPHAUL_TAB)
     except:
-        # If session not available (e.g., in background tasks), use default
+        # If session not available (e.g., in background tasks), use persistent storage
         return CURRENT_PEPHAUL_TAB
 
 def set_current_pephaul_tab(tab_name):
-    """Set the current active PepHaul Entry tab name"""
+    """Set the current active PepHaul Entry tab name with persistence"""
     global CURRENT_PEPHAUL_TAB
     # Update global default so customers (who may not have a session value set) follow the admin-selected tab
     try:
         if tab_name:
             CURRENT_PEPHAUL_TAB = tab_name
-    except Exception:
-        pass
+            # Save to persistent storage
+            settings = _load_settings()
+            settings['current_pephaul_tab'] = tab_name
+            _save_settings(settings)
+            print(f"✅ Persisted current tab setting: {tab_name}")
+    except Exception as e:
+        print(f"⚠️ Could not persist current tab: {e}")
     try:
         session['current_pephaul_tab'] = tab_name
     except:
