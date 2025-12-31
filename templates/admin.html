@@ -3367,14 +3367,37 @@
                 
                 const result = await response.json();
                 if (result.success) {
-                    showToast(`✅ Switched to tab: ${selectedTab}`);
+                    // Automatically set supplier filter for this tab (one supplier per tab)
+                    // The server returns the supplier_filter in the response
+                    let tabSupplier = result.supplier_filter;
+                    
+                    // If filter is 'all', use first available supplier
+                    if (!tabSupplier || tabSupplier === 'all') {
+                        const allSuppliers = {{ all_suppliers|tojson }};
+                        tabSupplier = allSuppliers && allSuppliers.length > 0 ? allSuppliers[0] : 'WWB';
+                        // Set it on server
+                        await fetch(`/api/admin/supplier-filter?tab_name=${encodeURIComponent(selectedTab)}`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ supplier_filter: tabSupplier })
+                        });
+                    }
+                    
+                    // Set supplier filter for this tab (one supplier per tab)
+                    if (tabSupplier && tabSupplier !== 'all') {
+                        await applySupplierFilter(tabSupplier);
+                        showToast(`✅ Switched to tab: ${selectedTab} (Supplier: ${tabSupplier})`);
+                    } else {
+                        showToast(`✅ Switched to tab: ${selectedTab}`);
+                    }
+                    
                     loadOrders(); // Reload orders from new tab
                     loadCustomerSummary(); // Reload customer summary
                     loadTimelineEntries(); // Reload timeline for new tab
                     // Notify main page to reload timeline if it's open
                     if (window.opener && !window.opener.closed) {
                         try {
-                            window.opener.postMessage({ type: 'tabSwitched', tab_name: selectedTab }, '*');
+                            window.opener.postMessage({ type: 'tabSwitched', tab_name: selectedTab, supplier: tabSupplier }, '*');
                         } catch (e) {
                             console.log('Could not communicate with main window');
                         }

@@ -6546,17 +6546,37 @@ def api_admin_switch_pephaul_tab():
         set_current_pephaul_tab(tab_name)
         print(f"✅ Set current tab to: {tab_name}")
         
+        # Get supplier filter for this tab (one supplier per tab)
+        supplier_filter = get_supplier_filter_for_tab(tab_name)
+        
+        # If filter is 'all', infer supplier from orders in this tab
+        if supplier_filter.lower() == 'all':
+            # Temporarily set current tab to fetch orders from this tab
+            old_tab = get_current_pephaul_tab()
+            try:
+                set_current_pephaul_tab(tab_name)
+                inferred_supplier = infer_supplier_from_orders()
+                if inferred_supplier and inferred_supplier != 'Default':
+                    supplier_filter = inferred_supplier
+                    # Auto-set supplier filter for this tab
+                    set_supplier_filter_for_tab(tab_name, supplier_filter)
+            except Exception as e:
+                print(f"⚠️ Could not infer supplier for tab {tab_name}: {e}")
+            finally:
+                set_current_pephaul_tab(old_tab)
+        
         # Clear cache to force reload from new tab (tab-scoped keys)
         clear_cache_prefix('orders_')
         clear_cache_prefix('inventory_')
         clear_cache_prefix('order_stats_')
         clear_cache_prefix('timeline_entries_')
         
-        print(f"✅ Switched to PepHaul Entry tab: {tab_name}")
+        print(f"✅ Switched to PepHaul Entry tab: {tab_name} (Supplier: {supplier_filter})")
         
         return jsonify({
             'success': True,
             'tab_name': tab_name,
+            'supplier_filter': supplier_filter,
             'message': f'Switched to tab: {tab_name}'
         })
     except Exception as e:

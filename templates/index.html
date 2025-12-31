@@ -3079,6 +3079,16 @@
                 if (tabName) {
                     currentPepHaulTab = tabName;
                     localStorage.setItem('currentPepHaulTab', currentPepHaulTab);
+                    
+                    // Update supplier filter if provided (one supplier per tab)
+                    if (event.data.supplier) {
+                        supplierFilter = event.data.supplier;
+                        try {
+                            localStorage.setItem('supplierFilter', supplierFilter);
+                            localStorage.setItem(`supplierFilter_${tabName}`, supplierFilter);
+                        } catch (e) {}
+                        applySupplierFilterToPage();
+                    }
                 }
 
                 // Reload embedded timeline (only shows when locked)
@@ -3091,13 +3101,19 @@
                 if (timelineView && timelineView.style.display !== 'none') {
                     loadAllPepHaulTimelinesView();
                 }
+                
+                // Reload customer orders for new tab
+                const telegram = document.getElementById('telegram')?.value.trim();
+                if (telegram) {
+                    checkReturningCustomer();
+                }
             }
         });
         
         // Apply supplier filter on page load
         function applySupplierFilterToPage() {
             if (!SUPPLIERS || SUPPLIERS.length === 0) return;
-
+            
             // Filter product dropdown by supplier (ordering only)
             filterProductDropdownBySupplier();
         }
@@ -4715,11 +4731,11 @@
                             // Force update of the active supplier's cart to ensure items display
                             const activeSupplier = TAB_SUPPLIER || (SUPPLIERS && SUPPLIERS.length > 0 ? SUPPLIERS[0] : 'Default');
                             if (activeSupplier) {
-                                const paidOrder = existingCustomerOrders.find(o => 
-                                    o.status !== 'Cancelled' && 
-                                    o.payment_status && 
+                                    const paidOrder = existingCustomerOrders.find(o => 
+                                        o.status !== 'Cancelled' && 
+                                        o.payment_status && 
                                     o.payment_status.toLowerCase() === 'paid'
-                                );
+                                    );
                                 updateSupplierCart(activeSupplier, paidOrder);
                             }
                         } else {
@@ -5352,7 +5368,7 @@
         document.addEventListener('click', (e) => {
             if (e.target.classList.contains('cancel-order-btn')) {
                 const supplier = (e.target.getAttribute('data-supplier') || '').trim();
-
+                
                 const normalizeSupplier = (s) => String(s || 'Default').trim();
                 const isCancellableOrder = (o) => {
                     if (!o) return false;
@@ -5388,12 +5404,13 @@
                     showToast('No active unpaid order found to cancel', 3000);
                     return;
                 }
-
+                
                 cancelOrder(pendingOrder.order_id, pendingOrder.telegram || '');
             }
         });
         
         // Handle supplier-specific Update Order buttons using event delegation
+        // Note: Since each PepHaul Entry-XX has one supplier, we work with all cart items
         document.addEventListener('click', (e) => {
             if (e.target.classList.contains('update-order-btn')) {
                 const supplier = e.target.getAttribute('data-supplier');
@@ -5405,28 +5422,25 @@
                     return;
                 }
                 
-                // Filter cart items by supplier
-                const supplierCartItems = cartItems.filter(item => (item.supplier || 'Default') === supplier);
-                
-                if (supplierCartItems.length === 0) {
-                    showToast(`Your cart is empty for ${supplier}`, 3000);
+                // Since each PepHaul Entry-XX has one supplier, work with all cart items
+                // (not filtered by supplier, as all items in cart are for the same supplier)
+                if (cartItems.length === 0) {
+                    showToast('Your cart is empty', 3000);
                     return;
                 }
                 
-                // Check if there are changes for this supplier
-                const supplierOriginalItems = originalOrderItems.filter(item => (item.supplier || 'Default') === supplier);
-                const hasNewItems = supplierCartItems.some(item => item.isExisting !== true);
-                const hasUpdatedItems = supplierCartItems.some(item => item.isUpdated === true);
-                const hasRemovedItems = supplierOriginalItems.length > 0 && 
-                    (supplierCartItems.length < supplierOriginalItems.length || 
-                     supplierOriginalItems.some(origItem => {
-                         return !supplierCartItems.some(cartItem => 
+                // Check if there are changes (compare all cart items with original order items)
+                const hasNewItems = cartItems.some(item => item.isExisting !== true);
+                const hasUpdatedItems = cartItems.some(item => item.isUpdated === true);
+                const hasRemovedItems = originalOrderItems.length > 0 && 
+                    (cartItems.length < originalOrderItems.length || 
+                     originalOrderItems.some(origItem => {
+                         return !cartItems.some(cartItem => 
                              cartItem.product_code === origItem.product_code && 
-                             cartItem.order_type === origItem.order_type &&
-                             (cartItem.supplier || 'Default') === (origItem.supplier || 'Default')
+                             cartItem.order_type === origItem.order_type
                          );
                      }));
-                const hasQuantityChanges = supplierCartItems.some(item => {
+                const hasQuantityChanges = cartItems.some(item => {
                     if (item.isExisting === true && item.originalQty !== undefined) {
                         return item.qty !== item.originalQty;
                     }
@@ -5439,11 +5453,11 @@
                     return;
                 }
                 
-                // Store supplier for confirmation modal
-                window.currentSubmitSupplier = supplier;
+                // Store supplier for confirmation modal (use the tab's supplier)
+                window.currentSubmitSupplier = supplier || TAB_SUPPLIER;
                 
                 // Show confirmation modal (same as submit)
-                showOrderConfirmationModal(supplier);
+                showOrderConfirmationModal(supplier || TAB_SUPPLIER);
             }
         });
         
@@ -6877,7 +6891,7 @@
                 loadAllOrdersForSummary();
                 // Load embedded timeline (screenshot 3 style) when locked
                 if (typeof loadTimeline === 'function') {
-                    loadTimeline();
+            loadTimeline();
                 }
             }
         });
