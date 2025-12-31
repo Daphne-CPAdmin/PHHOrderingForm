@@ -5765,23 +5765,34 @@
                 ? cartItems.filter(item => (item.supplier || 'Default') === supplier)
                 : cartItems;
             
-            // Check if there's a pending (unpaid) order to update
-            const pendingOrder = existingCustomerOrders.find(o => o.status !== 'Cancelled' && !o.locked);
-            
-            // Check if there's a paid order
+            // Check if there's a paid order AND we're submitting a NEW order (not updating)
+            // For updates, we want to show ALL items in the cart
             const paidOrder = existingCustomerOrders.find(o => 
                 o.status !== 'Cancelled' && 
                 o.payment_status && 
                 o.payment_status.toLowerCase() === 'paid'
             );
             
-            // If updating an existing pending order, show ALL items (including updated existing items)
-            // If creating a new order and there's a paid order, only show new items
-            const itemsToShow = pendingOrder ? 
+            // Check if we're updating an existing order (has pending unpaid order)
+            const pendingOrder = existingCustomerOrders.find(o => 
+                o.status !== 'Cancelled' && 
+                !o.locked &&
+                (!o.payment_status || o.payment_status.toLowerCase() !== 'paid')
+            );
+            
+            // If updating an order, show ALL items (both existing and new/updated)
+            // If submitting a new order and there's a paid order, only show new items
+            const itemsToShow = (pendingOrder && !paidOrder) ? 
                 filteredCartItems : // Show all items when updating
                 (paidOrder ? 
-                    filteredCartItems.filter(item => !item.isExisting || item.isNewOrder) : // Only new items when creating with paid order
-                    filteredCartItems); // Show all items when creating new order without paid order
+                    filteredCartItems.filter(item => !item.isExisting || item.isNewOrder) : // Only new items for new orders when paid order exists
+                    filteredCartItems); // Show all items for new orders without paid orders
+            
+            console.log(`[showOrderConfirmationModal] Total cartItems: ${cartItems.length}, Filtered: ${filteredCartItems.length}, Showing: ${itemsToShow.length}`, {
+                pendingOrder: pendingOrder?.order_id,
+                paidOrder: paidOrder?.order_id,
+                itemsToShow: itemsToShow.map(i => `${i.product_name} (${i.qty})`)
+            });
             
             // Render cart items with remove buttons
             itemsList.innerHTML = itemsToShow.map((item, i) => {
@@ -5805,16 +5816,23 @@
             // Update totals (only for items being shown)
             updateConfirmationTotals(itemsToShow);
             
+            // Update button text based on whether we're updating or submitting
+            const confirmBtn = document.getElementById('confirm-submit-btn');
+            if (confirmBtn) {
+                const pendingOrder = existingCustomerOrders.find(o => o.status !== 'Cancelled' && !o.locked);
+                if (pendingOrder) {
+                    confirmBtn.textContent = 'Confirm & Update Order';
+                } else {
+                    confirmBtn.textContent = 'Confirm & Submit Order';
+                }
+            }
+            
             // Show modal
             modal.classList.add('show');
         }
         
         // Remove item from confirmation modal
         function removeFromConfirmation(index) {
-            // Get the supplier from the item being removed or use stored supplier context
-            const itemToRemove = cartItems[index];
-            const supplier = itemToRemove ? (itemToRemove.supplier || null) : (window.currentSubmitSupplier || null);
-            
             cartItems.splice(index, 1);
             
             if (cartItems.length === 0) {
@@ -5824,8 +5842,8 @@
                 return;
             }
             
-            // Update confirmation modal with supplier context
-            showOrderConfirmationModal(supplier);
+            // Update confirmation modal
+            showOrderConfirmationModal();
             
             // Update main cart display
             updateCart();
@@ -5978,6 +5996,13 @@
                     
                     // Convert consolidated map to array
                     const itemsToSend = Array.from(consolidatedMap.values());
+                    
+                    console.log(`[confirmOrderSubmission] Updating order ${pendingOrder.order_id}:`, {
+                        totalCartItems: cartItems.length,
+                        itemsToSend: itemsToSend.length,
+                        cartItems: cartItems.map(i => `${i.product_name} (${i.qty})`),
+                        itemsToSend: itemsToSend.map(i => `${i.product_name} (${i.qty})`)
+                    });
                     
                     // Validate all items have valid quantities
                     const invalidItems = itemsToSend.filter(item => !item.qty || item.qty <= 0);
