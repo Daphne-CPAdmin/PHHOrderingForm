@@ -2747,19 +2747,72 @@ def index():
         order_stats = get_consolidated_order_stats()
         
         # Filter products with orders for the summary section
-        products_with_orders = []
+        # Build a map of all products by (code, supplier) for quick lookup
+        products_by_code_supplier = {}
         for product in products:
             product_code = product['code']
             supplier = product.get('supplier', 'Default')
-            # Look up inventory using (product_code, supplier) key
-            stats = inventory.get((product_code, supplier), {
-                'total_vials': 0, 'kits_generated': 0, 'remaining_vials': 0,
-                'slots_to_next_kit': VIALS_PER_KIT, 'max_kits': MAX_KITS_DEFAULT, 'is_locked': False,
-                'vials_per_kit': VIALS_PER_KIT
-            })
-            product['inventory'] = stats
-            if stats.get('total_vials', 0) > 0:
-                products_with_orders.append(product)
+            key = (product_code, supplier)
+            products_by_code_supplier[key] = product
+        
+        # Also build a map by code only (for fallback matching)
+        products_by_code = {}
+        for product in products:
+            product_code = product['code']
+            if product_code not in products_by_code:
+                products_by_code[product_code] = []
+            products_by_code[product_code].append(product)
+        
+        # Track which products we've already added to avoid duplicates
+        added_products = set()
+        products_with_orders = []
+        
+        # First, iterate through inventory stats to find products with orders
+        for (product_code, supplier), stats in inventory.items():
+            total_vials = stats.get('total_vials', 0)
+            if total_vials > 0:
+                key = (product_code, supplier)
+                # Try exact match first
+                if key in products_by_code_supplier:
+                    product = products_by_code_supplier[key].copy()
+                    product['inventory'] = stats
+                    products_with_orders.append(product)
+                    added_products.add(key)
+                    print(f"✅ Added product to products_with_orders: {product_code} ({supplier}), {total_vials} vials")
+                elif product_code in products_by_code:
+                    # Try to find product with matching supplier
+                    found = False
+                    for p in products_by_code[product_code]:
+                        p_supplier = p.get('supplier', 'Default')
+                        if p_supplier == supplier:
+                            product = p.copy()
+                            product['inventory'] = stats
+                            products_with_orders.append(product)
+                            added_products.add((product_code, p_supplier))
+                            print(f"✅ Added product to products_with_orders (supplier match): {product_code} ({supplier}), {total_vials} vials")
+                            found = True
+                            break
+                    if not found:
+                        print(f"⚠️ Product {product_code} has {total_vials} vials in inventory but no matching product found for supplier {supplier}")
+                else:
+                    print(f"⚠️ Product {product_code} has {total_vials} vials in inventory but product not found in products list")
+        
+        # Also check all products to catch any that might have been missed
+        # (in case inventory stats don't have an entry but product should be shown)
+        for product in products:
+            product_code = product['code']
+            supplier = product.get('supplier', 'Default')
+            key = (product_code, supplier)
+            if key not in added_products:
+                stats = inventory.get(key, {
+                    'total_vials': 0, 'kits_generated': 0, 'remaining_vials': 0,
+                    'slots_to_next_kit': VIALS_PER_KIT, 'max_kits': MAX_KITS_DEFAULT, 'is_locked': False,
+                    'vials_per_kit': VIALS_PER_KIT
+                })
+                product['inventory'] = stats
+                if stats.get('total_vials', 0) > 0:
+                    products_with_orders.append(product)
+                    added_products.add(key)
         
         # Sort products: Complete kits first (by # of kits, descending), then others by proximity
         def sort_key(product):
@@ -2832,6 +2885,7 @@ def index():
                     telegram_usernames = sorted(list(product_telegram_map.get(product_code, set())))
                     product['pep_haulers'] = telegram_usernames
                     incomplete_kits.append(product)
+                    print(f"✅ Added to incomplete_kits: {product_code}, {total_vials} vials, {remaining_vials} remaining, {pending_vials} pending")
         
         # Sort incomplete kits by pending vials (ascending - least needed first)
         incomplete_kits.sort(key=lambda p: p.get('pending_vials', 10))
