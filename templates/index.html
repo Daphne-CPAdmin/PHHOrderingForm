@@ -1753,34 +1753,6 @@
             <p class="header-subtitle">Your access to high purity (99%) affordable peptide reservations</p>
         </header>
 
-        <!-- Supplier Filter Section -->
-        {% if suppliers|length > 1 %}
-        <div class="card" style="margin-bottom: 2rem; border: 2px solid #8b5cf6;">
-            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
-                <div>
-                    <h2 style="font-size: 1.25rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
-                        🏢 Supplier Filter
-                    </h2>
-                    <p style="color: var(--text-muted); font-size: 0.9rem;">
-                        Filter the pricelist display by supplier. Choose to show YIWU, WWB, or both.
-                    </p>
-                </div>
-                <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
-                    <div id="supplier-filter-buttons" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-                        <button id="supplier-filter-all" class="btn supplier-filter-btn active" data-filter="all" style="padding: 0.75rem 1.5rem; background: #8b5cf6; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600;">
-                            All Suppliers
-                        </button>
-                        {% for supplier in suppliers %}
-                        <button class="btn supplier-filter-btn" data-filter="{{ supplier }}" data-supplier-name="{{ supplier }}" style="padding: 0.75rem 1.5rem; background: #c084fc; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600;">
-                            {{ supplier }}
-                        </button>
-                        {% endfor %}
-                    </div>
-                </div>
-            </div>
-        </div>
-        {% endif %}
-
         <!-- Consolidated Order Stats Banner - Per Supplier -->
         {% if not order_form_locked %}
         {% for supplier in suppliers %}
@@ -2118,6 +2090,27 @@
             </div>
         </div>
         {% endif %}
+
+        <!-- Order Timeline Section -->
+        <div id="order-timeline-section" class="orders-summary-section" style="display: none;">
+            <div class="card">
+                <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+                    <div style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); padding: 0.75rem; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                        <span style="font-size: 1.5rem;">📅</span>
+                    </div>
+                    <div>
+                        <h2 style="margin: 0; font-size: 1.25rem;">Order Timeline</h2>
+                        <p style="color: var(--text-muted); font-size: 0.85rem; margin: 0;">Track your order history across all PepHaul Entry tabs</p>
+                    </div>
+                </div>
+                
+                <div id="order-timeline-content" style="min-height: 100px;">
+                    <div style="text-align: center; padding: 2rem; color: var(--text-muted);">
+                        <p>Loading order timeline...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
 
         <!-- View My Orders Section -->
         <div id="my-orders-section" class="orders-summary-section" style="display: none;">
@@ -2828,47 +2821,9 @@
             filterProductDropdownBySupplier();
         }
         
-        // Handle supplier filter button clicks
+        // Apply supplier filter on page load (filter controlled by admin panel only)
         document.addEventListener('DOMContentLoaded', () => {
-            // Apply filter on page load
             applySupplierFilterToPage();
-            
-            // Set up supplier filter buttons
-            const filterButtons = document.querySelectorAll('.supplier-filter-btn');
-            if (filterButtons.length > 0) {
-                // Set initial active button based on current filter
-                const currentFilter = localStorage.getItem('supplierFilter') || 'all';
-                filterButtons.forEach(button => {
-                    const buttonFilter = button.getAttribute('data-filter') || 'all';
-                    if (buttonFilter === currentFilter) {
-                        button.classList.add('active');
-                        button.style.background = '#8b5cf6';
-                    } else {
-                        button.classList.remove('active');
-                        button.style.background = '#c084fc';
-                    }
-                    
-                    // Add click handler
-                    button.addEventListener('click', () => {
-                        // Remove active class from all buttons
-                        filterButtons.forEach(btn => {
-                            btn.classList.remove('active');
-                            btn.style.background = '#c084fc';
-                        });
-                        
-                        // Add active class to clicked button
-                        button.classList.add('active');
-                        button.style.background = '#8b5cf6';
-                        
-                        // Update filter
-                        supplierFilter = button.getAttribute('data-filter') || 'all';
-                        localStorage.setItem('supplierFilter', supplierFilter);
-                        
-                        // Apply filter
-                        applySupplierFilterToPage();
-                    });
-                });
-            }
         });
         
         // State
@@ -4560,6 +4515,9 @@
                 
                 // Update customer summary with the orders table (grouped by Order ID, same as admin panel)
                 updateCustomerSummary(filteredOrders);
+                
+                // Show order timeline
+                showOrderTimeline(filteredOrders);
             } catch (error) {
                 console.error('Error loading all orders for summary:', error);
                 summaryContent.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--text-muted);"><p>Error loading orders. Please refresh the page.</p></div>';
@@ -4686,6 +4644,116 @@
             tableHtml += '</div>';
             
             summaryContent.innerHTML = tableHtml;
+        }
+        
+        function showOrderTimeline(orders) {
+            const section = document.getElementById('order-timeline-section');
+            const content = document.getElementById('order-timeline-content');
+            
+            if (!orders || orders.length === 0) {
+                section.style.display = 'none';
+                return;
+            }
+            
+            // Group orders by PepHaul Entry tab (order date as proxy for tab/batch)
+            const ordersByDate = {};
+            orders.forEach(order => {
+                const orderDate = order.order_date || 'Unknown';
+                if (!ordersByDate[orderDate]) {
+                    ordersByDate[orderDate] = [];
+                }
+                ordersByDate[orderDate].push(order);
+            });
+            
+            // Sort dates in descending order (most recent first)
+            const sortedDates = Object.keys(ordersByDate).sort((a, b) => {
+                if (a === 'Unknown') return 1;
+                if (b === 'Unknown') return -1;
+                return new Date(b) - new Date(a);
+            });
+            
+            let timelineHtml = '<div style="position: relative; padding-left: 2rem;">';
+            timelineHtml += '<div style="position: absolute; left: 0.5rem; top: 0; bottom: 0; width: 2px; background: linear-gradient(to bottom, #8b5cf6, #c084fc);"></div>';
+            
+            sortedDates.forEach((date, dateIndex) => {
+                const dateOrders = ordersByDate[date];
+                const formattedDate = date !== 'Unknown' ? new Date(date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'Unknown Date';
+                
+                timelineHtml += '<div style="margin-bottom: 2rem; position: relative;">';
+                timelineHtml += '<div style="position: absolute; left: -1.75rem; width: 1rem; height: 1rem; border-radius: 50%; background: #8b5cf6; border: 3px solid var(--bg-primary); box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.2);"></div>';
+                timelineHtml += `<div style="background: var(--bg-secondary); border-radius: 12px; padding: 1.5rem; border: 2px solid var(--border);">`;
+                timelineHtml += `<div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">`;
+                timelineHtml += `<span style="font-size: 1.25rem;">📅</span>`;
+                timelineHtml += `<h3 style="margin: 0; font-size: 1.1rem; color: var(--accent-primary);">${formattedDate}</h3>`;
+                timelineHtml += `<span style="color: var(--text-muted); font-size: 0.9rem;">(${dateOrders.length} order${dateOrders.length !== 1 ? 's' : ''})</span>`;
+                timelineHtml += `</div>`;
+                
+                // Show orders for this date
+                dateOrders.forEach((order, orderIndex) => {
+                    const paymentStatus = order.payment_status || 'Unpaid';
+                    const isPaid = paymentStatus.toLowerCase() === 'paid';
+                    const isWaitingForConfirmation = paymentStatus.toLowerCase() === 'waiting for confirmation';
+                    const hasTrackingNumber = order._hasTrackingNumber === true;
+                    
+                    // Status styling
+                    let statusIcon, statusText, statusColor;
+                    if (hasTrackingNumber && isPaid) {
+                        statusIcon = '🚚';
+                        statusText = 'Fulfilled';
+                        statusColor = '#10b981';
+                    } else if (isPaid) {
+                        statusIcon = '✅';
+                        statusText = 'Paid';
+                        statusColor = '#10b981';
+                    } else if (isWaitingForConfirmation) {
+                        statusIcon = '⏳';
+                        statusText = 'Waiting for Confirmation';
+                        statusColor = '#3b82f6';
+                    } else {
+                        statusIcon = '💳';
+                        statusText = 'Unpaid';
+                        statusColor = '#f59e0b';
+                    }
+                    
+                    timelineHtml += `<div style="background: var(--bg-primary); border-radius: 8px; padding: 1rem; margin-bottom: ${orderIndex < dateOrders.length - 1 ? '0.75rem' : '0'}; border-left: 3px solid ${statusColor};">`;
+                    timelineHtml += `<div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.5rem;">`;
+                    timelineHtml += `<div style="display: flex; align-items: center; gap: 0.75rem;">`;
+                    timelineHtml += `<span style="font-family: 'JetBrains Mono', monospace; font-weight: 600; color: var(--accent-primary);">${order.order_id || 'N/A'}</span>`;
+                    timelineHtml += `<span style="display: inline-block; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600; background: rgba(${statusColor === '#10b981' ? '16, 185, 129' : statusColor === '#3b82f6' ? '59, 130, 246' : '245, 158, 11'}, 0.1); color: ${statusColor};">${statusIcon} ${statusText}</span>`;
+                    timelineHtml += `</div>`;
+                    
+                    // Calculate total from items
+                    const total = (order.items || []).reduce((sum, item) => sum + (item.line_total_php || 0), 0);
+                    const adminFee = order.admin_fee_php || 0;
+                    const grandTotal = total + adminFee;
+                    timelineHtml += `<span style="font-weight: 700; color: var(--accent-amber);">₱${grandTotal.toLocaleString('en-PH', {minimumFractionDigits: 2})}</span>`;
+                    timelineHtml += `</div>`;
+                    
+                    // Show items count
+                    const itemsCount = (order.items || []).length;
+                    const totalVials = (order.items || []).reduce((sum, item) => {
+                        const qty = parseFloat(item.qty) || 0;
+                        const orderType = item.order_type || 'Vial';
+                        const vialsPerKit = item.vials_per_kit || 10;
+                        return sum + (orderType === 'Kit' ? qty * vialsPerKit : qty);
+                    }, 0);
+                    
+                    timelineHtml += `<div style="color: var(--text-muted); font-size: 0.85rem; display: flex; gap: 1rem; flex-wrap: wrap;">`;
+                    timelineHtml += `<span>📦 ${itemsCount} product${itemsCount !== 1 ? 's' : ''}</span>`;
+                    timelineHtml += `<span>💉 ${totalVials} vial${totalVials !== 1 ? 's' : ''}</span>`;
+                    timelineHtml += `</div>`;
+                    
+                    timelineHtml += `</div>`;
+                });
+                
+                timelineHtml += `</div>`;
+                timelineHtml += `</div>`;
+            });
+            
+            timelineHtml += '</div>';
+            
+            content.innerHTML = timelineHtml;
+            section.style.display = 'block';
         }
         
         function showMyOrdersSection(orders) {
