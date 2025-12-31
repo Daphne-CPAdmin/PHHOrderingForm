@@ -570,20 +570,48 @@
                 <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
                     <div style="flex: 1;">
                         <h2 style="font-size: 1.25rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
-                            📋 View PepHaul Entry Tab
+                            🔒 Locked Display View - PepHaul Entry Tab
+                            <span style="font-size: 0.75rem; font-weight: normal; color: #059669; background: #d1fae5; padding: 0.25rem 0.5rem; border-radius: 4px;">
+                                ✓ PERSISTENT
+                            </span>
                         </h2>
-                        <p style="color: var(--text-muted); font-size: 0.9rem;">
-                            Select which PepHaul Entry tab to display. All data (orders, products, customers) will be filtered for the selected tab.
+                        <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.75rem;">
+                            <strong>Controls what ALL customers see when opening the form (Desktop, Mobile, iPad)</strong>
+                        </p>
+                        <p style="color: var(--text-muted); font-size: 0.85rem; background: #fef3c7; padding: 0.5rem 0.75rem; border-radius: 6px; border-left: 3px solid #f59e0b;">
+                            ⚠️ <strong>Important:</strong> This setting locks and persists until you change it. It does NOT lock the form from editing, it locks which tab customers see. All data (orders, products, customers) will be filtered for the selected tab.
                         </p>
                     </div>
                     <div style="min-width: 250px;">
-                        <select id="admin-tab-viewer-selector" class="form-input" style="width: 100%; font-weight: 600; font-size: 1rem; padding: 0.875rem 1rem;">
+                        <label style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-bottom: 0.25rem; font-weight: 600;">
+                            SELECT TAB (APPLIES TO ALL DEVICES)
+                        </label>
+                        <select id="admin-tab-viewer-selector" class="form-input" style="width: 100%; font-weight: 600; font-size: 1rem; padding: 0.875rem 1rem; border: 2px solid #8b5cf6;">
                             <option value="">Loading tabs...</option>
                         </select>
                     </div>
                 </div>
                 <div id="admin-tab-viewer-status" style="margin-top: 1rem; padding: 0.75rem; background: rgba(139, 92, 246, 0.1); border-radius: 8px; display: none;">
                     <span style="font-size: 0.85rem; color: #7c3aed; font-weight: 500;"></span>
+                </div>
+                
+                <!-- Global View Status Indicator -->
+                <div style="margin-top: 1rem; padding: 1rem; background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); border-radius: 8px; border: 2px solid #059669;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                        <div style="font-size: 2rem;">🌍</div>
+                        <div style="flex: 1;">
+                            <div style="font-weight: 600; color: #047857; margin-bottom: 0.25rem; display: flex; align-items: center; gap: 0.5rem;">
+                                Global View Status
+                                <span style="font-size: 0.7rem; background: #059669; color: white; padding: 0.15rem 0.4rem; border-radius: 3px;">LOCKED</span>
+                            </div>
+                            <div id="global-view-status-text" style="font-size: 0.85rem; color: #065f46;">
+                                All customers (Desktop, Mobile, iPad) currently see: <strong>Loading...</strong>
+                            </div>
+                            <div style="font-size: 0.75rem; color: #047857; margin-top: 0.25rem; font-style: italic;">
+                                This view persists until you change it above ↑
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -3414,6 +3442,12 @@
                     statusEl.style.display = 'block';
                     statusEl.querySelector('span').textContent = `Currently viewing: ${currentTab}`;
                 }
+                
+                // Update Global View Status Indicator
+                const globalStatusEl = document.getElementById('global-view-status-text');
+                if (globalStatusEl) {
+                    globalStatusEl.innerHTML = `All customers (Desktop, Mobile, iPad) currently see: <strong style="color: #059669; font-size: 1.1em;">${currentTab}</strong>`;
+                }
             } catch (error) {
                 console.error('Error loading tabs for viewer:', error);
                 const viewerSelector = document.getElementById('admin-tab-viewer-selector');
@@ -3429,9 +3463,15 @@
             if (!selectedTab) return;
             
             const statusEl = document.getElementById('admin-tab-viewer-status');
+            const globalStatusEl = document.getElementById('global-view-status-text');
+            
             if (statusEl) {
                 statusEl.querySelector('span').textContent = `Switching to ${selectedTab}...`;
                 statusEl.style.display = 'block';
+            }
+            
+            if (globalStatusEl) {
+                globalStatusEl.innerHTML = `Switching global view to <strong style="color: #f59e0b;">${selectedTab}</strong>...`;
             }
             
             try {
@@ -3444,11 +3484,16 @@
                 
                 const result = await response.json();
                 if (result.success) {
-                    showToast(`✅ Switched to ${selectedTab}!`);
+                    showToast(`✅ Switched global view to ${selectedTab}! All customers now see this tab.`);
                     
                     // Update status
                     if (statusEl) {
                         statusEl.querySelector('span').textContent = `Currently viewing: ${selectedTab}`;
+                    }
+                    
+                    // Update global view status
+                    if (globalStatusEl) {
+                        globalStatusEl.innerHTML = `All customers (Desktop, Mobile, iPad) currently see: <strong style="color: #059669; font-size: 1.1em;">${selectedTab}</strong>`;
                     }
                     
                     // Reload all data for the new tab
