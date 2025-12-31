@@ -522,6 +522,9 @@ def set_product_lock(product_code, is_locked, max_kits=None, admin_name='Admin')
 _order_form_locked = False
 _order_form_lock_message = ""
 
+# Per-tab lock status (dict: tab_name -> {'is_locked': bool, 'message': str})
+_per_tab_lock_status = {}
+
 # --- Rich text sanitization (used for lock message) ---
 # We store formatted lock messages as *sanitized HTML* so the public page can render safely.
 from html.parser import HTMLParser
@@ -754,6 +757,102 @@ def set_order_form_lock(is_locked, message=''):
             return True
         except Exception as e:
             print(f"Error setting order form lock: {e}")
+            return False
+    
+    return True
+
+def _fetch_per_tab_lock_status():
+    """Internal function to fetch per-tab lock status from sheets"""
+    global _per_tab_lock_status
+    
+    if sheets_client:
+        try:
+            spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
+            
+            # Check if Settings sheet exists
+            try:
+                worksheet = spreadsheet.worksheet('Settings')
+            except:
+                # Create Settings sheet if doesn't exist
+                worksheet = spreadsheet.add_worksheet(title='Settings', rows=100, cols=5)
+                worksheet.update('A1:E1', [['Setting', 'Tab Name', 'Value', 'Message', 'Updated']])
+                return {}
+            
+            records = worksheet.get_all_records()
+            per_tab_status = {}
+            
+            for record in records:
+                if record.get('Setting') == 'Tab Lock Status':
+                    tab_name = record.get('Tab Name', '').strip()
+                    if tab_name:
+                        is_locked = str(record.get('Value', '')).lower() == 'yes'
+                        message = sanitize_lock_message_html(record.get('Message', ''))
+                        per_tab_status[tab_name] = {
+                            'is_locked': is_locked,
+                            'message': message
+                        }
+            
+            _per_tab_lock_status = per_tab_status
+            return per_tab_status
+                    
+        except Exception as e:
+            print(f"Error getting per-tab lock status: {e}")
+            return {}
+    
+    return {}
+
+def get_tab_lock_status(tab_name):
+    """Get lock status for a specific tab"""
+    all_statuses = get_cached('per_tab_lock_status', _fetch_per_tab_lock_status, cache_duration=600)
+    return all_statuses.get(tab_name, {'is_locked': False, 'message': ''})
+
+def set_tab_lock_status(tab_name, is_locked, message=''):
+    """Set lock status for a specific tab"""
+    global _per_tab_lock_status
+    
+    sanitized_message = sanitize_lock_message_html(message)
+    _per_tab_lock_status[tab_name] = {
+        'is_locked': is_locked,
+        'message': sanitized_message
+    }
+    
+    if sheets_client:
+        try:
+            spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
+            
+            # Ensure Settings sheet exists
+            try:
+                worksheet = spreadsheet.worksheet('Settings')
+            except:
+                worksheet = spreadsheet.add_worksheet(title='Settings', rows=100, cols=5)
+                worksheet.update('A1:E1', [['Setting', 'Tab Name', 'Value', 'Message', 'Updated']])
+            
+            # Find or create the tab lock setting row
+            all_values = worksheet.get_all_values()
+            tab_row = None
+            
+            for i, row in enumerate(all_values):
+                if len(row) >= 2 and row[0] == 'Tab Lock Status' and row[1] == tab_name:
+                    tab_row = i + 1
+                    break
+            
+            if tab_row is None:
+                # Add new row
+                tab_row = len(all_values) + 1
+                worksheet.update_cell(tab_row, 1, 'Tab Lock Status')
+                worksheet.update_cell(tab_row, 2, tab_name)
+            
+            # Update values
+            worksheet.update_cell(tab_row, 3, 'Yes' if is_locked else 'No')
+            worksheet.update_cell(tab_row, 4, sanitized_message)
+            worksheet.update_cell(tab_row, 5, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+            
+            # Clear cache since settings changed
+            clear_cache('per_tab_lock_status')
+            
+            return True
+        except Exception as e:
+            print(f"Error setting tab lock status: {e}")
             return False
     
     return True
@@ -2628,7 +2727,19 @@ def health_check():
 def index():
     """Main order form page"""
     try:
-        current_tab = get_current_pephaul_tab()
+        # Check if tab parameter is provided (for customer tab switching)
+        tab_param = request.args.get('tab', '').strip()
+        if tab_param:
+            # Verify the tab exists
+            available_tabs = list_pephaul_tabs()
+            if tab_param in available_tabs:
+                # Temporarily set this as the current tab for this request
+                current_tab = tab_param
+            else:
+                current_tab = get_current_pephaul_tab()
+        else:
+            current_tab = get_current_pephaul_tab()
+            
         exchange_rate = get_exchange_rate()
         products = get_products()
         inventory = get_inventory_stats()
@@ -2865,6 +2976,9 @@ def index():
             tab_supplier = suppliers[0] if suppliers and len(suppliers) > 0 else 'Default'
             supplier_filter = 'all'
         
+        # Get lock status for current tab
+        tab_lock_status = get_tab_lock_status(current_tab)
+        
         return render_template('index.html', 
                              products=products, 
                              products_by_supplier=products_by_supplier,
@@ -2879,8 +2993,8 @@ def index():
                              exchange_rate=exchange_rate,
                              admin_fee=ADMIN_FEE_PHP,
                              vials_per_kit=VIALS_PER_KIT,
-                             order_form_locked=order_form_lock['is_locked'],
-                             order_form_lock_message=order_form_lock['message'],
+                             order_form_locked=tab_lock_status['is_locked'],
+                             lock_message=tab_lock_status['message'],
                              telegram_bot_username=TELEGRAM_BOT_USERNAME,
                              order_stats=order_stats,
                              order_goal=order_goal,
@@ -6584,6 +6698,94 @@ def api_admin_switch_pephaul_tab():
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e), 'details': 'Check server logs for more information'}), 500
+
+@app.route('/api/admin/tab-settings', methods=['GET', 'POST'])
+def api_admin_tab_settings():
+    """Get or update tab settings (supplier + lock status)"""
+    if not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    if request.method == 'GET':
+        # Get settings for a specific tab
+        tab_name = request.args.get('tab_name', '').strip()
+        if not tab_name:
+            return jsonify({'error': 'Tab name is required'}), 400
+        
+        try:
+            supplier_filter = get_supplier_filter_for_tab(tab_name)
+            lock_status = get_tab_lock_status(tab_name)
+            
+            return jsonify({
+                'success': True,
+                'tab_name': tab_name,
+                'supplier': supplier_filter,
+                'is_locked': lock_status['is_locked'],
+                'lock_message': lock_status['message']
+            })
+        except Exception as e:
+            print(f"Error getting tab settings: {e}")
+            return jsonify({'error': str(e)}), 500
+    
+    else:  # POST
+        # Update tab settings
+        data = request.json or {}
+        tab_name = data.get('tab_name', '').strip()
+        supplier = data.get('supplier', '').strip()
+        is_locked = data.get('is_locked', False)
+        lock_message = data.get('lock_message', '')
+        
+        if not tab_name:
+            return jsonify({'error': 'Tab name is required'}), 400
+        
+        try:
+            # Update supplier filter
+            if supplier:
+                set_supplier_filter_for_tab(tab_name, supplier)
+            
+            # Update lock status
+            set_tab_lock_status(tab_name, is_locked, lock_message)
+            
+            print(f"✅ Updated tab settings for {tab_name}: Supplier={supplier}, Locked={is_locked}")
+            
+            return jsonify({
+                'success': True,
+                'tab_name': tab_name,
+                'supplier': supplier,
+                'is_locked': is_locked,
+                'lock_message': lock_message
+            })
+        except Exception as e:
+            print(f"Error updating tab settings: {e}")
+            return jsonify({'error': str(e)}), 500
+
+@app.route('/api/admin/all-tab-settings', methods=['GET'])
+def api_admin_all_tab_settings():
+    """Get settings for all tabs"""
+    if not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    try:
+        tabs = list_pephaul_tabs()
+        all_settings = []
+        
+        for tab in tabs:
+            supplier_filter = get_supplier_filter_for_tab(tab)
+            lock_status = get_tab_lock_status(tab)
+            
+            all_settings.append({
+                'tab_name': tab,
+                'supplier': supplier_filter,
+                'is_locked': lock_status['is_locked'],
+                'lock_message': lock_status['message']
+            })
+        
+        return jsonify({
+            'success': True,
+            'tabs': all_settings
+        })
+    except Exception as e:
+        print(f"Error getting all tab settings: {e}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/admin/orders/backfill-suppliers', methods=['POST'])
 def api_admin_backfill_suppliers():

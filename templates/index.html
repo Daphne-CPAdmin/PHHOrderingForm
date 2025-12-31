@@ -1775,6 +1775,28 @@
             <p class="header-subtitle">Your access to high purity (99%) affordable peptide reservations</p>
         </header>
 
+        <!-- PepHaul Entry Tab Switcher (View-Only for Locked Forms) -->
+        <div id="customer-tab-switcher" class="card" style="margin-bottom: 1.5rem; padding: 1rem; display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                <div>
+                    <h3 style="font-size: 1rem; margin-bottom: 0.25rem; display: flex; align-items: center; gap: 0.5rem;">
+                        📋 View Different PepHaul Entry Orders
+                    </h3>
+                    <p style="color: var(--text-muted); font-size: 0.85rem; margin: 0;">
+                        Select a tab to view its locked orders
+                    </p>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                    <select id="customer-tab-selector" class="form-input" style="min-width: 200px;">
+                        <option value="">Loading...</option>
+                    </select>
+                    <span id="customer-tab-lock-indicator" style="padding: 0.5rem 1rem; border-radius: 8px; font-size: 0.85rem; font-weight: 600; white-space: nowrap;">
+                        🔒 Locked
+                    </span>
+                </div>
+            </div>
+        </div>
+
         <!-- Consolidated Order Stats Banner - PepHaul Entry scoped (single active supplier per entry) -->
         {% if not order_form_locked %}
         {% set supplier_stats = order_stats.get('by_supplier', {}).get(tab_supplier, {}) %}
@@ -3137,7 +3159,104 @@
         document.addEventListener('DOMContentLoaded', () => {
             applyTabSupplierVisibility();
             applySupplierFilterToPage();
+            loadCustomerTabSwitcher();
         });
+        
+        // Load customer tab switcher (only show for locked forms)
+        async function loadCustomerTabSwitcher() {
+            try {
+                // Get all tabs with their settings
+                const response = await fetch('/api/pephaul-tabs');
+                const data = await response.json();
+                const tabs = Array.isArray(data.tabs) ? data.tabs : [];
+                const currentTab = data.current_tab || 'PepHaul Entry-01';
+                
+                // Fetch lock status for each tab to show only locked ones in selector
+                const tabsWithLockStatus = await Promise.all(tabs.map(async (tab) => {
+                    try {
+                        const settingsRes = await fetch(`/api/admin/tab-settings?tab_name=${encodeURIComponent(tab)}`);
+                        const settingsData = await settingsRes.json();
+                        return {
+                            tab_name: tab,
+                            is_locked: settingsData.is_locked || false,
+                            supplier: settingsData.supplier || 'Default'
+                        };
+                    } catch (e) {
+                        return { tab_name: tab, is_locked: false, supplier: 'Default' };
+                    }
+                }));
+                
+                // Find current tab's lock status
+                const currentTabSettings = tabsWithLockStatus.find(t => t.tab_name === currentTab);
+                const anyLockedTab = tabsWithLockStatus.some(t => t.is_locked);
+                
+                // Show tab switcher only if there are locked tabs
+                const switcherEl = document.getElementById('customer-tab-switcher');
+                if (anyLockedTab && switcherEl) {
+                    switcherEl.style.display = 'block';
+                    
+                    // Populate selector with all tabs (not just locked - so customers can try to access)
+                    const selector = document.getElementById('customer-tab-selector');
+                    selector.innerHTML = tabsWithLockStatus.map(tab => 
+                        `<option value="${tab.tab_name}" ${tab.tab_name === currentTab ? 'selected' : ''}>
+                            ${tab.tab_name} ${tab.is_locked ? '🔒' : '🔓'}
+                        </option>`
+                    ).join('');
+                    
+                    // Update lock indicator for current tab
+                    updateCustomerTabLockIndicator(currentTabSettings ? currentTabSettings.is_locked : false);
+                    
+                    // Add change handler
+                    selector.addEventListener('change', onCustomerTabChange);
+                }
+            } catch (error) {
+                console.error('Error loading customer tab switcher:', error);
+            }
+        }
+        
+        // Handle customer tab selection change
+        async function onCustomerTabChange() {
+            const selector = document.getElementById('customer-tab-selector');
+            const selectedTab = selector.value;
+            if (!selectedTab) return;
+            
+            try {
+                // Check if this tab is locked
+                const settingsRes = await fetch(`/api/admin/tab-settings?tab_name=${encodeURIComponent(selectedTab)}`);
+                const settingsData = await settingsRes.json();
+                
+                if (settingsData.is_locked) {
+                    // Tab is locked - allow viewing orders
+                    // Reload page with this tab's data
+                    window.location.href = `/?tab=${encodeURIComponent(selectedTab)}`;
+                } else {
+                    // Tab is open - show message
+                    showToast(`⚠️ ${selectedTab} is currently open for ordering. Use the main form to place orders.`);
+                    // Revert selector to original tab
+                    const currentTab = '{{ current_tab|default("PepHaul Entry-01") }}';
+                    selector.value = currentTab;
+                }
+            } catch (error) {
+                console.error('Error changing tab:', error);
+                showToast('❌ Error switching tab');
+            }
+        }
+        
+        // Update lock indicator for current tab
+        function updateCustomerTabLockIndicator(isLocked) {
+            const indicator = document.getElementById('customer-tab-lock-indicator');
+            if (indicator) {
+                if (isLocked) {
+                    indicator.textContent = '🔒 Locked (View Only)';
+                    indicator.style.background = 'rgba(239, 68, 68, 0.1)';
+                    indicator.style.color = '#ef4444';
+                } else {
+                    indicator.textContent = '🔓 Open for Orders';
+                    indicator.style.background = 'rgba(16, 185, 129, 0.1)';
+                    indicator.style.color = '#10b981';
+                }
+            }
+        }
         
         // State
         let selectedProduct = null;

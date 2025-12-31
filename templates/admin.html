@@ -565,129 +565,84 @@
                 </div>
             </div>
 
-            <!-- PepHaul Entry Tab Management -->
+            <!-- Unified PepHaul Entry Tab Settings -->
             <div class="card" style="margin-bottom: 2rem; border: 2px solid #10b981;">
                 <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
                     <div>
                         <h2 style="font-size: 1.25rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
-                            📋 PepHaul Entry Tab Management
+                            ⚙️ PepHaul Entry Tab Settings
                         </h2>
                         <p style="color: var(--text-muted); font-size: 0.9rem;">
-                            Create new PepHaul Entry tabs (e.g., PepHaul Entry-01, PepHaul Entry-02) and switch between them. All order records are preserved when switching tabs.
+                            Manage settings for each PepHaul Entry tab: select tab, assign supplier, and control form lock status.
                         </p>
                     </div>
                 </div>
-                <div style="margin-top: 1.5rem; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
-                    <div style="flex: 1; min-width: 200px;">
-                        <label style="display: block; font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem;">Current Tab</label>
-                        <select id="pephaul-tab-selector" class="form-input" style="width: 100%;">
-                            <option value="PepHaul Entry-01">PepHaul Entry-01</option>
+                
+                <div style="margin-top: 1.5rem; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+                    <!-- Tab Selection -->
+                    <div>
+                        <label style="display: block; font-size: 0.875rem; font-weight: 500; color: var(--text-secondary); margin-bottom: 0.5rem;">
+                            PepHaul Entry Tab
+                        </label>
+                        <select id="tab-settings-selector" class="form-input" style="width: 100%;">
+                            <option value="">Loading tabs...</option>
                         </select>
                     </div>
-                    <button id="create-new-tab-btn" class="btn" style="padding: 0.75rem 1.5rem; background: #10b981; color: white; margin-top: 1.5rem;">
+                    
+                    <!-- Supplier Assignment -->
+                    <div>
+                        <label style="display: block; font-size: 0.875rem; font-weight: 500; color: var(--text-secondary); margin-bottom: 0.5rem;">
+                            Assigned Supplier
+                        </label>
+                        <select id="tab-supplier-selector" class="form-input" style="width: 100%;">
+                            <option value="">Select supplier...</option>
+                            {% for supplier in all_suppliers %}
+                            <option value="{{ supplier }}">{{ supplier }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <!-- Form Lock Status -->
+                    <div>
+                        <label style="display: block; font-size: 0.875rem; font-weight: 500; color: var(--text-secondary); margin-bottom: 0.5rem;">
+                            Order Form Status
+                        </label>
+                        <select id="tab-lock-selector" class="form-input" style="width: 100%;">
+                            <option value="false">🔓 Open (Accept Orders)</option>
+                            <option value="true">🔒 Locked (No Orders)</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 1.5rem; display: flex; gap: 1rem; flex-wrap: wrap;">
+                    <button id="save-tab-settings-btn" class="btn" style="padding: 0.75rem 2rem; background: #10b981; color: white; font-weight: 600;">
+                        💾 Save Settings
+                    </button>
+                    <button id="create-new-tab-btn" class="btn" style="padding: 0.75rem 1.5rem; background: #c084fc; color: white;">
                         ➕ Create New Tab
                     </button>
-                    <button id="switch-tab-btn" class="btn" style="padding: 0.75rem 1.5rem; background: #c084fc; color: white; margin-top: 1.5rem;">
-                        🔄 Switch to Selected Tab
-                    </button>
-                </div>
-                <div id="tab-status" style="margin-top: 1rem; font-size: 0.85rem; color: #7c3aed; display: none;">
-                    ✓ Tab operation completed successfully!
-                </div>
-            </div>
-
-            <!-- Supplier Filter Toggle -->
-            <div class="card" style="margin-bottom: 2rem; border: 2px solid #8b5cf6;">
-                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
-                    <div>
-                        <h2 style="font-size: 1.25rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
-                            🏢 Supplier Filter
-                        </h2>
-                        <p style="color: var(--text-muted); font-size: 0.9rem;">
-                            Filter the pricelist display by supplier. Choose to show Supplier 1, Supplier 2, or both.
-                        </p>
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
-                        <div id="supplier-filter-buttons" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-                            <button id="supplier-filter-all" class="btn supplier-filter-btn active" data-filter="all" style="padding: 0.75rem 1.5rem; background: #8b5cf6; color: white;">
-                                All Suppliers
-                            </button>
-                            {% for supplier in all_suppliers %}
-                            <button class="btn supplier-filter-btn" data-filter="{{ supplier }}" data-supplier-name="{{ supplier }}" style="padding: 0.75rem 1.5rem; background: #c084fc; color: white;">
-                                {{ supplier }}
-                            </button>
-                            {% endfor %}
-                        </div>
-                    </div>
-                </div>
-                <div id="supplier-filter-status" style="margin-top: 1rem; font-size: 0.85rem; color: #7c3aed; display: none;">
-                    ✓ Supplier filter updated!
-                </div>
-            </div>
-
-            <!-- Order Form Lock Control -->
-            <div class="card" style="margin-bottom: 2rem; border: 2px solid #f472b6;">
-                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
-                    <div>
-                        <h2 style="font-size: 1.25rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
-                            <span id="form-lock-icon">🔓</span> Order Form Status
-                        </h2>
-                        <p style="color: var(--text-muted); font-size: 0.9rem;">
-                            Lock the entire order form to prevent new orders when finalizing.
-                        </p>
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 1rem;">
-                        <span id="form-lock-status" style="padding: 0.5rem 1rem; border-radius: 8px; font-weight: 600; font-size: 0.9rem;">
-                            Loading...
+                    <div style="flex: 1; display: flex; align-items: center; justify-content: flex-end;">
+                        <span id="tab-settings-status" style="font-size: 0.85rem; color: #7c3aed; display: none;">
+                            ✓ Settings saved!
                         </span>
-                        <button id="toggle-form-lock" class="btn" style="padding: 0.75rem 1.5rem; background: var(--accent-rose);">
-                            Toggle Lock
-                        </button>
                     </div>
                 </div>
-                <div style="margin-top: 1rem; display: none;" id="lock-message-container">
-                    <label style="display: block; font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem;">Lock Message (shown to customers)</label>
-                    <div class="rich-editor-toolbar" aria-label="Lock message formatting toolbar">
-                        <select id="lock-rt-format" title="Header style">
-                            <option value="P">Normal</option>
-                            <option value="H3">Header (H3)</option>
-                            <option value="H2">Header (H2)</option>
-                            <option value="H1">Header (H1)</option>
-                        </select>
-                        <button class="rt-btn" type="button" title="Bold" onclick="rtCmd('bold')">B</button>
-                        <button class="rt-btn" type="button" title="Italic" onclick="rtCmd('italic')"><span style="font-style: italic;">I</span></button>
-                        <button class="rt-btn" type="button" title="Underline" onclick="rtCmd('underline')"><span style="text-decoration: underline;">U</span></button>
-                        <button class="rt-btn" type="button" title="Align left" onclick="rtCmd('justifyLeft')">⟸</button>
-                        <button class="rt-btn" type="button" title="Align center" onclick="rtCmd('justifyCenter')">≡</button>
-                        <button class="rt-btn" type="button" title="Align right" onclick="rtCmd('justifyRight')">⟹</button>
-                        <input id="lock-rt-color" type="color" value="#7f1d1d" title="Text color" />
-                        <select id="lock-rt-font" title="Font">
-                            <option value="Outfit">Outfit (default)</option>
-                            <option value="Inter">Inter</option>
-                            <option value="Poppins">Poppins</option>
-                            <option value="Arial">Arial</option>
-                            <option value="Georgia">Georgia</option>
-                            <option value="Times New Roman">Times New Roman</option>
-                            <option value="JetBrains Mono">JetBrains Mono</option>
-                        </select>
-                        <select id="lock-rt-size" title="Font size">
-                            <option value="3">Normal</option>
-                            <option value="4">Large</option>
-                            <option value="5">X-Large</option>
-                        </select>
-                        <button class="rt-btn" type="button" title="Clear formatting" onclick="clearLockMessageFormatting()">Tx</button>
-                    </div>
-                    <div style="display: flex; gap: 0.75rem; align-items: flex-start; margin-top: 0.75rem;">
-                        <div id="lock-message-editor" class="rich-editor" contenteditable="true" style="flex: 1; min-width: 0;" data-placeholder="Orders are currently closed. Thank you for your patience!"></div>
-                        <!-- Hidden legacy textarea (kept for backwards compatibility in code paths) -->
-                        <textarea id="lock-message" class="form-input" rows="3" style="display:none;" placeholder="Orders are currently closed. Thank you for your patience!"></textarea>
-                        <button id="save-lock-message-btn" class="btn" style="padding: 0.75rem 1.25rem; background: var(--accent-violet); white-space: nowrap; margin-top: 0; flex-shrink: 0; width: auto; min-width: 140px;">
-                            💾 Save Message
-                        </button>
-                    </div>
-                    <div class="muted-hint">Tip: highlight text, then pick a font/color/alignment. This message is shown publicly when the form is locked.</div>
-                    <div id="lock-message-save-status" style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--accent-violet); display: none;">
-                        ✓ Message saved successfully!
+                
+                <!-- Current Status Display -->
+                <div id="current-tab-status" style="margin-top: 1.5rem; padding: 1rem; background: var(--background-secondary); border-radius: 8px; display: none;">
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; font-size: 0.85rem;">
+                        <div>
+                            <span style="color: var(--text-muted); display: block;">Current Tab:</span>
+                            <span id="current-tab-display" style="font-weight: 600; color: var(--text-primary);"></span>
+                        </div>
+                        <div>
+                            <span style="color: var(--text-muted); display: block;">Supplier:</span>
+                            <span id="current-supplier-display" style="font-weight: 600; color: var(--text-primary);"></span>
+                        </div>
+                        <div>
+                            <span style="color: var(--text-muted); display: block;">Status:</span>
+                            <span id="current-lock-display" style="font-weight: 600;"></span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -3289,30 +3244,149 @@
             }
         }
 
-        // Load available PepHaul Entry tabs
-        async function loadPepHaulTabs() {
+        // Load available PepHaul Entry tabs and populate settings selector
+        async function loadTabSettings() {
             try {
-                const response = await fetch('/api/admin/pephaul-tabs', {
+                const response = await fetch('/api/admin/all-tab-settings', {
                     credentials: 'same-origin'
                 });
                 
                 if (!response.ok) {
-                    throw new Error(`Failed to load tabs: ${response.status}`);
+                    throw new Error(`Failed to load tab settings: ${response.status}`);
                 }
                 
                 const result = await response.json();
                 const tabs = result.tabs || [];
-                const currentTab = result.current_tab || 'PepHaul Entry';
                 
-                // Update selector
-                const selector = document.getElementById('pephaul-tab-selector');
+                // Get current tab from server
+                const currentTabResponse = await fetch('/api/admin/pephaul-tabs', { credentials: 'same-origin' });
+                const currentTabData = await currentTabResponse.json();
+                const currentTab = currentTabData.current_tab || 'PepHaul Entry-01';
+                
+                // Update tab selector
+                const selector = document.getElementById('tab-settings-selector');
                 selector.innerHTML = tabs.map(tab => 
-                    `<option value="${tab}" ${tab === currentTab ? 'selected' : ''}>${tab}</option>`
+                    `<option value="${tab.tab_name}" ${tab.tab_name === currentTab ? 'selected' : ''}>${tab.tab_name}</option>`
                 ).join('');
                 
+                // Load settings for current tab
+                if (tabs.length > 0) {
+                    const firstTab = tabs.find(t => t.tab_name === currentTab) || tabs[0];
+                    updateTabSettingsUI(firstTab);
+                }
+                
             } catch (error) {
-                console.error('Error loading tabs:', error);
-                showToast('⚠️ Could not load tabs - using default');
+                console.error('Error loading tab settings:', error);
+                showToast('⚠️ Could not load tab settings');
+            }
+        }
+
+        // Update UI with tab settings
+        function updateTabSettingsUI(settings) {
+            document.getElementById('tab-supplier-selector').value = settings.supplier || '';
+            document.getElementById('tab-lock-selector').value = settings.is_locked ? 'true' : 'false';
+            
+            // Update current status display
+            const statusDisplay = document.getElementById('current-tab-status');
+            statusDisplay.style.display = 'block';
+            document.getElementById('current-tab-display').textContent = settings.tab_name;
+            document.getElementById('current-supplier-display').textContent = settings.supplier || 'Not set';
+            
+            const lockDisplay = document.getElementById('current-lock-display');
+            if (settings.is_locked) {
+                lockDisplay.textContent = '🔒 Locked';
+                lockDisplay.style.color = '#f87171';
+            } else {
+                lockDisplay.textContent = '🔓 Open';
+                lockDisplay.style.color = '#10b981';
+            }
+        }
+
+        // Handle tab selection change
+        async function onTabSettingsChange() {
+            const selectedTab = document.getElementById('tab-settings-selector').value;
+            if (!selectedTab) return;
+            
+            try {
+                const response = await fetch(`/api/admin/tab-settings?tab_name=${encodeURIComponent(selectedTab)}`, {
+                    credentials: 'same-origin'
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    updateTabSettingsUI(result);
+                }
+            } catch (error) {
+                console.error('Error loading tab settings:', error);
+                showToast('❌ Error loading settings for ' + selectedTab);
+            }
+        }
+
+        // Save tab settings
+        async function saveTabSettings() {
+            const tabName = document.getElementById('tab-settings-selector').value;
+            const supplier = document.getElementById('tab-supplier-selector').value;
+            const isLocked = document.getElementById('tab-lock-selector').value === 'true';
+            
+            if (!tabName) {
+                showToast('❌ Please select a tab');
+                return;
+            }
+            
+            if (!supplier) {
+                showToast('❌ Please select a supplier');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/admin/tab-settings', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        tab_name: tabName,
+                        supplier: supplier,
+                        is_locked: isLocked,
+                        lock_message: ''  // Can be extended later
+                    })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    showToast(`✅ Settings saved for ${tabName}!`);
+                    
+                    // Show success indicator
+                    const statusEl = document.getElementById('tab-settings-status');
+                    statusEl.style.display = 'inline';
+                    setTimeout(() => {
+                        statusEl.style.display = 'none';
+                    }, 3000);
+                    
+                    // Update current status display
+                    updateTabSettingsUI(result);
+                    
+                    // Reload orders if this was the current tab
+                    loadOrders();
+                    
+                    // Notify customer page
+                    if (window.opener && !window.opener.closed) {
+                        try {
+                            window.opener.postMessage({ 
+                                type: 'tabSettingsUpdated', 
+                                tab_name: tabName, 
+                                supplier: supplier,
+                                is_locked: isLocked
+                            }, '*');
+                        } catch (e) {
+                            console.log('Could not communicate with main window');
+                        }
+                    }
+                } else {
+                    showToast('❌ Failed to save settings');
+                }
+            } catch (error) {
+                console.error('Error saving tab settings:', error);
+                showToast('❌ Error saving settings');
             }
         }
 
@@ -3332,7 +3406,7 @@
                 const result = await response.json();
                 if (result.success) {
                     showToast(`✅ Created new tab: ${result.tab_name}`);
-                    loadPepHaulTabs(); // Reload tabs list
+                    loadTabSettings(); // Reload tabs list
                     loadOrders(); // Reload orders to show new tab's data
                 } else {
                     showToast(result.error || 'Failed to create tab');
@@ -3340,74 +3414,6 @@
             } catch (error) {
                 console.error('Error creating tab:', error);
                 showToast('❌ Error creating tab');
-            }
-        }
-
-        // Switch to selected PepHaul Entry tab
-        async function switchPepHaulTab() {
-            const selector = document.getElementById('pephaul-tab-selector');
-            const selectedTab = selector.value;
-            
-            if (!selectedTab) {
-                showToast('⚠️ Please select a tab');
-                return;
-            }
-            
-            if (!confirm(`Switch to tab "${selectedTab}"? All order records will be preserved.`)) {
-                return;
-            }
-            
-            try {
-                const response = await fetch('/api/admin/pephaul-tabs/switch', {
-                    method: 'POST',
-                    credentials: 'same-origin',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ tab_name: selectedTab })
-                });
-                
-                const result = await response.json();
-                if (result.success) {
-                    // Automatically set supplier filter for this tab (one supplier per tab)
-                    // The server returns the supplier_filter in the response
-                    let tabSupplier = result.supplier_filter;
-                    
-                    // If filter is 'all', use first available supplier
-                    if (!tabSupplier || tabSupplier === 'all') {
-                        const allSuppliers = {{ all_suppliers|tojson }};
-                        tabSupplier = allSuppliers && allSuppliers.length > 0 ? allSuppliers[0] : 'WWB';
-                        // Set it on server
-                        await fetch(`/api/admin/supplier-filter?tab_name=${encodeURIComponent(selectedTab)}`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ supplier_filter: tabSupplier })
-                        });
-                    }
-                    
-                    // Set supplier filter for this tab (one supplier per tab)
-                    if (tabSupplier && tabSupplier !== 'all') {
-                        await applySupplierFilter(tabSupplier);
-                        showToast(`✅ Switched to tab: ${selectedTab} (Supplier: ${tabSupplier})`);
-                    } else {
-                        showToast(`✅ Switched to tab: ${selectedTab}`);
-                    }
-                    
-                    loadOrders(); // Reload orders from new tab
-                    loadCustomerSummary(); // Reload customer summary
-                    loadTimelineEntries(); // Reload timeline for new tab
-                    // Notify main page to reload timeline if it's open
-                    if (window.opener && !window.opener.closed) {
-                        try {
-                            window.opener.postMessage({ type: 'tabSwitched', tab_name: selectedTab, supplier: tabSupplier }, '*');
-                        } catch (e) {
-                            console.log('Could not communicate with main window');
-                        }
-                    }
-                } else {
-                    showToast(result.error || 'Failed to switch tab');
-                }
-            } catch (error) {
-                console.error('Error switching tab:', error);
-                showToast('❌ Error switching tab');
             }
         }
 
@@ -3419,19 +3425,24 @@
                 exportBtn.addEventListener('click', exportPageAsHTML);
             }
             
-            // PepHaul Tab Management
+            // Tab Settings Management
+            const settingsSelector = document.getElementById('tab-settings-selector');
+            if (settingsSelector) {
+                settingsSelector.addEventListener('change', onTabSettingsChange);
+            }
+            
+            const saveSettingsBtn = document.getElementById('save-tab-settings-btn');
+            if (saveSettingsBtn) {
+                saveSettingsBtn.addEventListener('click', saveTabSettings);
+            }
+            
             const createTabBtn = document.getElementById('create-new-tab-btn');
             if (createTabBtn) {
                 createTabBtn.addEventListener('click', createNewPepHaulTab);
             }
             
-            const switchTabBtn = document.getElementById('switch-tab-btn');
-            if (switchTabBtn) {
-                switchTabBtn.addEventListener('click', switchPepHaulTab);
-            }
-            
-            // Load tabs on page load
-            loadPepHaulTabs();
+            // Load tab settings on page load
+            loadTabSettings();
         }
 
         // Auto-boot on page load (if session is already logged in)
