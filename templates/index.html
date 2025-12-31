@@ -5756,19 +5756,6 @@
             const modal = document.getElementById('order-confirmation-modal');
             const itemsList = document.getElementById('confirmation-items-list');
             
-            // Filter items by supplier if provided
-            let filteredCartItems = supplier 
-                ? cartItems.filter(item => (item.supplier || 'Default') === supplier)
-                : cartItems;
-            
-            // Check if there's a paid order AND we're submitting a NEW order (not updating)
-            // For updates, we want to show ALL items in the cart
-            const paidOrder = existingCustomerOrders.find(o => 
-                o.status !== 'Cancelled' && 
-                o.payment_status && 
-                o.payment_status.toLowerCase() === 'paid'
-            );
-            
             // Check if we're updating an existing order (has pending unpaid order)
             const pendingOrder = existingCustomerOrders.find(o => 
                 o.status !== 'Cancelled' && 
@@ -5776,17 +5763,36 @@
                 (!o.payment_status || o.payment_status.toLowerCase() !== 'paid')
             );
             
-            // If updating an order, show ALL items (both existing and new/updated)
-            // If submitting a new order and there's a paid order, only show new items
-            const itemsToShow = (pendingOrder && !paidOrder) ? 
-                filteredCartItems : // Show all items when updating
-                (paidOrder ? 
-                    filteredCartItems.filter(item => !item.isExisting || item.isNewOrder) : // Only new items for new orders when paid order exists
-                    filteredCartItems); // Show all items for new orders without paid orders
+            // Check if there's a paid order AND we're submitting a NEW order (not updating)
+            const paidOrder = existingCustomerOrders.find(o => 
+                o.status !== 'Cancelled' && 
+                o.payment_status && 
+                o.payment_status.toLowerCase() === 'paid'
+            );
+            
+            // CRITICAL: When UPDATING an order, show ALL items regardless of supplier
+            // When SUBMITTING a new order, filter by supplier if provided
+            let filteredCartItems;
+            if (pendingOrder && !paidOrder) {
+                // Updating existing order - show ALL items (don't filter by supplier)
+                filteredCartItems = cartItems;
+            } else {
+                // Submitting new order - filter by supplier if provided
+                filteredCartItems = supplier 
+                    ? cartItems.filter(item => (item.supplier || 'Default') === supplier)
+                    : cartItems;
+            }
+            
+            // For new orders when there's a paid order, only show new items (not from paid order)
+            const itemsToShow = paidOrder && !pendingOrder
+                ? filteredCartItems.filter(item => !item.isExisting || item.isNewOrder)
+                : filteredCartItems;
             
             console.log(`[showOrderConfirmationModal] Total cartItems: ${cartItems.length}, Filtered: ${filteredCartItems.length}, Showing: ${itemsToShow.length}`, {
                 pendingOrder: pendingOrder?.order_id,
                 paidOrder: paidOrder?.order_id,
+                isUpdate: !!(pendingOrder && !paidOrder),
+                supplierFilter: supplier,
                 itemsToShow: itemsToShow.map(i => `${i.product_name} (${i.qty})`)
             });
             
