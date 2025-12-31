@@ -565,6 +565,76 @@
                 </div>
             </div>
 
+            <!-- Order Form Status -->
+            <div class="card" style="margin-bottom: 2rem; border: 2px solid #f472b6;">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                    <div>
+                        <h2 style="font-size: 1.25rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                            🔒 Order Form Status
+                        </h2>
+                        <p style="color: var(--text-muted); font-size: 0.9rem;">
+                            Control whether the order form accepts new orders and customize the lock message shown to customers.
+                        </p>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 1.5rem; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <span id="form-lock-status" style="padding: 0.75rem 1.5rem; border-radius: 10px; font-weight: 600; font-size: 0.9rem;">OPEN</span>
+                        <span id="form-lock-icon" style="font-size: 1.5rem;">🔓</span>
+                    </div>
+                    <button id="toggle-form-lock" class="btn" style="padding: 0.75rem 1.5rem; background: #f472b6; color: white; width: auto;">
+                        Lock Form
+                    </button>
+                </div>
+                
+                <!-- Lock Message Editor -->
+                <div id="lock-message-container" style="margin-top: 1.5rem; display: none;">
+                    <label style="display: block; font-size: 0.875rem; font-weight: 500; color: var(--text-secondary); margin-bottom: 0.5rem;">
+                        Lock Message (shown to customers when form is locked)
+                    </label>
+                    
+                    <!-- Rich Text Toolbar -->
+                    <div class="rich-editor-toolbar">
+                        <select id="lock-rt-format">
+                            <option value="P">Paragraph</option>
+                            <option value="H1">Heading 1</option>
+                            <option value="H2">Heading 2</option>
+                            <option value="H3">Heading 3</option>
+                        </select>
+                        <button class="rt-btn" onclick="rtCmd('bold')" title="Bold">B</button>
+                        <button class="rt-btn" onclick="rtCmd('italic')" title="Italic">I</button>
+                        <button class="rt-btn" onclick="rtCmd('underline')" title="Underline">U</button>
+                        <input type="color" id="lock-rt-color" value="#000000" title="Text Color">
+                        <select id="lock-rt-font">
+                            <option value="Arial">Arial</option>
+                            <option value="Times New Roman">Times New Roman</option>
+                            <option value="Courier New">Courier New</option>
+                            <option value="Georgia">Georgia</option>
+                        </select>
+                        <select id="lock-rt-size">
+                            <option value="1">Small</option>
+                            <option value="3">Normal</option>
+                            <option value="5">Large</option>
+                            <option value="7">Extra Large</option>
+                        </select>
+                        <button class="rt-btn" onclick="clearLockMessageFormatting()" title="Clear Formatting">Clear</button>
+                    </div>
+                    
+                    <!-- Rich Text Editor -->
+                    <div id="lock-message-editor" class="rich-editor" contenteditable="true" data-placeholder="Enter lock message here... This message will be shown to customers when the form is locked."></div>
+                    
+                    <p class="muted-hint">You can format the message with bold, italic, colors, and different font sizes.</p>
+                    
+                    <div style="margin-top: 1rem;">
+                        <button id="save-lock-message-btn" class="btn" style="padding: 0.75rem 1.5rem; background: #f472b6; color: white; width: auto;">
+                            💾 Save Lock Message
+                        </button>
+                        <span id="lock-message-save-status" style="margin-left: 1rem; font-size: 0.85rem; color: #7c3aed; display: none;"></span>
+                    </div>
+                </div>
+            </div>
+
             <!-- Unified PepHaul Entry Tab Settings -->
             <div class="card" style="margin-bottom: 2rem; border: 2px solid #10b981;">
                 <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
@@ -573,12 +643,12 @@
                             ⚙️ PepHaul Entry Tab Settings
                         </h2>
                         <p style="color: var(--text-muted); font-size: 0.9rem;">
-                            Manage settings for each PepHaul Entry tab: select tab, assign supplier, and control form lock status.
+                            Manage settings for each PepHaul Entry tab: select tab and assign supplier.
                         </p>
                     </div>
                 </div>
                 
-                <div style="margin-top: 1.5rem; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+                <div style="margin-top: 1.5rem; display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                     <!-- Tab Selection -->
                     <div>
                         <label style="display: block; font-size: 0.875rem; font-weight: 500; color: var(--text-secondary); margin-bottom: 0.5rem;">
@@ -601,17 +671,6 @@
                             {% endfor %}
                         </select>
                     </div>
-                    
-                    <!-- Form Lock Status -->
-                    <div>
-                        <label style="display: block; font-size: 0.875rem; font-weight: 500; color: var(--text-secondary); margin-bottom: 0.5rem;">
-                            Order Form Status
-                        </label>
-                        <select id="tab-lock-selector" class="form-input" style="width: 100%;">
-                            <option value="false">🔓 Open (Accept Orders)</option>
-                            <option value="true">🔒 Locked (No Orders)</option>
-                        </select>
-                    </div>
                 </div>
                 
                 <div style="margin-top: 1.5rem; display: flex; gap: 1rem; flex-wrap: wrap;">
@@ -630,7 +689,7 @@
                 
                 <!-- Current Status Display -->
                 <div id="current-tab-status" style="margin-top: 1.5rem; padding: 1rem; background: var(--background-secondary); border-radius: 8px; display: none;">
-                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; font-size: 0.85rem;">
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; font-size: 0.85rem;">
                         <div>
                             <span style="color: var(--text-muted); display: block;">Current Tab:</span>
                             <span id="current-tab-display" style="font-weight: 600; color: var(--text-primary);"></span>
@@ -638,10 +697,6 @@
                         <div>
                             <span style="color: var(--text-muted); display: block;">Supplier:</span>
                             <span id="current-supplier-display" style="font-weight: 600; color: var(--text-primary);"></span>
-                        </div>
-                        <div>
-                            <span style="color: var(--text-muted); display: block;">Status:</span>
-                            <span id="current-lock-display" style="font-weight: 600;"></span>
                         </div>
                     </div>
                 </div>
@@ -3341,13 +3396,9 @@
         // Update UI with tab settings
         function updateTabSettingsUI(settings) {
             const supplierSelector = document.getElementById('tab-supplier-selector');
-            const lockSelector = document.getElementById('tab-lock-selector');
             
             if (supplierSelector) {
                 supplierSelector.value = settings.supplier || '';
-            }
-            if (lockSelector) {
-                lockSelector.value = settings.is_locked ? 'true' : 'false';
             }
             
             // Update current status display (if elements exist)
@@ -3364,17 +3415,6 @@
             const supplierDisplay = document.getElementById('current-supplier-display');
             if (supplierDisplay) {
                 supplierDisplay.textContent = settings.supplier || 'Not set';
-            }
-            
-            const lockDisplay = document.getElementById('current-lock-display');
-            if (lockDisplay) {
-                if (settings.is_locked) {
-                    lockDisplay.textContent = '🔒 Locked';
-                    lockDisplay.style.color = '#f87171';
-                } else {
-                    lockDisplay.textContent = '🔓 Open';
-                    lockDisplay.style.color = '#10b981';
-                }
             }
         }
 
@@ -3402,9 +3442,8 @@
         async function saveTabSettings() {
             const tabSelector = document.getElementById('tab-settings-selector');
             const supplierSelector = document.getElementById('tab-supplier-selector');
-            const lockSelector = document.getElementById('tab-lock-selector');
             
-            if (!tabSelector || !supplierSelector || !lockSelector) {
+            if (!tabSelector || !supplierSelector) {
                 console.error('Tab settings elements not found');
                 showToast('❌ Error: Settings form not loaded');
                 return;
@@ -3412,7 +3451,6 @@
             
             const tabName = tabSelector.value;
             const supplier = supplierSelector.value;
-            const isLocked = lockSelector.value === 'true';
             
             if (!tabName) {
                 showToast('❌ Please select a tab');
@@ -3425,6 +3463,18 @@
             }
             
             try {
+                // Get current tab settings to preserve lock status
+                const currentSettingsResponse = await fetch(`/api/admin/tab-settings?tab_name=${encodeURIComponent(tabName)}`, {
+                    credentials: 'same-origin'
+                });
+                let currentIsLocked = false;
+                if (currentSettingsResponse.ok) {
+                    const currentSettings = await currentSettingsResponse.json();
+                    if (currentSettings.success) {
+                        currentIsLocked = currentSettings.is_locked || false;
+                    }
+                }
+                
                 const response = await fetch('/api/admin/tab-settings', {
                     method: 'POST',
                     credentials: 'same-origin',
@@ -3432,7 +3482,7 @@
                     body: JSON.stringify({
                         tab_name: tabName,
                         supplier: supplier,
-                        is_locked: isLocked,
+                        is_locked: currentIsLocked,  // Preserve existing lock status
                         lock_message: ''  // Can be extended later
                     })
                 });
@@ -3466,7 +3516,7 @@
                                 type: 'tabSettingsUpdated', 
                                 tab_name: tabName, 
                                 supplier: supplier,
-                                is_locked: isLocked
+                                is_locked: currentIsLocked
                             }, '*');
                         } catch (e) {
                             console.log('Could not communicate with main window');
