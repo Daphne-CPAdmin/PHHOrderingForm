@@ -38,6 +38,31 @@ _cache = {}
 _cache_timestamps = {}
 CACHE_DURATION = 60  # seconds - default fallback cache duration
 
+# PepHaul Entry Tab Management - Persistent Storage Functions
+SETTINGS_FILE = 'data/pephaul_settings.json'
+
+def _load_settings():
+    """Load persistent settings from JSON file"""
+    try:
+        if os.path.exists(SETTINGS_FILE):
+            with open(SETTINGS_FILE, 'r') as f:
+                return json.load(f)
+    except Exception as e:
+        print(f"⚠️ Could not load settings file: {e}")
+    return {}
+
+def _save_settings(settings):
+    """Save persistent settings to JSON file"""
+    try:
+        # Ensure data directory exists
+        os.makedirs(os.path.dirname(SETTINGS_FILE), exist_ok=True)
+        with open(SETTINGS_FILE, 'w') as f:
+            json.dump(settings, f, indent=2)
+        return True
+    except Exception as e:
+        print(f"⚠️ Could not save settings file: {e}")
+        return False
+
 def _normalize_order_sheet_headers(headers):
     """
     Normalize PepHaul Entry headers so lookups are stable even if the sheet header row is malformed.
@@ -6555,31 +6580,8 @@ Thank you! 💜"""
         return jsonify({'error': 'Failed to send Telegram message'}), 500
 
 
+
 # PepHaul Entry Tab Management with Persistent Storage
-SETTINGS_FILE = 'data/pephaul_settings.json'
-
-def _load_settings():
-    """Load persistent settings from JSON file"""
-    try:
-        if os.path.exists(SETTINGS_FILE):
-            with open(SETTINGS_FILE, 'r') as f:
-                return json.load(f)
-    except Exception as e:
-        print(f"⚠️ Could not load settings file: {e}")
-    return {}
-
-def _save_settings(settings):
-    """Save persistent settings to JSON file"""
-    try:
-        # Ensure data directory exists
-        os.makedirs(os.path.dirname(SETTINGS_FILE), exist_ok=True)
-        with open(SETTINGS_FILE, 'w') as f:
-            json.dump(settings, f, indent=2)
-        return True
-    except Exception as e:
-        print(f"⚠️ Could not save settings file: {e}")
-        return False
-
 # Initialize current tab from persistent storage
 _settings = _load_settings()
 CURRENT_PEPHAUL_TAB = _settings.get('current_pephaul_tab', 'PepHaul Entry-01')
