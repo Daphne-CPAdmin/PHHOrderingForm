@@ -976,7 +976,26 @@ def _fetch_orders_from_sheets():
         headers = _normalize_order_sheet_headers(raw_headers)
         print(f"📋 Sheet headers (raw, {len(raw_headers)}): {raw_headers[:15]}")
         print(f"📋 Sheet headers (normalized, {len(headers)}): {headers[:15]}")
-        print(f"📋 Total rows in sheet (including header): {len(all_values)}")
+        print(f"📋 Total rows in sheet: {len(all_values)}")
+
+        # Some PepHaul Entry tabs may have malformed/missing header rows (common when a tab is created manually).
+        # If header row looks invalid, fall back to positional parsing using the standard PepHaul header schema.
+        required_headers = {'Order ID', 'Telegram Username', 'Product Code'}
+        header_set = set(headers or [])
+        header_looks_valid = required_headers.issubset(header_set)
+
+        standard_headers = [
+            'Order ID', 'Order Date', 'Name', 'Telegram Username', 'Supplier',
+            'Product Code', 'Product Name', 'Order Type', 'QTY', 'Unit Price USD',
+            'Line Total USD', 'Exchange Rate', 'Line Total PHP', 'Admin Fee PHP',
+            'Grand Total PHP', 'Order Status', 'Locked', 'Payment Status',
+            'Remarks', 'Link to Payment', 'Payment Date', 'Full Name', 'Contact Number', 'Mailing Address', 'Tracking Number'
+        ]
+        standard_headers = _normalize_order_sheet_headers(standard_headers)
+        parse_headers = headers if header_looks_valid else standard_headers
+        start_index = 1 if header_looks_valid else 0
+        if not header_looks_valid:
+            print(f"⚠️ Header row looks invalid for '{current_tab}'. Falling back to positional parsing (A=Order ID, D=Telegram, F=Product Code, etc.).")
         
         telegram_col_index = None
         order_id_col_index = None
@@ -997,59 +1016,36 @@ def _fetch_orders_from_sheets():
                 if order_id_col_index is not None and len(row) > order_id_col_index:
                     print(f"  Row {i+1}: Order ID='{row[order_id_col_index] if len(row) > order_id_col_index else 'N/A'}', Telegram='{row[telegram_col_index] if telegram_col_index is not None and len(row) > telegram_col_index else 'N/A'}'")
         
-        # Try get_all_records first (faster, but might preserve bad/blank header keys)
-        records = worksheet.get_all_records()
-        # Ensure we return a list
-        if not isinstance(records, list):
-            print(f"⚠️ get_all_records() did not return a list, got: {type(records)}")
-            records = []
-        
-        # Normalize keys so blank/whitespace headers don't break lookups (e.g., blank A1 header)
-        if records:
-            records = [_normalize_order_record_keys(r) for r in records]
+        # Prefer positional manual parsing when headers are invalid.
+        # Otherwise, use get_all_records but validate row count and fall back to manual parsing if needed.
+        records = []
+        if header_looks_valid:
+            records = worksheet.get_all_records()
+            if not isinstance(records, list):
+                print(f"⚠️ get_all_records() did not return a list, got: {type(records)}")
+                records = []
+            if records:
+                records = [_normalize_order_record_keys(r) for r in records]
+            print(f"📋 get_all_records() returned {len(records)} records")
 
-        print(f"📋 get_all_records() returned {len(records)} records")
-        
-        # Verify records match expected count (should be all_values - 1 for header)
-        expected_count = len(all_values) - 1
-        if len(records) != expected_count:
-            print(f"⚠️ WARNING: Record count mismatch! Expected {expected_count} records (from {len(all_values)} rows - 1 header), but got {len(records)}")
-            print(f"📋 This might mean some rows are empty or get_all_records() stopped early")
-            
-            # Fallback: Build records manually from raw values to ensure we get everything
-            if len(all_values) > 1 and headers:
+            expected_count = len(all_values) - 1
+            if len(records) != expected_count:
+                print(f"⚠️ WARNING: Record count mismatch! Expected {expected_count}, got {len(records)}")
                 print(f"📋 Building records manually from raw values to capture all rows...")
-                manual_records = []
-                for row_idx, row in enumerate(all_values[1:], start=2):  # Skip header row
-                    if len(row) < len(headers):
-                        # Pad row if shorter than headers
-                        row = row + [''] * (len(headers) - len(row))
-                    elif len(row) > len(headers):
-                        # Truncate row if longer than headers
-                        row = row[:len(headers)]
-                    
-                    # Create dict from row
-                    record = {}
-                    for col_idx, header in enumerate(headers):
-                        if col_idx < len(row):
-                            value = row[col_idx]
-                            # Only include non-empty values or keep empty strings for consistency
-                            record[header] = value if value else ''
-                        else:
-                            record[header] = ''
-                    
-                    # Only add record if it has at least one non-empty value (skip completely empty rows)
-                    if any(str(v).strip() for v in record.values()):
-                        manual_records.append(record)
-                
-                print(f"📋 Manual record building found {len(manual_records)} records with data")
-                
-                # Use manual records if we got more than get_all_records
-                if len(manual_records) > len(records):
-                    print(f"📋 Using manually built records ({len(manual_records)} vs {len(records)} from get_all_records)")
-                    records = manual_records
-                else:
-                    print(f"📋 Keeping get_all_records() results ({len(records)} records)")
+                header_looks_valid = False  # force manual path below
+
+        if not header_looks_valid:
+            manual_records = []
+            for row in all_values[start_index:]:
+                if len(row) < len(parse_headers):
+                    row = row + [''] * (len(parse_headers) - len(row))
+                elif len(row) > len(parse_headers):
+                    row = row[:len(parse_headers)]
+                rec = {parse_headers[i]: (row[i] if i < len(row) and row[i] is not None else '') for i in range(len(parse_headers))}
+                if any(str(v).strip() for v in rec.values()):
+                    manual_records.append(rec)
+            records = [_normalize_order_record_keys(r) for r in manual_records]
+            print(f"📋 Manual parsing returned {len(records)} records with data")
         
         # Debug: Log first record's keys to see what columns are available
         if records and len(records) > 0:

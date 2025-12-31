@@ -2484,7 +2484,7 @@
 
         <!-- Order Timeline View -->
         <div id="view-order-timeline" class="view-content" style="display: none;">
-            <div class="card" style="max-width: 1200px; margin: 0 auto;">
+            <div class="card" style="width: 100%; margin: 0 auto;">
                 <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem;">
                     <div style="background: linear-gradient(135deg, #d4a574, #f9a8d4); padding: 1rem; border-radius: 16px; display: flex; align-items: center; justify-content: center;">
                         <span style="font-size: 2rem;">📅</span>
@@ -2492,19 +2492,9 @@
                     <div>
                         <h2 style="margin: 0; font-size: 1.75rem; font-weight: 700; color: var(--text-primary);">Order Timeline</h2>
                         <p style="margin: 0; color: var(--text-muted); font-size: 0.95rem;">
-                            <span id="timeline-view-pephaul-label" style="font-weight: 700; color: var(--text-secondary);">PepHaul Entry</span>
-                            <span style="margin: 0 0.5rem; color: rgba(0,0,0,0.25);">•</span>
-                            Track the latest updates and transaction details
+                            Track the latest updates and transaction details for all PepHaul Entry tabs
                         </p>
                     </div>
-                </div>
-
-                <!-- PepHaul Entry Selector (Timeline only) -->
-                <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1rem;">
-                    <span style="font-weight: 700; color: var(--text-secondary);">PepHaul Entry:</span>
-                    <select id="timeline-tab-select" class="form-input" style="max-width: 260px; padding: 0.6rem 0.8rem;">
-                        <option value="">Loading...</option>
-                    </select>
                 </div>
 
                 <!-- Loading State -->
@@ -2513,9 +2503,9 @@
                     <p style="color: var(--text-muted); margin-top: 1rem;">Loading timeline entries...</p>
                 </div>
 
-                <!-- Timeline Content Container -->
-                <div id="global-timeline-content" style="display: none;">
-                    <!-- Timeline entries will be populated here -->
+                <!-- Timeline Content Container (All PepHaul Entry timelines) -->
+                <div id="all-timelines-content" style="display: none;">
+                    <!-- All PepHaul Entry timelines will be populated here -->
                 </div>
 
                 <!-- Empty State -->
@@ -2840,8 +2830,7 @@
             // Load timeline data when switching to timeline view
             if (viewId === 'view-order-timeline') {
                 applyNonViewVisibilityForActiveView(viewId);
-                loadPepHaulTabsForTimelineView();
-                loadPepHaulTimelineView();
+                loadAllPepHaulTimelinesView();
             } else {
                 applyNonViewVisibilityForActiveView(viewId);
             }
@@ -2850,16 +2839,20 @@
         // When switching views, hide non-view sections (locked banner, embedded timeline, rate banner, stats)
         // so that Timeline view shows ONLY the timeline (plus nav/header).
         function applyNonViewVisibilityForActiveView(viewId) {
-            const showNewOrderExtras = viewId === 'view-new-order';
+            const timelineOnly = viewId === 'view-order-timeline';
 
-            // Top banners / sections outside the view containers
-            document.querySelectorAll('.supplier-stats').forEach(el => { el.hidden = !showNewOrderExtras; });
-            const lockedBanner = document.querySelector('.locked-banner');
-            if (lockedBanner) lockedBanner.hidden = !showNewOrderExtras;
-            const rateBanner = document.querySelector('.rate-banner');
-            if (rateBanner) rateBanner.hidden = !showNewOrderExtras;
-            const embeddedTimeline = document.getElementById('timeline-section');
-            if (embeddedTimeline) embeddedTimeline.hidden = !showNewOrderExtras;
+            // Hide ANY non-view section inside .container when in Timeline view
+            const container = document.querySelector('.container');
+            if (container) {
+                Array.from(container.children).forEach(child => {
+                    if (child.matches('nav.nav-bar')) return;
+                    if (child.matches('header.header')) return;
+                    if (child.id === 'view-order-timeline') return;
+                    // view-new-order is already display:none when timeline is active, but keep it hidden too
+                    if (timelineOnly) child.hidden = true;
+                    else child.hidden = false;
+                });
+            }
         }
         
         // Navigation tab click handlers
@@ -2872,73 +2865,11 @@
             });
         });
         
-        // PepHaul Entry-scoped Timeline View (uses Timeline sheet + PepHaul Entry ID)
-        let _timelineTabsLoaded = false;
-        async function loadPepHaulTabsForTimelineView() {
-            const selectEl = document.getElementById('timeline-tab-select');
-            if (!selectEl || _timelineTabsLoaded) return;
-
-            try {
-                const res = await fetch('/api/pephaul-tabs');
-                const data = await res.json();
-                const tabs = Array.isArray(data.tabs) ? data.tabs : [];
-                const fallbackTab = (data.current_tab || CURRENT_PEPHAUL_TAB || 'PepHaul Entry-01').trim();
-
-                // Ensure currentPepHaulTab has a value
-                if (!currentPepHaulTab || !currentPepHaulTab.trim()) {
-                    currentPepHaulTab = fallbackTab;
-                    try { localStorage.setItem('currentPepHaulTab', currentPepHaulTab); } catch (e) {}
-                }
-
-                // Populate options
-                selectEl.innerHTML = '';
-                const options = (tabs.length ? tabs : [fallbackTab]);
-                options.forEach(t => {
-                    const opt = document.createElement('option');
-                    opt.value = t;
-                    opt.textContent = t;
-                    selectEl.appendChild(opt);
-                });
-
-                // Select current
-                if (options.includes(currentPepHaulTab)) {
-                    selectEl.value = currentPepHaulTab;
-                } else {
-                    selectEl.value = options[0];
-                    currentPepHaulTab = options[0];
-                    try { localStorage.setItem('currentPepHaulTab', currentPepHaulTab); } catch (e) {}
-                }
-
-                selectEl.addEventListener('change', () => {
-                    const nextTab = (selectEl.value || '').trim();
-                    if (!nextTab) return;
-                    currentPepHaulTab = nextTab;
-                    try { localStorage.setItem('currentPepHaulTab', currentPepHaulTab); } catch (e) {}
-
-                    // Reload timeline view + embedded timeline (if present)
-                    loadPepHaulTimelineView();
-                    if (typeof loadTimeline === 'function') loadTimeline();
-                });
-
-                _timelineTabsLoaded = true;
-            } catch (e) {
-                console.warn('Failed to load PepHaul tabs:', e);
-                selectEl.innerHTML = '';
-                const opt = document.createElement('option');
-                opt.value = CURRENT_PEPHAUL_TAB || 'PepHaul Entry-01';
-                opt.textContent = opt.value;
-                selectEl.appendChild(opt);
-                selectEl.value = opt.value;
-                _timelineTabsLoaded = true;
-            }
-        }
-
-        async function loadPepHaulTimelineView() {
+        // Order Timeline Page: show ALL PepHaul Entry timelines (full width each)
+        async function loadAllPepHaulTimelinesView() {
             const loadingEl = document.getElementById('timeline-loading');
-            const contentEl = document.getElementById('global-timeline-content');
+            const contentEl = document.getElementById('all-timelines-content');
             const emptyEl = document.getElementById('timeline-empty');
-            const labelEl = document.getElementById('timeline-view-pephaul-label');
-            const selectEl = document.getElementById('timeline-tab-select');
             
             // Show loading
             if (loadingEl) loadingEl.style.display = 'block';
@@ -2946,32 +2877,67 @@
             if (emptyEl) emptyEl.style.display = 'none';
             
             try {
-                const response = await fetch(getTimelineApiUrl());
-                const result = await response.json();
-                const entries = result.entries || [];
-                const tabLabel = (result.tab_name || currentPepHaulTab || 'PepHaul Entry').trim();
-                if (labelEl) labelEl.textContent = tabLabel;
-                if (selectEl && tabLabel) {
-                    // Keep selector in sync when tab_name comes back from server
-                    try { selectEl.value = tabLabel; } catch (e) {}
-                }
+                const tabsRes = await fetch('/api/pephaul-tabs');
+                const tabsData = await tabsRes.json();
+                const tabs = Array.isArray(tabsData.tabs) ? tabsData.tabs : [];
 
-                if (entries.length > 0) {
-                    // Reuse the embedded timeline renderer style (screenshot 3)
-                    contentEl.innerHTML = renderTimelineHtml(entries, tabLabel);
-                    if (loadingEl) loadingEl.style.display = 'none';
-                    if (contentEl) contentEl.style.display = 'block';
-                } else {
+                if (!tabs.length) {
                     if (loadingEl) loadingEl.style.display = 'none';
                     if (emptyEl) {
                         emptyEl.style.display = 'block';
                         emptyEl.innerHTML = `
                             <span style="font-size: 3rem; display: block; margin-bottom: 1rem;">📭</span>
-                            <p style="font-size: 1.1rem; margin-bottom: 0.5rem; font-weight: 700;">No updates yet for ${escapeHTML(tabLabel)}</p>
-                            <p style="font-size: 0.9rem;">Timeline entries will appear here once added.</p>
+                            <p style="font-size: 1.1rem; margin-bottom: 0.5rem; font-weight: 700;">No PepHaul Entry tabs found</p>
+                            <p style="font-size: 0.9rem;">Create PepHaul Entry tabs in the Admin Panel.</p>
                         `;
                     }
+                    return;
                 }
+
+                // Fetch timelines in parallel
+                const results = await Promise.all(tabs.map(async (tab) => {
+                    try {
+                        const res = await fetch(`/api/timeline?tab_name=${encodeURIComponent(tab)}`);
+                        const data = await res.json();
+                        return { tab, entries: Array.isArray(data.entries) ? data.entries : [] };
+                    } catch (e) {
+                        return { tab, entries: [], error: true };
+                    }
+                }));
+
+                // Render all timelines
+                let html = '';
+                results.forEach(({ tab, entries, error }) => {
+                    const safeTab = escapeHTML(tab || 'PepHaul Entry');
+                    html += `
+                        <div class="card" style="margin-bottom: 1.25rem; border: 2px solid rgba(212, 165, 116, 0.35);">
+                            <div style="display: flex; align-items: baseline; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1rem;">
+                                <div style="font-size: 1.15rem; font-weight: 800; color: var(--text-primary);">${safeTab}</div>
+                                <div style="color: var(--text-muted); font-size: 0.9rem;">Order Timeline</div>
+                            </div>
+                            ${error ? `<div style="padding: 1rem; color: #ef4444; font-weight: 600;">Error loading timeline for ${safeTab}</div>` : renderTimelineHtml(entries, tab)}
+                        </div>
+                    `;
+                });
+
+                // If every tab has no entries, show empty state
+                const totalEntries = results.reduce((sum, r) => sum + (r.entries ? r.entries.length : 0), 0);
+                if (!totalEntries) {
+                    if (loadingEl) loadingEl.style.display = 'none';
+                    if (emptyEl) {
+                        emptyEl.style.display = 'block';
+                        emptyEl.innerHTML = `
+                            <span style="font-size: 3rem; display: block; margin-bottom: 1rem;">📭</span>
+                            <p style="font-size: 1.1rem; margin-bottom: 0.5rem; font-weight: 700;">No timeline updates yet</p>
+                            <p style="font-size: 0.9rem;">Timeline entries will appear here once added in the Admin Panel.</p>
+                        `;
+                    }
+                    return;
+                }
+
+                contentEl.innerHTML = html;
+                if (loadingEl) loadingEl.style.display = 'none';
+                if (contentEl) contentEl.style.display = 'block';
             } catch (error) {
                 console.error('Error loading timeline:', error);
                 if (loadingEl) loadingEl.style.display = 'none';
@@ -3116,12 +3082,7 @@
                 // Reload timeline view if currently visible
                 const timelineView = document.getElementById('view-order-timeline');
                 if (timelineView && timelineView.style.display !== 'none') {
-                    // Keep dropdown in sync (if present)
-                    const selectEl = document.getElementById('timeline-tab-select');
-                    if (selectEl) {
-                        try { selectEl.value = currentPepHaulTab; } catch (e) {}
-                    }
-                    loadPepHaulTimelineView();
+                    loadAllPepHaulTimelinesView();
                 }
             }
         });
