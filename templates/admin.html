@@ -1104,6 +1104,7 @@
                     loadTheme();
                     loadTimelineEntries();
                     loadTabSettings(); // Load available tabs and settings
+                    setupNewFeatures(); // Setup button event listeners after login
                 } else {
                     document.getElementById('login-error').textContent = 'Invalid password';
                     document.getElementById('login-error').style.display = 'block';
@@ -1139,6 +1140,7 @@
                     loadTheme();
                     loadTimelineEntries();
                     loadTabSettings(); // Load available tabs and settings
+                    setupNewFeatures(); // Setup button event listeners after boot
                 }
             } catch (e) {
                 // If this fails, user can still log in manually.
@@ -1516,8 +1518,11 @@
             }
         });
 
-        // Save Lock Message button
-        document.getElementById('save-lock-message-btn').addEventListener('click', async () => {
+        // Save Lock Message button - setup when DOM is ready
+        document.addEventListener('DOMContentLoaded', () => {
+            const saveLockBtn = document.getElementById('save-lock-message-btn');
+            if (saveLockBtn) {
+                saveLockBtn.addEventListener('click', async () => {
             const btn = document.getElementById('save-lock-message-btn');
             const statusEl = document.getElementById('lock-message-save-status');
             const message = getLockMessageHtml();
@@ -1564,6 +1569,8 @@
             } finally {
                 btn.disabled = false;
                 btn.textContent = '💾 Save Message';
+            }
+                });
             }
         });
 
@@ -3393,9 +3400,19 @@
 
         // Save tab settings
         async function saveTabSettings() {
-            const tabName = document.getElementById('tab-settings-selector').value;
-            const supplier = document.getElementById('tab-supplier-selector').value;
-            const isLocked = document.getElementById('tab-lock-selector').value === 'true';
+            const tabSelector = document.getElementById('tab-settings-selector');
+            const supplierSelector = document.getElementById('tab-supplier-selector');
+            const lockSelector = document.getElementById('tab-lock-selector');
+            
+            if (!tabSelector || !supplierSelector || !lockSelector) {
+                console.error('Tab settings elements not found');
+                showToast('❌ Error: Settings form not loaded');
+                return;
+            }
+            
+            const tabName = tabSelector.value;
+            const supplier = supplierSelector.value;
+            const isLocked = lockSelector.value === 'true';
             
             if (!tabName) {
                 showToast('❌ Please select a tab');
@@ -3426,16 +3443,21 @@
                     
                     // Show success indicator
                     const statusEl = document.getElementById('tab-settings-status');
-                    statusEl.style.display = 'inline';
-                    setTimeout(() => {
-                        statusEl.style.display = 'none';
-                    }, 3000);
+                    if (statusEl) {
+                        statusEl.style.display = 'inline';
+                        setTimeout(() => {
+                            statusEl.style.display = 'none';
+                        }, 3000);
+                    }
                     
                     // Update current status display
                     updateTabSettingsUI(result);
                     
                     // Reload orders if this was the current tab
                     loadOrders();
+                    
+                    // Reload tab settings to refresh the list
+                    loadTabSettings();
                     
                     // Notify customer page
                     if (window.opener && !window.opener.closed) {
@@ -3451,11 +3473,11 @@
                         }
                     }
                 } else {
-                    showToast('❌ Failed to save settings');
+                    showToast('❌ Failed to save settings: ' + (result.error || 'Unknown error'));
                 }
             } catch (error) {
                 console.error('Error saving tab settings:', error);
-                showToast('❌ Error saving settings');
+                showToast('❌ Error saving settings: ' + error.message);
             }
         }
 
@@ -3486,32 +3508,43 @@
             }
         }
 
+        // Track if event listeners have been set up to avoid duplicates
+        let featuresSetup = false;
+        
         // Setup event listeners for new features
         function setupNewFeatures() {
+            // Only setup once
+            if (featuresSetup) {
+                return;
+            }
+            
             // HTML Export button
             const exportBtn = document.getElementById('export-html-btn');
-            if (exportBtn) {
+            if (exportBtn && !exportBtn.dataset.listenerAttached) {
                 exportBtn.addEventListener('click', exportPageAsHTML);
+                exportBtn.dataset.listenerAttached = 'true';
             }
             
             // Tab Settings Management
             const settingsSelector = document.getElementById('tab-settings-selector');
-            if (settingsSelector) {
+            if (settingsSelector && !settingsSelector.dataset.listenerAttached) {
                 settingsSelector.addEventListener('change', onTabSettingsChange);
+                settingsSelector.dataset.listenerAttached = 'true';
             }
             
             const saveSettingsBtn = document.getElementById('save-tab-settings-btn');
-            if (saveSettingsBtn) {
+            if (saveSettingsBtn && !saveSettingsBtn.dataset.listenerAttached) {
                 saveSettingsBtn.addEventListener('click', saveTabSettings);
+                saveSettingsBtn.dataset.listenerAttached = 'true';
             }
             
             const createTabBtn = document.getElementById('create-new-tab-btn');
-            if (createTabBtn) {
+            if (createTabBtn && !createTabBtn.dataset.listenerAttached) {
                 createTabBtn.addEventListener('click', createNewPepHaulTab);
+                createTabBtn.dataset.listenerAttached = 'true';
             }
             
-            // Load tab settings on page load
-            loadTabSettings();
+            featuresSetup = true;
         }
 
         // Auto-boot on page load (if session is already logged in)
