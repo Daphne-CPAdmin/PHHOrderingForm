@@ -343,7 +343,8 @@ MAX_KITS_DEFAULT = 100  # Default max kits per product
 _pephaul_supplier_filter = _load_settings().get('supplier_filters', {})  # tab_name -> supplier_filter ('all' or supplier name)
 
 def _load_supplier_filters_from_sheets():
-    """Load supplier filters from Google Sheets Settings tab as fallback"""
+    """Load supplier filters from Google Sheets Settings tab as fallback
+    Uses existing 'Supplier' column E structure in Settings tab"""
     if not sheets_client:
         return {}
     
@@ -356,16 +357,34 @@ def _load_supplier_filters_from_sheets():
             
             supplier_filters = {}
             for record in records:
-                if record.get('Setting') == 'Supplier Filter':
+                # Check multiple possible column formats for compatibility
+                # Priority: Use existing 'Supplier' column E if it exists
+                # Fallback: Use 'Value' column C for new format
+                tab_name = ''
+                supplier_value = ''
+                
+                # Try to extract tab name from various column names
+                if record.get('Tab Name'):
                     tab_name = record.get('Tab Name', '').strip()
+                elif record.get('Tab'):
+                    tab_name = record.get('Tab', '').strip()
+                
+                # Try to extract supplier from various column names
+                # Priority 1: Existing 'Supplier' column (column E in your Settings tab)
+                if record.get('Supplier'):
+                    supplier_value = record.get('Supplier', '').strip()
+                # Priority 2: New 'Value' column (for Supplier Filter rows)
+                elif record.get('Setting') == 'Supplier Filter' and record.get('Value'):
                     supplier_value = record.get('Value', '').strip()
-                    if tab_name and supplier_value:
-                        supplier_filters[tab_name] = supplier_value
+                
+                if tab_name and supplier_value:
+                    supplier_filters[tab_name] = supplier_value
             
             if supplier_filters:
-                print(f"📊 Loaded {len(supplier_filters)} supplier filters from Google Sheets")
+                print(f"📊 Loaded {len(supplier_filters)} supplier filters from Google Sheets Settings tab")
             return supplier_filters
-        except:
+        except Exception as e:
+            print(f"⚠️ Could not read Settings sheet: {e}")
             return {}
     except Exception as e:
         print(f"⚠️ Could not load supplier filters from Google Sheets: {e}")
@@ -3675,7 +3694,25 @@ def _fetch_timeline_entries(tab_name=None):
                 )
                 pephaul_entry_id = str(pephaul_entry_id_raw).strip() if pephaul_entry_id_raw is not None else ''
                 
-                if pephaul_entry_id == tab_name and record.get('ID') and record.get('Date'):
+                # Flexible matching: exact match OR normalized match (case-insensitive, remove spaces/dashes)
+                # Handles: "PepHaul Entry-02" = "PepHaul02" = "pephaul entry 02" = "02"
+                def normalize_tab_name(name):
+                    """Normalize tab name for comparison: lowercase, remove spaces and dashes"""
+                    return name.lower().replace(' ', '').replace('-', '').replace('_', '')
+                
+                normalized_entry_id = normalize_tab_name(pephaul_entry_id)
+                normalized_tab_name = normalize_tab_name(tab_name)
+                
+                # Match if normalized names match OR if entry ID ends with same number
+                # E.g., "02" matches "PepHaul Entry-02", "PepHaul02" matches "PepHaul Entry-02"
+                is_match = (
+                    pephaul_entry_id == tab_name or  # Exact match
+                    normalized_entry_id == normalized_tab_name or  # Normalized match
+                    (normalized_entry_id and normalized_tab_name.endswith(normalized_entry_id)) or  # Entry ID is suffix
+                    (normalized_tab_name and normalized_entry_id.endswith(normalized_tab_name.replace('pephaulentry', '')))  # Tab number is suffix
+                )
+                
+                if is_match and record.get('ID') and record.get('Date'):
                     entries.append({
                         'id': str(record.get('ID', '')),
                         'pephaul_entry_id': pephaul_entry_id,
