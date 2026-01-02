@@ -3014,11 +3014,31 @@
                 
                 <h4 style="margin-bottom: 0.75rem; color: var(--text-secondary);">Edit Order Items</h4>
                 <div style="background: var(--bg-input); border-radius: 10px; padding: 0.5rem 1rem; margin-bottom: 1.5rem;">
-                    ${order.items.map((item, idx) => `
+                    ${order.items.map((item, idx) => {
+                        // Get all available suppliers for this product code
+                        const availableSuppliers = [...new Set(
+                            allProducts
+                                .filter(p => p.code === item.product_code)
+                                .map(p => p.supplier)
+                        )];
+                        const hasMultipleSuppliers = availableSuppliers.length > 1;
+                        
+                        return `
                         <div class="order-item-row" style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 0; border-bottom: 1px solid var(--border);">
                             <div style="flex: 1;">
                                 <div style="font-weight: 500;">${item.product_name || item.product_code}</div>
                                 <div style="font-size: 0.8rem; color: var(--text-muted);">${item.order_type}</div>
+                                ${hasMultipleSuppliers ? `
+                                <div style="margin-top: 0.5rem;">
+                                    <label style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-bottom: 0.25rem;">Supplier:</label>
+                                    <select id="supplier-${order.order_id}-${idx}" 
+                                            style="padding: 0.25rem 0.5rem; background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; color: var(--text-primary); font-size: 0.8rem;" 
+                                            onchange="updateItemSupplier('${order.order_id}', '${item.product_code}', '${item.order_type}', this.value)">
+                                        ${availableSuppliers.map(sup => `<option value="${sup}" ${sup === item.supplier ? 'selected' : ''}>${sup}</option>`).join('')}
+                                    </select>
+                                    <span style="font-size: 0.7rem; color: var(--accent-amber);">💡 Changing supplier auto-updates price</span>
+                                </div>
+                                ` : `<div style="font-size: 0.75rem; color: var(--accent-purple); margin-top: 0.25rem;">Supplier: ${item.supplier}</div>`}
                             </div>
                             <div style="display: flex; align-items: center; gap: 1rem;">
                                 <div style="display: flex; align-items: center; gap: 0.5rem;">
@@ -3031,7 +3051,7 @@
                                 </div>
                             </div>
                         </div>
-                    `).join('')}
+                    `;}).join('')}
                 </div>
                 
                 <div style="background: linear-gradient(135deg, #c084fc, #f472b6); padding: 1rem; border-radius: 10px; display: flex; justify-content: space-between; align-items: center;">
@@ -3084,6 +3104,40 @@
             } catch (error) {
                 console.error('Error updating item:', error);
                 showToast('Error updating item');
+            }
+        }
+
+        // Update item supplier in order (auto-recalculates prices)
+        async function updateItemSupplier(orderId, productCode, orderType, newSupplier) {
+            try {
+                const response = await fetch(`/api/admin/orders/${orderId}/update-supplier`, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        product_code: productCode,
+                        order_type: orderType,
+                        supplier: newSupplier
+                    })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    showToast(`✅ Supplier updated to ${newSupplier} - Price: $${result.new_price.toFixed(2)}`);
+                    // Reload orders and products to reflect changes
+                    await loadOrders();
+                    await loadProducts();
+                    // Refresh the edit modal if it's open
+                    const order = allOrders.find(o => o.order_id === orderId);
+                    if (order && document.getElementById('order-modal').classList.contains('show')) {
+                        editOrder(orderId);
+                    }
+                } else {
+                    showToast(result.error || 'Failed to update supplier');
+                }
+            } catch (error) {
+                console.error('Error updating supplier:', error);
+                showToast('Error updating supplier');
             }
         }
 

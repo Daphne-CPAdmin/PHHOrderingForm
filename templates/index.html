@@ -3879,7 +3879,7 @@
                     paidOrderItems.innerHTML = paidOrderItemsList.map(item => `
                         <div class="cart-item" style="opacity: 0.9; border-left: 3px solid var(--accent-emerald);">
                             <div class="cart-item-header">
-                                <span class="cart-item-name">${item.product_name || item.product_code}</span>
+                                <span class="cart-item-name">${item.product_name || item.product_code} ${item.supplier ? `<span style="color: var(--accent-purple); font-weight: 600;">- ${item.supplier}</span>` : ''}</span>
                                 <span class="cart-item-code">${item.product_code}</span>
                             </div>
                             <div class="cart-item-details" style="display: flex; align-items: center; gap: 0.75rem;">
@@ -3957,7 +3957,7 @@
                             <div class="cart-item" style="border-left: 3px solid var(--accent-amber);">
                                 <button class="cart-item-remove" onclick="removeItem(${itemIndex})" style="position: absolute; top: 0.5rem; right: 0.5rem; width: 24px; height: 24px; border: none; background: var(--accent-rose); color: white; border-radius: 50%; cursor: pointer; font-size: 1.2rem; font-weight: 600; display: flex; align-items: center; justify-content: center; line-height: 1; z-index: 10;">×</button>
                                 <div class="cart-item-header">
-                                    <span class="cart-item-name">${item.product_name}</span>
+                                    <span class="cart-item-name">${item.product_name} ${item.supplier ? `<span style="color: var(--accent-purple); font-weight: 600;">- ${item.supplier}</span>` : ''}</span>
                                     <span class="cart-item-code">${item.product_code}</span>
                                 </div>
                                 <div class="cart-item-details" style="display: flex; align-items: center; gap: 0.75rem;">
@@ -4124,7 +4124,7 @@
                                     <button class="cart-item-remove" onclick="removeItem(${itemIndex})" ${!canRemove ? 'disabled' : ''} style="${removeBtnStyle}" ${isExisting && orderFormLocked ? 'title="Cannot remove items from existing orders when order form is locked"' : ''}>×</button>
                                 </div>` : `<button class="cart-item-remove" onclick="removeItem(${itemIndex})" ${!canRemove ? 'disabled' : ''} style="${removeBtnStyle}" ${isExisting && orderFormLocked ? 'title="Cannot remove items from existing orders when order form is locked"' : ''}>×</button>`}
                                 <div class="cart-item-header" style="margin-bottom: 0.5rem;">
-                                    <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.25rem;">${item.product_name}${hasChanged ? ' <span style="font-size: 0.75rem; color: var(--accent-teal);">(Updated)</span>' : ''}</div>
+                                    <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.25rem;">${item.product_name} ${item.supplier ? `<span style="color: var(--accent-purple); font-weight: 600;">- ${item.supplier}</span>` : ''}${hasChanged ? ' <span style="font-size: 0.75rem; color: var(--accent-teal);">(Updated)</span>' : ''}</div>
                                     <div style="font-size: 0.85rem; color: var(--text-secondary);">${item.order_type} × <span id="qty-${itemIndex}">${item.qty}</span></div>
                                 </div>
                                 <div class="cart-item-details" style="display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;">
@@ -5815,7 +5815,7 @@
                 <div class="cart-item" id="confirmation-item-${i}">
                     <button class="cart-item-remove" onclick="removeFromConfirmation(${i})">×</button>
                     <div class="cart-item-header">
-                        <span class="cart-item-name">${item.product_name}</span>
+                        <span class="cart-item-name">${item.product_name} ${item.supplier ? `<span style="color: var(--accent-purple); font-weight: 600;">- ${item.supplier}</span>` : ''}</span>
                         <span class="cart-item-code">${item.product_code}</span>
                     </div>
                     <div class="cart-item-details">
@@ -6373,7 +6373,7 @@
                 modalItems.innerHTML = order.items.map(item => `
                     <div class="order-item-row">
                         <div class="order-item-info">
-                            <div>${item.product_name}</div>
+                            <div>${item.product_name}${item.supplier ? ` <span style="color: var(--accent-purple); font-weight: 600;">- ${item.supplier}</span>` : ''}</div>
                             <div class="order-item-qty">${item.order_type} × ${item.qty}</div>
                         </div>
                         <div>₱${item.line_total_php.toFixed(2)}</div>
@@ -6511,7 +6511,7 @@
                     ${order.items.map((item, index) => `
                         <div class="order-item-row" style="display: flex; align-items: center; gap: 0.5rem;">
                             <div class="order-item-info" style="flex: 1;">
-                                <div>${item.product_name}</div>
+                                <div>${item.product_name}${item.supplier ? ` <span style="color: var(--accent-purple); font-weight: 600;">- ${item.supplier}</span>` : ''}</div>
                                 <div class="order-item-qty">${item.order_type} × <span id="item-qty-${index}">${item.qty}</span></div>
                             </div>
                             <div style="display: flex; align-items: center; gap: 0.5rem;">

@@ -6619,6 +6619,115 @@ Thank you! 💜"""
     else:
         return jsonify({'error': 'Failed to send Telegram message'}), 500
 
+@app.route('/api/admin/orders/<order_id>/update-supplier', methods=['POST'])
+def api_admin_update_supplier(order_id):
+    """Admin: Update supplier for an item in an existing order and recalculate prices"""
+    if not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    order = get_order_by_id(order_id)
+    if not order:
+        return jsonify({'error': 'Order not found'}), 404
+    
+    data = request.json
+    product_code = data.get('product_code')
+    order_type = data.get('order_type')
+    new_supplier = data.get('supplier')
+    
+    if not product_code or not order_type or not new_supplier:
+        return jsonify({'error': 'Missing product_code, order_type, or supplier'}), 400
+    
+    try:
+        # Get all products to find the product with new supplier
+        products = get_cached_products()
+        
+        # Find the product with the new supplier
+        product = next((p for p in products 
+                       if str(p.get('code', '')).strip().upper() == product_code.upper() 
+                       and str(p.get('supplier', '')).strip() == new_supplier), None)
+        
+        if not product:
+            return jsonify({
+                'success': False,
+                'error': f'Product {product_code} not found for supplier {new_supplier}'
+            }), 404
+        
+        # Get the correct price for the new supplier
+        new_price = product['kit_price'] if order_type == 'Kit' else product['vial_price']
+        
+        if not sheets_client:
+            return jsonify({'error': 'Sheets client not initialized'}), 500
+        
+        spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
+        worksheet = get_pephaul_worksheet(spreadsheet)
+        if not worksheet:
+            return jsonify({'error': 'Worksheet not found'}), 404
+        
+        # Get all existing data
+        all_values = worksheet.get_all_values()
+        headers = all_values[0] if all_values else []
+        
+        # Find column indices
+        col_indices = {
+            'order_id': headers.index('Order ID') if 'Order ID' in headers else 0,
+            'supplier': headers.index('Supplier') if 'Supplier' in headers else 4,
+            'product_code': headers.index('Product Code') if 'Product Code' in headers else 5,
+            'order_type': headers.index('Order Type') if 'Order Type' in headers else 7,
+            'qty': headers.index('QTY') if 'QTY' in headers else 8,
+            'unit_price': headers.index('Unit Price USD') if 'Unit Price USD' in headers else 9,
+            'line_total_usd': headers.index('Line Total USD') if 'Line Total USD' in headers else 10,
+            'exchange_rate': headers.index('Exchange Rate') if 'Exchange Rate' in headers else 11,
+            'line_total_php': headers.index('Line Total PHP') if 'Line Total PHP' in headers else 12,
+        }
+        
+        # Find the row to update
+        updated = False
+        for row_idx, row in enumerate(all_values[1:], start=2):  # Start from row 2 (skip header)
+            if (row[col_indices['order_id']] == order_id and 
+                row[col_indices['product_code']].strip().upper() == product_code.upper() and 
+                row[col_indices['order_type']] == order_type):
+                
+                # Get quantity and exchange rate
+                qty = float(row[col_indices['qty']]) if row[col_indices['qty']] else 0
+                exchange_rate = float(row[col_indices['exchange_rate']]) if row[col_indices['exchange_rate']] else FALLBACK_EXCHANGE_RATE
+                
+                # Calculate new totals
+                new_line_total_usd = new_price * qty
+                new_line_total_php = new_line_total_usd * exchange_rate
+                
+                # Update supplier and prices
+                worksheet.update_cell(row_idx, col_indices['supplier'] + 1, new_supplier)
+                worksheet.update_cell(row_idx, col_indices['unit_price'] + 1, new_price)
+                worksheet.update_cell(row_idx, col_indices['line_total_usd'] + 1, new_line_total_usd)
+                worksheet.update_cell(row_idx, col_indices['line_total_php'] + 1, new_line_total_php)
+                
+                updated = True
+                print(f"✅ Updated {product_code} ({order_type}) in {order_id}: Supplier={new_supplier}, Price=${new_price}, Total=${new_line_total_usd}")
+                break
+        
+        if not updated:
+            return jsonify({'error': 'Item not found in order'}), 404
+        
+        # Clear cache and recalculate order total
+        clear_cache_prefix('orders_')
+        clear_cache_prefix('inventory_')
+        clear_cache_prefix('order_stats_')
+        recalculate_order_total(order_id)
+        
+        return jsonify({
+            'success': True, 
+            'message': f'Supplier updated to {new_supplier} and prices recalculated',
+            'new_price': new_price,
+            'new_line_total_usd': new_line_total_usd,
+            'new_line_total_php': new_line_total_php
+        })
+        
+    except Exception as e:
+        print(f"❌ Error updating supplier: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Failed to update supplier: {str(e)}'}), 500
+
 
 
 # PepHaul Entry Tab Management with Persistent Storage
