@@ -2193,13 +2193,33 @@
         // Load Customer Summary - PepHaul Entry scoped
         async function loadCustomerSummary() {
             try {
-                const response = await fetch('/api/admin/customer-summary', { credentials: 'same-origin' });
+                // Pass current tab name to ensure API fetches from correct tab
+                const tabParam = `?tab_name=${encodeURIComponent(CURRENT_PEPHAUL_TAB)}`;
+                const response = await fetch(`/api/admin/customer-summary${tabParam}`, { credentials: 'same-origin' });
+                
+                // Check if response is ok
+                if (!response.ok) {
+                    throw new Error(`API returned ${response.status}: ${response.statusText}`);
+                }
+                
                 const customers = await response.json();
+                
+                // Handle error response from API
+                if (customers.error) {
+                    throw new Error(customers.error);
+                }
                 
                 // Find the customer summary table body (single table for current PepHaul Entry tab)
                 const tbody = document.querySelector('.customer-summary-tbody');
                 if (!tbody) {
                     console.warn('Customer summary table body not found');
+                    return;
+                }
+                
+                // Ensure customers is an array
+                if (!Array.isArray(customers)) {
+                    console.error('Invalid response format:', customers);
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: var(--accent-rose);">Error: Invalid response format</td></tr>';
                     return;
                 }
                 

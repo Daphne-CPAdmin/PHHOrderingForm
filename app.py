@@ -6473,7 +6473,21 @@ def api_admin_customer_summary():
     if not session.get('is_admin'):
         return jsonify({'error': 'Unauthorized'}), 401
     
-    orders = get_orders_from_sheets()
+    # Accept optional tab_name parameter to fetch from specific tab
+    tab_name = request.args.get('tab_name', '').strip()
+    if tab_name:
+        # Fetch orders directly from specified tab (bypassing cache to ensure correct tab)
+        print(f"📊 Customer Summary: Fetching orders from tab '{tab_name}' (explicit parameter)")
+        orders = _fetch_orders_from_sheets(tab_name)
+        orders = _enrich_orders_with_supplier(orders)
+        print(f"📊 Customer Summary: Found {len(orders)} order items from tab '{tab_name}'")
+    else:
+        # Use default behavior (current tab from session)
+        current_tab = get_current_pephaul_tab()
+        print(f"📊 Customer Summary: Fetching orders from current tab '{current_tab}' (session/default)")
+        orders = get_orders_from_sheets()
+        print(f"📊 Customer Summary: Found {len(orders)} order items from current tab")
+    
     products = get_products()
     
     # Build product lookup for vials_per_kit
