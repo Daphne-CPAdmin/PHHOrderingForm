@@ -4422,6 +4422,7 @@ def api_submit_order():
                     break
             
             # Fallback: if not found, try without supplier match (for backward compatibility)
+            # BUT only if there's exactly ONE product with this code (to avoid ambiguity)
             if not product:
                 print(f"⚠️ Product '{product_code}' not found with supplier '{supplier}', trying without supplier match")
                 # Show available products with this code for debugging
@@ -4430,7 +4431,20 @@ def api_submit_order():
                     print(f"   Found {len(matching_codes)} product(s) with code '{product_code}':")
                     for p in matching_codes:
                         print(f"     - {p.get('name')} (supplier: '{p.get('supplier', 'Default')}')")
-                product = next((p for p in products if str(p.get('code', '')).strip().upper() == product_code.upper()), None)
+                    
+                    # Only use fallback if there's exactly ONE product with this code
+                    if len(matching_codes) == 1:
+                        product = matching_codes[0]
+                        print(f"✅ Using single matching product: {product.get('name')} (supplier: '{product.get('supplier', 'Default')}')")
+                    else:
+                        # Multiple products with same code but different suppliers - this is ambiguous!
+                        print(f"❌ AMBIGUOUS: Multiple products found with code '{product_code}' from different suppliers")
+                        print(f"   User requested supplier: '{supplier}'")
+                        print(f"   Available suppliers: {[p.get('supplier', 'Default') for p in matching_codes]}")
+                        return jsonify({
+                            'success': False,
+                            'error': f'Product {product_code} not found for supplier {supplier}. Please contact support.'
+                        }), 404
             
             if not product:
                 print(f"❌ Product {product_code} not found in products list")
@@ -4523,8 +4537,11 @@ def api_submit_order():
                     break
             
             # Fallback: if not found with supplier match, try without supplier (backward compatibility)
+            # BUT only if there's exactly ONE product with this code (to avoid ambiguity)
             if not product:
-                product = next((p for p in products if str(p.get('code', '')).strip().upper() == product_code.upper()), None)
+                matching_codes = [p for p in products if str(p.get('code', '')).strip().upper() == product_code.upper()]
+                if len(matching_codes) == 1:
+                    product = matching_codes[0]
             
             vials_per_kit = product.get('vials_per_kit', 10) if product else 10
             
@@ -4654,6 +4671,19 @@ def api_add_items(order_id=None):
                     'success': False,
                     'error': f'Item {idx + 1}: Quantity must be a positive number'
                 }), 400
+        
+        # Check if order form is locked
+        try:
+            order_form_lock = get_order_form_lock()
+            if order_form_lock.get('is_locked', False):
+                lock_message = order_form_lock.get('message', 'Orders are currently closed. Order updates cannot be submitted at this time.')
+                return jsonify({
+                    'success': False,
+                    'error': lock_message
+                }), 403
+        except Exception as e:
+            print(f"⚠️ Error checking order form lock status: {e}")
+            # Continue if lock check fails (fail open for availability)
         
         # If order_id not in URL, try to get from request body or use telegram lookup
         if not order_id:
@@ -4813,8 +4843,18 @@ def api_add_items(order_id=None):
                         break
                 
                 # Fallback: if not found with supplier match, try without supplier (backward compatibility)
+                # BUT only if there's exactly ONE product with this code (to avoid ambiguity)
                 if not product:
-                    product = next((p for p in products if str(p.get('code', '')).strip().upper() == product_code.upper()), None)
+                    matching_codes = [p for p in products if str(p.get('code', '')).strip().upper() == product_code.upper()]
+                    if len(matching_codes) == 1:
+                        product = matching_codes[0]
+                    elif len(matching_codes) > 1:
+                        # Multiple products with same code - ambiguous!
+                        print(f"❌ AMBIGUOUS: Multiple products found with code '{product_code}' from different suppliers")
+                        return jsonify({
+                            'success': False,
+                            'error': f'Product {product_code} not found for supplier {item_supplier}. Please contact support.'
+                        }), 404
                 
                 if not product:
                     return jsonify({

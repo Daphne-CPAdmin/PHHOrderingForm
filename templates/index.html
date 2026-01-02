@@ -7368,18 +7368,25 @@
         window.quickAddToCart = quickAddToCart;
 
         // Inventory Search
-        const inventorySearchInput = document.getElementById('inventory-search');
-        if (inventorySearchInput) {
-            inventorySearchInput.addEventListener('input', (e) => {
+        // Live Inventory Search - support multiple search inputs (one per supplier)
+        document.querySelectorAll('.inventory-search-input').forEach(searchInput => {
+            searchInput.addEventListener('input', (e) => {
                 const query = e.target.value.toLowerCase();
-                document.querySelectorAll('.inventory-card').forEach(card => {
-                    const code = card.dataset.code.toLowerCase();
-                    const name = card.dataset.name.toLowerCase();
+                const supplier = e.target.getAttribute('data-supplier');
+                
+                // Find the inventory section for this supplier
+                const inventorySection = document.querySelector(`.supplier-inventory[data-supplier="${supplier}"]`);
+                if (!inventorySection) return;
+                
+                // Filter inventory cards within this supplier's section
+                inventorySection.querySelectorAll('.inventory-card').forEach(card => {
+                    const code = (card.dataset.code || '').toLowerCase();
+                    const name = (card.dataset.name || '').toLowerCase();
                     const visible = code.includes(query) || name.includes(query);
                     card.style.display = visible ? '' : 'none';
                 });
             });
-        }
+        });
 
         // Initialize
         // On page load: only load cart if Name and Telegram are filled
