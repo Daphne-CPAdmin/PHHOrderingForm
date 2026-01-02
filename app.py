@@ -895,10 +895,23 @@ def set_tab_lock_status(tab_name, is_locked, message=''):
         try:
             spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
             
-            # Ensure Settings sheet exists
+            # Ensure Settings sheet exists and has correct structure
             try:
                 worksheet = spreadsheet.worksheet('Settings')
+                
+                # CRITICAL: Expand columns if needed (Settings sheet must have 5 columns: A-E)
+                # This fixes "exceeds grid limits" error when existing sheet has < 5 columns
+                current_cols = worksheet.col_count
+                if current_cols < 5:
+                    print(f"📊 Expanding Settings sheet from {current_cols} to 5 columns...")
+                    worksheet.resize(cols=5)
+                
+                # Ensure header row exists
+                all_values = worksheet.get_all_values()
+                if not all_values or len(all_values[0]) < 5:
+                    worksheet.update('A1:E1', [['Setting', 'Tab Name', 'Value', 'Message', 'Updated']])
             except:
+                # Create Settings sheet if doesn't exist
                 worksheet = spreadsheet.add_worksheet(title='Settings', rows=100, cols=5)
                 worksheet.update('A1:E1', [['Setting', 'Tab Name', 'Value', 'Message', 'Updated']])
             
@@ -917,17 +930,19 @@ def set_tab_lock_status(tab_name, is_locked, message=''):
                 worksheet.update_cell(tab_row, 1, 'Tab Lock Status')
                 worksheet.update_cell(tab_row, 2, tab_name)
             
-            # Update values
+            # Update values - now safe because we ensured 5 columns exist
             worksheet.update_cell(tab_row, 3, 'Yes' if is_locked else 'No')
             worksheet.update_cell(tab_row, 4, sanitized_message)
             worksheet.update_cell(tab_row, 5, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+            
+            print(f"✅ Successfully saved lock status to Google Sheets row {tab_row}")
             
             # Clear cache since settings changed
             clear_cache('per_tab_lock_status')
             
             return True
         except Exception as e:
-            print(f"Error setting tab lock status: {e}")
+            print(f"❌ Error setting tab lock status: {e}")
             return False
     
     return True
