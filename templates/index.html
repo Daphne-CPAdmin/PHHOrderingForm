@@ -1878,8 +1878,8 @@
             <div style="font-size: 3rem; margin-bottom: 1rem;">🔒</div>
             <h2 style="color: #991b1b; margin-bottom: 0.75rem; font-size: 1.5rem;">Orders Currently Closed</h2>
             <div style="color: #7f1d1d; font-size: 1rem; max-width: 650px; margin: 0 auto;">
-                {% if order_form_lock_message %}
-                    {{ order_form_lock_message|safe }}
+                {% if lock_message %}
+                    {{ lock_message|safe }}
                 {% else %}
                     The order form is currently locked. New orders cannot be submitted at this time. Please check back later!
                 {% endif %}
@@ -7058,23 +7058,31 @@
             
             // Manage visibility when order form is locked
             const orderFormLocked = {{ order_form_locked|tojson }};
+            console.log('[DOMContentLoaded] Order form locked status:', orderFormLocked);
+            
             if (orderFormLocked) {
-                // Hide Order Statistics section
-                const statsSection = document.querySelector('.stats-banner.supplier-stats[data-supplier="{{ tab_supplier }}"]');
+                // Hide Order Statistics section (use class selector for reliability)
+                const statsSection = document.querySelector('.stats-banner.supplier-stats');
+                console.log('[DOMContentLoaded] Stats section found:', statsSection);
                 if (statsSection) {
                     statsSection.style.display = 'none';
+                    console.log('[DOMContentLoaded] Stats section hidden');
                 }
                 
                 // Show lock banner
                 const lockBanner = document.getElementById('locked-banner');
+                console.log('[DOMContentLoaded] Lock banner found:', lockBanner);
                 if (lockBanner) {
                     lockBanner.style.display = 'block';
+                    console.log('[DOMContentLoaded] Lock banner shown');
                 }
                 
                 // Show timeline section
                 const timelineSection = document.getElementById('timeline-section');
+                console.log('[DOMContentLoaded] Timeline section found:', timelineSection);
                 if (timelineSection) {
                     timelineSection.style.display = 'block';
+                    console.log('[DOMContentLoaded] Timeline section shown');
                 }
                 
                 // Load all orders for Customer Summary
@@ -7098,7 +7106,7 @@
                 }
                 
                 // Show Order Statistics section
-                const statsSection = document.querySelector('.stats-banner.supplier-stats[data-supplier="{{ tab_supplier }}"]');
+                const statsSection = document.querySelector('.stats-banner.supplier-stats');
                 if (statsSection) {
                     statsSection.style.display = 'block';
                 }
