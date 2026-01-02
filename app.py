@@ -342,6 +342,39 @@ MAX_KITS_DEFAULT = 100  # Default max kits per product
 # Load supplier filters from persistent storage
 _pephaul_supplier_filter = _load_settings().get('supplier_filters', {})  # tab_name -> supplier_filter ('all' or supplier name)
 
+def _load_supplier_filters_from_sheets():
+    """Load supplier filters from Google Sheets Settings tab as fallback"""
+    if not sheets_client:
+        return {}
+    
+    try:
+        spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
+        
+        try:
+            worksheet = spreadsheet.worksheet('Settings')
+            records = worksheet.get_all_records()
+            
+            supplier_filters = {}
+            for record in records:
+                if record.get('Setting') == 'Supplier Filter':
+                    tab_name = record.get('Tab Name', '').strip()
+                    supplier_value = record.get('Value', '').strip()
+                    if tab_name and supplier_value:
+                        supplier_filters[tab_name] = supplier_value
+            
+            if supplier_filters:
+                print(f"📊 Loaded {len(supplier_filters)} supplier filters from Google Sheets")
+            return supplier_filters
+        except:
+            return {}
+    except Exception as e:
+        print(f"⚠️ Could not load supplier filters from Google Sheets: {e}")
+        return {}
+
+# If JSON file is empty, try loading from Google Sheets as fallback
+if not _pephaul_supplier_filter:
+    _pephaul_supplier_filter = _load_supplier_filters_from_sheets()
+
 def get_supplier_filter_for_tab(tab_name: str) -> str:
     tab_name = str(tab_name or '').strip() or get_current_pephaul_tab()
     return str(_pephaul_supplier_filter.get(tab_name, 'all') or 'all').strip() or 'all'
@@ -351,16 +384,64 @@ def set_supplier_filter_for_tab(tab_name: str, supplier_filter: str) -> str:
     supplier_filter = str(supplier_filter or 'all').strip() or 'all'
     _pephaul_supplier_filter[tab_name] = supplier_filter
     
-    # Save to persistent storage
+    # Save to persistent storage (JSON file)
     try:
         settings = _load_settings()
         if 'supplier_filters' not in settings:
             settings['supplier_filters'] = {}
         settings['supplier_filters'][tab_name] = supplier_filter
         _save_settings(settings)
-        print(f"✅ Persisted supplier filter for {tab_name}: {supplier_filter}")
+        print(f"✅ Persisted supplier filter to JSON for {tab_name}: {supplier_filter}")
     except Exception as e:
-        print(f"⚠️ Could not persist supplier filter: {e}")
+        print(f"⚠️ Could not persist supplier filter to JSON: {e}")
+    
+    # ALSO save to Google Sheets Settings tab as fallback (survives server restarts)
+    if sheets_client:
+        try:
+            spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
+            
+            # Ensure Settings sheet exists and has correct structure
+            try:
+                worksheet = spreadsheet.worksheet('Settings')
+                
+                # Expand columns if needed (same as lock status fix)
+                current_cols = worksheet.col_count
+                if current_cols < 5:
+                    print(f"📊 Expanding Settings sheet from {current_cols} to 5 columns...")
+                    worksheet.resize(cols=5)
+                
+                # Ensure header row exists
+                all_values = worksheet.get_all_values()
+                if not all_values or len(all_values[0]) < 5:
+                    worksheet.update('A1:E1', [['Setting', 'Tab Name', 'Value', 'Message', 'Updated']])
+            except:
+                # Create Settings sheet if doesn't exist
+                worksheet = spreadsheet.add_worksheet(title='Settings', rows=100, cols=5)
+                worksheet.update('A1:E1', [['Setting', 'Tab Name', 'Value', 'Message', 'Updated']])
+            
+            # Find or create the supplier filter setting row
+            all_values = worksheet.get_all_values()
+            supplier_row = None
+            
+            for i, row in enumerate(all_values):
+                if len(row) >= 2 and row[0] == 'Supplier Filter' and row[1] == tab_name:
+                    supplier_row = i + 1
+                    break
+            
+            if supplier_row is None:
+                # Add new row
+                supplier_row = len(all_values) + 1
+                worksheet.update_cell(supplier_row, 1, 'Supplier Filter')
+                worksheet.update_cell(supplier_row, 2, tab_name)
+            
+            # Update values
+            worksheet.update_cell(supplier_row, 3, supplier_filter)
+            worksheet.update_cell(supplier_row, 4, '')  # No message for supplier filter
+            worksheet.update_cell(supplier_row, 5, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+            
+            print(f"✅ Persisted supplier filter to Google Sheets for {tab_name}: {supplier_filter}")
+        except Exception as e:
+            print(f"⚠️ Could not persist supplier filter to Google Sheets: {e}")
     
     return supplier_filter
 
