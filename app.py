@@ -877,7 +877,8 @@ def _fetch_per_tab_lock_status():
 
 def get_tab_lock_status(tab_name):
     """Get lock status for a specific tab"""
-    all_statuses = get_cached('per_tab_lock_status', _fetch_per_tab_lock_status, cache_duration=600)
+    # Use shorter cache duration (60 seconds) so lock status updates are reflected quickly
+    all_statuses = get_cached('per_tab_lock_status', _fetch_per_tab_lock_status, cache_duration=60)
     return all_statuses.get(tab_name, {'is_locked': False, 'message': ''})
 
 def set_tab_lock_status(tab_name, is_locked, message=''):
@@ -7061,10 +7062,15 @@ def api_admin_tab_settings():
             if supplier:
                 set_supplier_filter_for_tab(tab_name, supplier)
             
-            # Update lock status
+            # Update lock status (this clears per_tab_lock_status cache internally)
             set_tab_lock_status(tab_name, is_locked, lock_message)
             
-            print(f"✅ Updated tab settings for {tab_name}: Supplier={supplier}, Locked={is_locked}")
+            # IMPORTANT: Clear ALL related caches to ensure customer panel sees updated status
+            clear_cache('per_tab_lock_status')  # Redundant but ensures it's cleared
+            clear_cache_prefix('orders_')  # Clear orders cache as lock affects order submission
+            clear_cache_prefix('inventory_')  # Clear inventory cache
+            
+            print(f"✅ Updated tab settings for {tab_name}: Supplier={supplier}, Locked={is_locked}, Message={lock_message[:50] if lock_message else '(none)'}")
             
             return jsonify({
                 'success': True,
@@ -7075,6 +7081,8 @@ def api_admin_tab_settings():
             })
         except Exception as e:
             print(f"Error updating tab settings: {e}")
+            import traceback
+            traceback.print_exc()
             return jsonify({'error': str(e)}), 500
 
 @app.route('/api/admin/all-tab-settings', methods=['GET'])
