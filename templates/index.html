@@ -1874,7 +1874,7 @@
 
         {% if order_form_locked %}
         <!-- Order Form Locked Banner -->
-        <div class="locked-banner" style="background: linear-gradient(135deg, #fecaca 0%, #fca5a5 100%); border: 2px solid #ef4444; border-radius: 16px; padding: 2rem; margin-bottom: 2rem; text-align: center;">
+        <div class="locked-banner" id="locked-banner" style="background: linear-gradient(135deg, #fecaca 0%, #fca5a5 100%); border: 2px solid #ef4444; border-radius: 16px; padding: 2rem; margin-bottom: 2rem; text-align: center; display: block;">
             <div style="font-size: 3rem; margin-bottom: 1rem;">🔒</div>
             <h2 style="color: #991b1b; margin-bottom: 0.75rem; font-size: 1.5rem;">Orders Currently Closed</h2>
             <div style="color: #7f1d1d; font-size: 1rem; max-width: 650px; margin: 0 auto;">
@@ -1889,7 +1889,7 @@
 
         <!-- Embedded Timeline Section - Only show when form is locked -->
         {% if order_form_locked %}
-        <div id="timeline-section" style="display: none; margin-bottom: 2rem;">
+        <div id="timeline-section" style="display: block; margin-bottom: 2rem;">
             <div class="card" style="border: 2px solid #fbbf24; background: linear-gradient(135deg, rgba(251, 191, 36, 0.05) 0%, rgba(251, 191, 36, 0.02) 100%);">
                 <h2 style="font-size: 1.5rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.25rem; display: flex; align-items: center; gap: 0.5rem;">
                     📅 Order Timeline
@@ -6921,6 +6921,9 @@
                 return;
             }
             
+            // Show timeline section when form is locked
+            timelineSection.style.display = 'block';
+            
             try {
                 // Get current tab (synced from admin panel via postMessage, fallback to server default)
                 const response = await fetch(getTimelineApiUrl());
@@ -7053,13 +7056,51 @@
                 addressInput.addEventListener('input', updateMailingAddressCharCount);
             }
             
-            // Load all orders for Customer Summary if order form is locked
+            // Manage visibility when order form is locked
             const orderFormLocked = {{ order_form_locked|tojson }};
             if (orderFormLocked) {
+                // Hide Order Statistics section
+                const statsSection = document.querySelector('.stats-banner.supplier-stats[data-supplier="{{ tab_supplier }}"]');
+                if (statsSection) {
+                    statsSection.style.display = 'none';
+                }
+                
+                // Show lock banner
+                const lockBanner = document.getElementById('locked-banner');
+                if (lockBanner) {
+                    lockBanner.style.display = 'block';
+                }
+                
+                // Show timeline section
+                const timelineSection = document.getElementById('timeline-section');
+                if (timelineSection) {
+                    timelineSection.style.display = 'block';
+                }
+                
+                // Load all orders for Customer Summary
                 loadAllOrdersForSummary();
-                // Load embedded timeline (screenshot 3 style) when locked
+                
+                // Load embedded timeline
                 if (typeof loadTimeline === 'function') {
-            loadTimeline();
+                    loadTimeline();
+                }
+            } else {
+                // Hide lock banner when form is open
+                const lockBanner = document.getElementById('locked-banner');
+                if (lockBanner) {
+                    lockBanner.style.display = 'none';
+                }
+                
+                // Hide timeline section when form is open
+                const timelineSection = document.getElementById('timeline-section');
+                if (timelineSection) {
+                    timelineSection.style.display = 'none';
+                }
+                
+                // Show Order Statistics section
+                const statsSection = document.querySelector('.stats-banner.supplier-stats[data-supplier="{{ tab_supplier }}"]');
+                if (statsSection) {
+                    statsSection.style.display = 'block';
                 }
             }
         });
