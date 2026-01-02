@@ -15,7 +15,6 @@ from collections import defaultdict
 from functools import wraps
 import secrets
 import time
-from validate_syntax import validate_file
 
 # Load environment variables
 load_dotenv()
@@ -7439,8 +7438,27 @@ def api_admin_rename_pephaul_tab():
         return jsonify({'error': str(e)}), 500
 
 # Initialize on startup
-init_google_services()
-ensure_worksheets_exist()
+try:
+    print("🚀 Initializing Google services...")
+    init_google_services()
+    print("✅ Google services initialized")
+except Exception as e:
+    print(f"⚠️ Warning: Could not initialize Google services: {e}")
+    print("   App will start but some features may not work")
+    import traceback
+    traceback.print_exc()
+
+try:
+    print("📋 Ensuring worksheets exist...")
+    ensure_worksheets_exist()
+    print("✅ Worksheets check complete")
+except Exception as e:
+    print(f"⚠️ Warning: Could not ensure worksheets exist: {e}")
+    print("   App will start but some sheets may need to be created manually")
+    import traceback
+    traceback.print_exc()
+
+print("✅ App startup complete - ready to accept requests")
 
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 5000))
