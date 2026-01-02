@@ -5477,6 +5477,27 @@ def api_cancel_order(order_id=None):
     # Delete all rows for this order (matching both order_id and telegram username)
     if delete_order_rows(order_id, telegram_username=order.get('telegram')):
         print(f"✅ Order {order_id} cancelled and all rows deleted (Telegram: {order.get('telegram', 'N/A')})")
+        
+        # Send Telegram notification to admin @deejay1992
+        customer_name = order.get('name', 'Unknown Customer')
+        telegram_user = order.get('telegram', 'N/A')
+        current_tab = get_current_pephaul_tab()
+        
+        notification_message = (
+            f"🚫 <b>Order Cancelled</b>\n\n"
+            f"📋 Order ID: <code>{order_id}</code>\n"
+            f"👤 Customer: {customer_name}\n"
+            f"💬 Telegram: @{telegram_user.lstrip('@')}\n"
+            f"📊 Tab: {current_tab}\n"
+            f"🕐 Cancelled: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        )
+        
+        try:
+            send_telegram_notification(notification_message)
+            print(f"📲 Cancellation notification sent to admin")
+        except Exception as e:
+            print(f"⚠️ Could not send cancellation notification: {e}")
+        
         return jsonify({
             'success': True, 
             'message': f'Order {order_id} cancelled and removed from sheets',
