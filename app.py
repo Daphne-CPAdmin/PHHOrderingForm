@@ -6621,6 +6621,14 @@ def api_admin_customer_summary():
         orders = get_orders_from_sheets()
         print(f"📊 Customer Summary: Found {len(orders)} order items from current tab")
     
+    # Debug: Show sample order fields to diagnose missing data
+    if orders and len(orders) > 0:
+        sample_order = orders[0]
+        print(f"📊 Customer Summary: Sample order fields: {list(sample_order.keys())}")
+        print(f"📊 Customer Summary: Sample order - Order ID: {sample_order.get('Order ID')}, Name: {sample_order.get('Name')}, Telegram: {sample_order.get('Telegram Username')}")
+    else:
+        print(f"⚠️ Customer Summary: No orders found!")
+    
     products = get_products()
     
     # Build product lookup for vials_per_kit
@@ -6636,9 +6644,18 @@ def api_admin_customer_summary():
         if not order_id:
             continue
         
-        # Get customer name
-        customer_name = order.get('Name', order.get('Full Name', ''))
+        # Get customer name - try multiple field names (orders may have different structures)
+        # Priority: Name, Full Name, Customer Name, Telegram Username (as fallback identifier)
+        customer_name = (
+            order.get('Name', '') or 
+            order.get('Full Name', '') or 
+            order.get('Customer Name', '') or 
+            order.get('Telegram Username', '')
+        ).strip()
+        
+        # Skip if no customer identifier found
         if not customer_name:
+            print(f"⚠️ Order {order_id}: No customer name/identifier found, skipping")
             continue
         
         # Initialize customer if not exists
@@ -6713,6 +6730,11 @@ def api_admin_customer_summary():
         })
     
     result.sort(key=lambda x: x['total_grand_total_php'], reverse=True)
+    
+    print(f"📊 Customer Summary: Returning {len(result)} unique customers from {len(orders)} order items")
+    if len(result) == 0 and len(orders) > 0:
+        print(f"⚠️ Customer Summary: WARNING - {len(orders)} orders found but 0 customers extracted!")
+        print(f"⚠️ Customer Summary: This suggests customer name fields are missing or empty")
     
     return jsonify(result)
 
