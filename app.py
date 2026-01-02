@@ -3122,6 +3122,8 @@ def admin_panel():
         current_supplier = infer_supplier_from_orders()
 
     all_suppliers = sorted(set([p.get('supplier', 'Default') for p in (products or [])])) or ['Default']
+    # Filter out 'all' from supplier assignments (tabs should be locked to specific suppliers)
+    all_suppliers = [s for s in all_suppliers if s.lower() != 'all']
     suppliers = [current_supplier]  # tab-scoped sections should only render once
     return render_template(
         'admin.html',

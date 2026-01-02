@@ -683,6 +683,40 @@
                         <span id="lock-message-save-status" style="margin-left: 1rem; font-size: 0.85rem; color: #7c3aed; display: none;"></span>
                     </div>
                 </div>
+                
+                <!-- Tab Lock Status Table -->
+                <div style="margin-top: 2rem; padding-top: 1.5rem; border-top: 2px solid #e5e7eb;">
+                    <h3 style="font-size: 1.1rem; font-weight: 600; color: var(--text-primary); margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                        📋 Per-Tab Lock Status
+                    </h3>
+                    <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem;">
+                        Control lock status for individual PepHaul Entry tabs. Each tab can be locked independently.
+                    </p>
+                    <div style="overflow-x: auto;">
+                        <table class="products-table" style="width: 100%; min-width: 600px;">
+                            <thead>
+                                <tr style="background: #f9fafb;">
+                                    <th style="text-align: left; padding: 0.75rem 1rem; font-weight: 600; color: var(--text-secondary); border-bottom: 2px solid #e5e7eb;">
+                                        PepHaul Entry Tab
+                                    </th>
+                                    <th style="text-align: center; padding: 0.75rem 1rem; font-weight: 600; color: var(--text-secondary); border-bottom: 2px solid #e5e7eb;">
+                                        Lock Status
+                                    </th>
+                                    <th style="text-align: center; padding: 0.75rem 1rem; font-weight: 600; color: var(--text-secondary); border-bottom: 2px solid #e5e7eb;">
+                                        Actions
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody id="tab-lock-status-tbody">
+                                <tr>
+                                    <td colspan="3" style="text-align: center; padding: 2rem; color: var(--text-muted);">
+                                        Loading tab lock statuses...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
 
             <!-- Unified PepHaul Entry Tab Settings -->
@@ -3643,6 +3677,9 @@
                 // Load supplier assignments table
                 await loadSupplierAssignmentsTable();
                 
+                // Load tab lock status table
+                await loadTabLockStatusTable();
+                
             } catch (error) {
                 console.error('Error loading tab settings:', error);
                 const tabSelector = document.getElementById('tab-settings-selector');
@@ -3742,6 +3779,121 @@
                         </td>
                     </tr>
                 `;
+            }
+        }
+        
+        // Load tab lock status table showing lock status for all tabs
+        async function loadTabLockStatusTable() {
+            const tbody = document.getElementById('tab-lock-status-tbody');
+            if (!tbody) return;
+            
+            try {
+                // Fetch all tabs
+                const tabsResponse = await fetch('/api/admin/pephaul-tabs', { credentials: 'same-origin' });
+                if (!tabsResponse.ok) {
+                    throw new Error('Failed to load tabs');
+                }
+                const tabsData = await tabsResponse.json();
+                const tabs = tabsData.tabs || [];
+                
+                if (tabs.length === 0) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="3" style="text-align: center; padding: 2rem; color: var(--text-muted);">
+                                No PepHaul Entry tabs available
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+                
+                // Fetch lock status for each tab
+                let html = '';
+                for (const tab of tabs) {
+                    try {
+                        const lockResponse = await fetch(`/api/admin/tab-lock-status?tab_name=${encodeURIComponent(tab)}`, {
+                            credentials: 'same-origin'
+                        });
+                        const lockData = await lockResponse.json();
+                        const isLocked = lockData.is_locked || false;
+                        const lockMessage = lockData.message || '';
+                        
+                        html += `
+                            <tr style="border-bottom: 1px solid #e5e7eb;">
+                                <td style="padding: 0.75rem 1rem; font-weight: 500; color: var(--text-primary);">
+                                    ${tab}
+                                </td>
+                                <td style="padding: 0.75rem 1rem; text-align: center;">
+                                    ${isLocked 
+                                        ? '<span style="display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.25rem 0.75rem; background: #fecaca; color: #991b1b; border-radius: 6px; font-size: 0.8rem; font-weight: 600;">🔒 Locked</span>'
+                                        : '<span style="display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.25rem 0.75rem; background: #d1fae5; color: #065f46; border-radius: 6px; font-size: 0.8rem; font-weight: 600;">🔓 Open</span>'}
+                                </td>
+                                <td style="padding: 0.75rem 1rem; text-align: center;">
+                                    ${isLocked
+                                        ? `<button class="btn-sm" style="background: #10b981; color: white; padding: 0.5rem 1rem;" onclick="toggleTabLock('${tab}', false)">🔓 Unlock</button>`
+                                        : `<button class="btn-sm" style="background: #f472b6; color: white; padding: 0.5rem 1rem;" onclick="toggleTabLock('${tab}', true)">🔒 Lock</button>`}
+                                </td>
+                            </tr>
+                        `;
+                    } catch (error) {
+                        console.error(`Error loading lock status for tab ${tab}:`, error);
+                        html += `
+                            <tr style="border-bottom: 1px solid #e5e7eb;">
+                                <td style="padding: 0.75rem 1rem; font-weight: 500; color: var(--text-primary);">
+                                    ${tab}
+                                </td>
+                                <td style="padding: 0.75rem 1rem; text-align: center; color: var(--text-muted);">
+                                    Unknown
+                                </td>
+                                <td style="padding: 0.75rem 1rem; text-align: center;">
+                                    <span style="color: #ef4444;">Error</span>
+                                </td>
+                            </tr>
+                        `;
+                    }
+                }
+                
+                tbody.innerHTML = html;
+                
+            } catch (error) {
+                console.error('Error loading tab lock status table:', error);
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="3" style="text-align: center; padding: 2rem; color: #ef4444;">
+                            Error loading tab lock statuses
+                        </td>
+                    </tr>
+                `;
+            }
+        }
+        
+        // Toggle lock status for a specific tab
+        async function toggleTabLock(tabName, shouldLock) {
+            try {
+                const lockMessage = shouldLock ? `#${tabName.replace('PepHaul Entry-', 'PepHaul')} is currently locked for add to carting and ordering.\n\nThank you for your patience!` : '';
+                
+                const response = await fetch('/api/admin/tab-lock-status', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        tab_name: tabName,
+                        is_locked: shouldLock,
+                        message: lockMessage
+                    })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    showToast(`✅ ${tabName} ${shouldLock ? 'locked' : 'unlocked'} successfully`);
+                    // Reload the table
+                    await loadTabLockStatusTable();
+                } else {
+                    showToast(`❌ Failed to ${shouldLock ? 'lock' : 'unlock'} ${tabName}: ${result.error || 'Unknown error'}`);
+                }
+            } catch (error) {
+                console.error(`Error toggling lock for ${tabName}:`, error);
+                showToast(`❌ Error ${shouldLock ? 'locking' : 'unlocking'} ${tabName}`);
             }
         }
 
