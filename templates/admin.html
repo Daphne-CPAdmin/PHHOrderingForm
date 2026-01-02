@@ -3811,12 +3811,12 @@
                 let html = '';
                 for (const tab of tabs) {
                     try {
-                        const lockResponse = await fetch(`/api/admin/tab-lock-status?tab_name=${encodeURIComponent(tab)}`, {
+                        const lockResponse = await fetch(`/api/admin/tab-settings?tab_name=${encodeURIComponent(tab)}`, {
                             credentials: 'same-origin'
                         });
                         const lockData = await lockResponse.json();
                         const isLocked = lockData.is_locked || false;
-                        const lockMessage = lockData.message || '';
+                        const lockMessage = lockData.lock_message || '';
                         
                         html += `
                             <tr style="border-bottom: 1px solid #e5e7eb;">
@@ -3872,14 +3872,14 @@
             try {
                 const lockMessage = shouldLock ? `#${tabName.replace('PepHaul Entry-', 'PepHaul')} is currently locked for add to carting and ordering.\n\nThank you for your patience!` : '';
                 
-                const response = await fetch('/api/admin/tab-lock-status', {
+                const response = await fetch('/api/admin/tab-settings', {
                     method: 'POST',
                     credentials: 'same-origin',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         tab_name: tabName,
                         is_locked: shouldLock,
-                        message: lockMessage
+                        lock_message: lockMessage
                     })
                 });
                 
