@@ -957,9 +957,8 @@
                 </div>
             </div>
 
-            <!-- Customer Summary Section - One per PepHaul Entry (supplier is derived from tab) -->
-            {% for supplier in suppliers %}
-            <div class="card supplier-section" data-supplier="{{ supplier }}" style="margin-bottom: 2rem; border: 2px solid #c084fc;">
+            <!-- Customer Summary Section - Shows ALL customers for current PepHaul Entry tab -->
+            <div class="card" style="margin-bottom: 2rem; border: 2px solid #c084fc;">
                 <h2 class="card-title" style="text-align: left; margin-bottom: 1rem;">👥 Customer Summary - {{ current_tab|default('PepHaul Entry') }}</h2>
                 <p style="color: var(--text-muted); margin-bottom: 1.5rem;">
                     Overview of all customers showing unique orders, total vials, and grand totals (including PepHaul Admin fee) for {{ current_tab|default('PepHaul Entry') }}.
@@ -977,13 +976,12 @@
                                 <th>Grand Total (PHP)</th>
                             </tr>
                         </thead>
-                        <tbody class="customer-summary-tbody" data-supplier="{{ supplier }}">
+                        <tbody class="customer-summary-tbody">
                             <!-- Populated by JS -->
                         </tbody>
                     </table>
                 </div>
             </div>
-            {% endfor %}
 
             <!-- Orders Management - One per PepHaul Entry (supplier is derived from tab) -->
             {% for supplier in suppliers %}
@@ -2199,52 +2197,51 @@
                 const response = await fetch('/api/admin/customer-summary', { credentials: 'same-origin' });
                 const customers = await response.json();
                 
-                // This admin view is per PepHaul Entry tab (one supplier per tab), so show all customers for this tab.
-                ADMIN_SUPPLIERS.forEach(supplier => {
-                    const tbody = document.querySelector(`.customer-summary-tbody[data-supplier="${supplier}"]`);
-                    if (!tbody) return;
-                    
-                    if (!customers || customers.length === 0) {
-                        tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-muted);">No customers found for ${CURRENT_PEPHAUL_TAB}</td></tr>`;
-                        return;
+                // Find the customer summary table body (single table for current PepHaul Entry tab)
+                const tbody = document.querySelector('.customer-summary-tbody');
+                if (!tbody) {
+                    console.warn('Customer summary table body not found');
+                    return;
+                }
+                
+                if (!customers || customers.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-muted);">No customers found for ${CURRENT_PEPHAUL_TAB}</td></tr>`;
+                    return;
+                }
+                
+                tbody.innerHTML = customers.map(customer => {
+                    // Determine payment status badge color
+                    let paymentStatusClass = 'unpaid';
+                    let paymentStatusIcon = '⏳';
+                    if (customer.payment_status === 'Paid') {
+                        paymentStatusClass = 'paid';
+                        paymentStatusIcon = '✅';
+                    } else if (customer.payment_status === 'Partially Paid') {
+                        paymentStatusClass = 'partial';
+                        paymentStatusIcon = '🔄';
+                    } else if (customer.payment_status === 'Waiting for Confirmation') {
+                        paymentStatusClass = 'waiting';
+                        paymentStatusIcon = '⏳';
                     }
                     
-                    tbody.innerHTML = customers.map(customer => {
-                        // Determine payment status badge color
-                        let paymentStatusClass = 'unpaid';
-                        let paymentStatusIcon = '⏳';
-                        if (customer.payment_status === 'Paid') {
-                            paymentStatusClass = 'paid';
-                            paymentStatusIcon = '✅';
-                        } else if (customer.payment_status === 'Partially Paid') {
-                            paymentStatusClass = 'partial';
-                            paymentStatusIcon = '🔄';
-                        } else if (customer.payment_status === 'Waiting for Confirmation') {
-                            paymentStatusClass = 'waiting';
-                            paymentStatusIcon = '⏳';
-                        }
-                        
-                        return `
-                            <tr>
-                                <td style="font-weight: 500;">${customer.customer_name}</td>
-                                <td style="font-family: 'JetBrains Mono', monospace; color: #c084fc; font-weight: 600; cursor: pointer; user-select: all; position: relative;" onclick="navigator.clipboard.writeText('${customer.order_numbers}').then(() => { const el = event.target; const original = el.textContent; el.textContent = 'Copied!'; el.style.color = '#10b981'; setTimeout(() => { el.textContent = original; el.style.color = '#c084fc'; }, 1000); })" title="Click to copy order numbers">${customer.order_numbers}</td>
-                                <td><span class="payment-badge ${paymentStatusClass}" style="font-size: 0.85rem;">${paymentStatusIcon} ${customer.payment_status}</span></td>
-                                <td style="font-family: 'JetBrains Mono', monospace; color: #c084fc; font-weight: 600;">${customer.order_count}</td>
-                                <td style="font-family: 'JetBrains Mono', monospace; color: #a78bfa; font-weight: 600;">${customer.total_vials}</td>
-                                <td style="font-family: 'JetBrains Mono', monospace; color: #7c3aed; font-weight: 700; font-size: 1.1rem;">₱${customer.total_grand_total_php.toLocaleString('en-PH', {minimumFractionDigits: 2})}</td>
-                            </tr>
-                        `;
-                    }).join('');  // Close arrow function body, map(), and join
-                });  // Close forEach for ADMIN_SUPPLIERS
+                    return `
+                        <tr>
+                            <td style="font-weight: 500;">${customer.customer_name}</td>
+                            <td style="font-family: 'JetBrains Mono', monospace; color: #c084fc; font-weight: 600; cursor: pointer; user-select: all; position: relative;" onclick="navigator.clipboard.writeText('${customer.order_numbers}').then(() => { const el = event.target; const original = el.textContent; el.textContent = 'Copied!'; el.style.color = '#10b981'; setTimeout(() => { el.textContent = original; el.style.color = '#c084fc'; }, 1000); })" title="Click to copy order numbers">${customer.order_numbers}</td>
+                            <td><span class="payment-badge ${paymentStatusClass}" style="font-size: 0.85rem;">${paymentStatusIcon} ${customer.payment_status}</span></td>
+                            <td style="font-family: 'JetBrains Mono', monospace; color: #c084fc; font-weight: 600;">${customer.order_count}</td>
+                            <td style="font-family: 'JetBrains Mono', monospace; color: #a78bfa; font-weight: 600;">${customer.total_vials}</td>
+                            <td style="font-family: 'JetBrains Mono', monospace; color: #7c3aed; font-weight: 700; font-size: 1.1rem;">₱${customer.total_grand_total_php.toLocaleString('en-PH', {minimumFractionDigits: 2})}</td>
+                        </tr>
+                    `;
+                }).join('');
                 
             } catch (error) {
                 console.error('Error loading customer summary:', error);
-                ADMIN_SUPPLIERS.forEach(supplier => {
-                    const tbody = document.querySelector(`.customer-summary-tbody[data-supplier="${supplier}"]`);
-                    if (tbody) {
-                        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: var(--accent-rose);">Error loading customer summary</td></tr>';
-                    }
-                });
+                const tbody = document.querySelector('.customer-summary-tbody');
+                if (tbody) {
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: var(--accent-rose);">Error loading customer summary</td></tr>';
+                }
             }
         }
 
