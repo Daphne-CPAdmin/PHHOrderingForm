@@ -4782,11 +4782,22 @@
                                 // Calculate unit price if missing
                                 const unitPriceUsd = parseFloat(item.unit_price_usd) || (qty > 0 ? lineTotalUsd / qty : 0);
                                 
-                                // Get supplier from product if available, otherwise from item or default
+                                // Get supplier from item (should already be saved in Google Sheets)
+                                // If missing, try to infer from product list matching by code
+                                // Prefer products from the current TAB_SUPPLIER when available
                                 let itemSupplier = item.supplier || 'Default';
                                 if (!itemSupplier || itemSupplier === 'Default') {
-                                    const product = allProducts?.find(p => p.code === item.product_code);
-                                    itemSupplier = product?.supplier || 'Default';
+                                    // Only look up if supplier is missing or default
+                                    // First try to match by code AND TAB_SUPPLIER
+                                    let product = allProducts?.find(p => 
+                                        p.code === item.product_code && 
+                                        p.supplier === TAB_SUPPLIER
+                                    );
+                                    // If not found with TAB_SUPPLIER, try any product with this code
+                                    if (!product) {
+                                        product = allProducts?.find(p => p.code === item.product_code);
+                                    }
+                                    itemSupplier = product?.supplier || TAB_SUPPLIER || 'Default';
                                 }
                                 
                                 return {
