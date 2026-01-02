@@ -3902,8 +3902,33 @@
                 const result = await response.json();
                 if (result.success) {
                     showToast(`✅ ${tabName} ${shouldLock ? 'locked' : 'unlocked'} successfully`);
-                    // Reload the table
-                    await loadTabLockStatusTable();
+                    
+                    // Update UI immediately with returned status (avoids cache race condition)
+                    const tbody = document.getElementById('tab-lock-status-tbody');
+                    if (tbody) {
+                        const rows = tbody.querySelectorAll('tr');
+                        for (const row of rows) {
+                            const tabCell = row.querySelector('td:first-child');
+                            if (tabCell && tabCell.textContent.trim() === tabName) {
+                                // Update status cell
+                                const statusCell = row.querySelector('td:nth-child(2)');
+                                if (statusCell) {
+                                    statusCell.innerHTML = result.is_locked
+                                        ? '<span style="display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.25rem 0.75rem; background: #fecaca; color: #991b1b; border-radius: 6px; font-size: 0.8rem; font-weight: 600;">🔒 Locked</span>'
+                                        : '<span style="display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.25rem 0.75rem; background: #d1fae5; color: #065f46; border-radius: 6px; font-size: 0.8rem; font-weight: 600;">🔓 Open</span>';
+                                }
+                                
+                                // Update button cell
+                                const buttonCell = row.querySelector('td:nth-child(3)');
+                                if (buttonCell) {
+                                    buttonCell.innerHTML = result.is_locked
+                                        ? `<button class="btn-sm" style="background: #10b981; color: white; padding: 0.5rem 1rem;" onclick="toggleTabLock('${tabName}', false)">🔓 Unlock</button>`
+                                        : `<button class="btn-sm" style="background: #f472b6; color: white; padding: 0.5rem 1rem;" onclick="toggleTabLock('${tabName}', true)">🔒 Lock</button>`;
+                                }
+                                break;
+                            }
+                        }
+                    }
                 } else {
                     showToast(`❌ Failed to ${shouldLock ? 'lock' : 'unlock'} ${tabName}: ${result.error || 'Unknown error'}`);
                 }
