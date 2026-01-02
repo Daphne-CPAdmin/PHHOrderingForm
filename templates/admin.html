@@ -749,7 +749,6 @@
                             Assigned Supplier
                         </label>
                         <select id="tab-supplier-selector" class="form-input" style="width: 100%;">
-                            <option value="">Select supplier...</option>
                             {% for supplier in all_suppliers %}
                             <option value="{{ supplier }}">{{ supplier }}</option>
                             {% endfor %}
@@ -3899,7 +3898,27 @@
             const supplierSelector = document.getElementById('tab-supplier-selector');
             
             if (supplierSelector) {
-                supplierSelector.value = settings.supplier || '';
+                // Set supplier value, defaulting to first available supplier if not set
+                let supplierValue = settings.supplier || '';
+                
+                // If supplier is empty or 'all', select the first available supplier from options
+                if (!supplierValue || supplierValue.toLowerCase() === 'all') {
+                    const options = supplierSelector.options;
+                    // Find first non-empty option (skip "Select supplier..." if it exists)
+                    for (let i = 0; i < options.length; i++) {
+                        if (options[i].value && options[i].value.toLowerCase() !== 'all') {
+                            supplierValue = options[i].value;
+                            break;
+                        }
+                    }
+                }
+                
+                supplierSelector.value = supplierValue;
+                
+                // Log warning if supplier couldn't be set
+                if (!supplierSelector.value) {
+                    console.warn(`No valid supplier found for tab ${settings.tab_name}`);
+                }
             }
             
             // Update current status display (if elements exist)
@@ -3915,7 +3934,7 @@
             
             const supplierDisplay = document.getElementById('current-supplier-display');
             if (supplierDisplay) {
-                supplierDisplay.textContent = settings.supplier || 'Not set';
+                supplierDisplay.textContent = supplierSelector ? (supplierSelector.value || 'Not set') : (settings.supplier || 'Not set');
             }
         }
 
@@ -3958,8 +3977,8 @@
                 return;
             }
             
-            if (!supplier) {
-                showToast('❌ Please select a supplier');
+            if (!supplier || supplier.toLowerCase() === 'all') {
+                showToast('❌ Please select a valid supplier (WWB or YIWU)');
                 return;
             }
             
