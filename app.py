@@ -6659,6 +6659,9 @@ def api_admin_customer_summary():
     order_grand_totals = {}  # Track grand totals per order_id to avoid double counting
     order_payment_status = {}  # Track payment status per order_id
     
+    # Track if we've shown debug info for first order
+    debug_shown = False
+    
     for order in orders:
         order_id = order.get('Order ID', '')
         if not order_id:
@@ -6667,7 +6670,8 @@ def api_admin_customer_summary():
         # Get customer name - try multiple field names (orders may have different structures)
         # Priority: Name, Full Name, Customer Name, Telegram Username (as fallback identifier)
         # Debug: Show available fields for first order
-        if orders.index(order) == 0:
+        if not debug_shown:
+            debug_shown = True
             print(f"📊 Customer Summary: First order available fields: {list(order.keys())}")
             print(f"📊 Customer Summary: Field values - Name: '{order.get('Name')}', Full Name: '{order.get('Full Name')}', Customer Name: '{order.get('Customer Name')}', Telegram Username: '{order.get('Telegram Username')}'")
         
