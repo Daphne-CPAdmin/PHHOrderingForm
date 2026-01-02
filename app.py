@@ -389,9 +389,8 @@ def _load_supplier_filters_from_sheets():
         print(f"⚠️ Could not load supplier filters from Google Sheets: {e}")
         return {}
 
-# If JSON file is empty, try loading from Google Sheets as fallback
-if not _pephaul_supplier_filter:
-    _pephaul_supplier_filter = _load_supplier_filters_from_sheets()
+# Note: Google Sheets fallback for supplier filters is loaded after init_google_services() is called
+# See _initialize_services() function at the end of this file
 
 def get_supplier_filter_for_tab(tab_name: str) -> str:
     tab_name = str(tab_name or '').strip() or get_current_pephaul_tab()
@@ -7472,6 +7471,8 @@ import threading
 
 def _initialize_services():
     """Initialize Google services in background thread to avoid blocking startup"""
+    global _pephaul_supplier_filter
+    
     try:
         print("🚀 Initializing Google services...")
         init_google_services()
@@ -7491,6 +7492,17 @@ def _initialize_services():
         print("   App will start but some sheets may need to be created manually")
         import traceback
         traceback.print_exc()
+    
+    # Load supplier filters from Google Sheets as fallback if JSON was empty
+    try:
+        if not _pephaul_supplier_filter and sheets_client:
+            print("📊 Loading supplier filters from Google Sheets (JSON was empty)...")
+            sheets_filters = _load_supplier_filters_from_sheets()
+            if sheets_filters:
+                _pephaul_supplier_filter = sheets_filters
+                print(f"✅ Loaded {len(sheets_filters)} supplier filters from Sheets")
+    except Exception as e:
+        print(f"⚠️ Warning: Could not load supplier filters from Sheets: {e}")
 
 # Start initialization in background thread (non-blocking)
 # This allows Gunicorn to start workers and respond to health checks immediately
