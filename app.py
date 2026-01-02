@@ -6666,6 +6666,11 @@ def api_admin_customer_summary():
         
         # Get customer name - try multiple field names (orders may have different structures)
         # Priority: Name, Full Name, Customer Name, Telegram Username (as fallback identifier)
+        # Debug: Show available fields for first order
+        if orders.index(order) == 0:
+            print(f"📊 Customer Summary: First order available fields: {list(order.keys())}")
+            print(f"📊 Customer Summary: Field values - Name: '{order.get('Name')}', Full Name: '{order.get('Full Name')}', Customer Name: '{order.get('Customer Name')}', Telegram Username: '{order.get('Telegram Username')}'")
+        
         customer_name = (
             order.get('Name', '') or 
             order.get('Full Name', '') or 
@@ -6675,7 +6680,7 @@ def api_admin_customer_summary():
         
         # Skip if no customer identifier found
         if not customer_name:
-            print(f"⚠️ Order {order_id}: No customer name/identifier found, skipping")
+            print(f"⚠️ Order {order_id}: No customer name/identifier found (checked Name, Full Name, Customer Name, Telegram Username), skipping. Available fields: {list(order.keys())}")
             continue
         
         # Initialize customer if not exists
