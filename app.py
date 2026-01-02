@@ -7458,28 +7458,37 @@ def api_admin_rename_pephaul_tab():
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
-# Initialize on startup
-try:
-    print("🚀 Initializing Google services...")
-    init_google_services()
-    print("✅ Google services initialized")
-except Exception as e:
-    print(f"⚠️ Warning: Could not initialize Google services: {e}")
-    print("   App will start but some features may not work")
-    import traceback
-    traceback.print_exc()
+# Initialize on startup (with timeout protection for production deployments)
+import threading
 
-try:
-    print("📋 Ensuring worksheets exist...")
-    ensure_worksheets_exist()
-    print("✅ Worksheets check complete")
-except Exception as e:
-    print(f"⚠️ Warning: Could not ensure worksheets exist: {e}")
-    print("   App will start but some sheets may need to be created manually")
-    import traceback
-    traceback.print_exc()
+def _initialize_services():
+    """Initialize Google services in background thread to avoid blocking startup"""
+    try:
+        print("🚀 Initializing Google services...")
+        init_google_services()
+        print("✅ Google services initialized")
+    except Exception as e:
+        print(f"⚠️ Warning: Could not initialize Google services: {e}")
+        print("   App will start but some features may not work")
+        import traceback
+        traceback.print_exc()
 
-print("✅ App startup complete - ready to accept requests")
+    try:
+        print("📋 Ensuring worksheets exist...")
+        ensure_worksheets_exist()
+        print("✅ Worksheets check complete")
+    except Exception as e:
+        print(f"⚠️ Warning: Could not ensure worksheets exist: {e}")
+        print("   App will start but some sheets may need to be created manually")
+        import traceback
+        traceback.print_exc()
+
+# Start initialization in background thread (non-blocking)
+# This allows Gunicorn to start workers and respond to health checks immediately
+init_thread = threading.Thread(target=_initialize_services, daemon=True)
+init_thread.start()
+
+print("✅ App startup complete - ready to accept requests (initializing services in background)")
 
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 5000))
