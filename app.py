@@ -376,6 +376,42 @@ def infer_supplier_from_orders() -> str:
         pass
     return 'Default'
 
+def list_pephaul_tabs():
+    """Get list of all PepHaul Entry tabs from Google Sheets"""
+    if not sheets_client:
+        print("⚠️ Sheets client not initialized when listing tabs")
+        return []
+    
+    try:
+        spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
+        all_sheets = spreadsheet.worksheets()
+        
+        # Filter tabs that start with "PepHaul Entry"
+        pephaul_tabs = [ws.title for ws in all_sheets if ws.title.startswith('PepHaul Entry')]
+        
+        # Sort tabs: "PepHaul Entry-01" first, then other numbered ones, then old "PepHaul Entry"
+        def sort_key(name):
+            if name == 'PepHaul Entry-01':
+                return (0, 1)  # Highest priority
+            if name == 'PepHaul Entry':
+                return (1, 0)  # Second priority (old name)
+            # Extract number from "PepHaul Entry-02", "PepHaul Entry-03", etc.
+            if '-' in name:
+                try:
+                    num = int(name.split('-')[-1])
+                    return (1, num)  # After -01, sorted by number
+                except:
+                    return (2, name)
+            return (2, name)
+        
+        pephaul_tabs.sort(key=sort_key)
+        return pephaul_tabs
+    except Exception as e:
+        print(f"❌ Error listing PepHaul tabs: {e}")
+        import traceback
+        traceback.print_exc()
+        return []
+
 # Google Sheets and Drive Configuration
 sheets_client = None
 drive_service = None
