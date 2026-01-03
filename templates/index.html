@@ -4618,25 +4618,29 @@
                 }
                 
                 // Show Pay Order button - always show for existing orders (for paying submitted orders)
-                // Payment is allowed even when order form is locked
+                // Payment is allowed even when order form is locked (customers can still pay existing orders)
                 const isPaid = pendingOrder.payment_status && pendingOrder.payment_status.toLowerCase() === 'paid';
                 payOrderBtn.style.display = isPaid ? 'none' : 'block';
-                payOrderBtn.disabled = false;
+                payOrderBtn.disabled = false;  // Always enabled for unpaid orders, even when forms are closed
                 payOrderBtn.title = isPaid ? 'Order already paid' : 'Pay for your submitted order';
                 
-                // Show Cancel Order button - enable when order form is OPEN (not locked)
-                // Disable only when: cancelled, locked by admin, paid, or awaiting payment confirmation
+                // Show Cancel Order button - DISABLE when order form is CLOSED (locked globally)
+                // Also disable when: cancelled, locked by admin, paid, or awaiting payment confirmation
                 const isCancelled = pendingOrder.status === 'Cancelled';
                 const isLocked = pendingOrder.locked === true;
                 const isPaidStatus = pendingOrder.payment_status && (pendingOrder.payment_status === 'Paid' || pendingOrder.payment_status.toLowerCase() === 'paid');
                 const isAwaitingConfirmation = pendingOrder.payment_status === 'Waiting for Confirmation';
-                // Enable cancel when order form is OPEN (orderFormLocked is false)
-                const shouldHideCancel = isCancelled || isLocked || isPaidStatus || isAwaitingConfirmation;
+                
+                // CRITICAL: Cancel Order should be disabled when forms are CLOSED (orderFormLocked === true)
+                // This prevents customers from cancelling orders when admin has closed the forms
+                const shouldHideCancel = isCancelled || isLocked || isPaidStatus || isAwaitingConfirmation || orderFormLocked;
                 
                 cancelOrderBtn.style.display = shouldHideCancel ? 'none' : 'block';
                 cancelOrderBtn.disabled = shouldHideCancel;
                 if (shouldHideCancel) {
-                    if (isPaidStatus) {
+                    if (orderFormLocked && !isCancelled && !isLocked && !isPaidStatus && !isAwaitingConfirmation) {
+                        cancelOrderBtn.title = 'Cannot cancel order - forms are currently closed';
+                    } else if (isPaidStatus) {
                         cancelOrderBtn.title = 'Cannot cancel order - payment has been confirmed';
                     } else if (isAwaitingConfirmation) {
                         cancelOrderBtn.title = 'Cannot cancel order - payment confirmation pending';
