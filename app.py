@@ -7023,44 +7023,40 @@ print(f"🚀 Initialized CURRENT_PEPHAUL_TAB from settings: {CURRENT_PEPHAUL_TAB
 
 def get_current_pephaul_tab():
     """Get the current active PepHaul Entry tab name"""
-    # Try to get from session, fallback to persistent storage
+    # ALWAYS read from persistent storage to ensure all devices see the same locked view
+    # This fixes the issue where desktop and mobile admin panels showed different values
     try:
-        # Customers should follow the globally selected PepHaul Entry tab.
-        # Only admins use the session-scoped tab switcher.
-        if not session.get('is_admin'):
-            # Always reload from settings file to ensure fresh data (handles restarts/deployments)
-            fresh_settings = _load_settings()
-            fresh_tab = fresh_settings.get('current_pephaul_tab', CURRENT_PEPHAUL_TAB)
-            print(f"🌍 Customer viewing tab (from settings): {fresh_tab}")
-            return fresh_tab
-        admin_tab = session.get('current_pephaul_tab', CURRENT_PEPHAUL_TAB)
-        print(f"👤 Admin viewing tab (from session): {admin_tab}")
-        return admin_tab
-    except:
-        # If session not available (e.g., in background tasks), use persistent storage
+        # Always reload from settings file to ensure fresh data across all devices
         fresh_settings = _load_settings()
-        fallback_tab = fresh_settings.get('current_pephaul_tab', CURRENT_PEPHAUL_TAB)
-        print(f"⚠️ Session unavailable, using settings: {fallback_tab}")
-        return fallback_tab
+        fresh_tab = fresh_settings.get('current_pephaul_tab', CURRENT_PEPHAUL_TAB)
+        
+        # Log context for debugging
+        is_admin = session.get('is_admin', False) if hasattr(session, 'get') else False
+        context = "👤 Admin" if is_admin else "🌍 Customer"
+        print(f"{context} viewing tab (from persistent storage): {fresh_tab}")
+        
+        return fresh_tab
+    except Exception as e:
+        # Fallback to global variable if settings file unavailable
+        print(f"⚠️ Could not load settings ({e}), using global: {CURRENT_PEPHAUL_TAB}")
+        return CURRENT_PEPHAUL_TAB
 
 def set_current_pephaul_tab(tab_name):
     """Set the current active PepHaul Entry tab name with persistence"""
     global CURRENT_PEPHAUL_TAB
-    # Update global default so customers (who may not have a session value set) follow the admin-selected tab
+    # Update global variable AND persistent storage
+    # This ensures all devices (desktop/mobile admin + all customer panels) see the same locked view
     try:
         if tab_name:
             CURRENT_PEPHAUL_TAB = tab_name
-            # Save to persistent storage
+            # Save to persistent storage (single source of truth)
             settings = _load_settings()
             settings['current_pephaul_tab'] = tab_name
             _save_settings(settings)
-            print(f"✅ Persisted current tab setting: {tab_name}")
+            print(f"✅ Persisted current tab setting to file: {tab_name}")
+            print(f"   All devices will now see: {tab_name}")
     except Exception as e:
         print(f"⚠️ Could not persist current tab: {e}")
-    try:
-        session['current_pephaul_tab'] = tab_name
-    except:
-        pass  # Session not available in some contexts
 
 def get_pephaul_worksheet(spreadsheet=None):
     """Get the current PepHaul Entry worksheet"""
