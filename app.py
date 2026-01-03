@@ -3,7 +3,7 @@ PepHaul Order Form - Web Application
 Full order management with payment tracking and admin controls
 """
 
-from flask import Flask, render_template, request, jsonify, session
+from flask import Flask, render_template, request, jsonify, session, make_response
 import requests
 import json
 import os
@@ -3231,7 +3231,8 @@ def index():
         # Get lock status for current tab
         tab_lock_status = get_tab_lock_status(current_tab)
         
-        return render_template('index.html', 
+        # Render template
+        response = make_response(render_template('index.html', 
                              products=products, 
                              products_by_supplier=products_by_supplier,
                              products_with_orders=products_with_orders,
@@ -3251,7 +3252,14 @@ def index():
                              order_stats=order_stats,
                              order_goal=order_goal,
                              current_theme=current_theme,
-                             price_comparison=price_comparison)
+                             price_comparison=price_comparison))
+        
+        # CRITICAL: Prevent browser caching so customers always see latest lock status
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+        
+        return response
     except Exception as e:
         app.logger.error(f"Error loading index page: {str(e)}")
         import traceback
