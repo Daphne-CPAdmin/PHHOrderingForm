@@ -6970,6 +6970,7 @@ def api_admin_update_supplier(order_id):
 # Initialize current tab from persistent storage
 _settings = _load_settings()
 CURRENT_PEPHAUL_TAB = _settings.get('current_pephaul_tab', 'PepHaul Entry-01')
+print(f"🚀 Initialized CURRENT_PEPHAUL_TAB from settings: {CURRENT_PEPHAUL_TAB}")
 
 def get_current_pephaul_tab():
     """Get the current active PepHaul Entry tab name"""
@@ -6978,11 +6979,20 @@ def get_current_pephaul_tab():
         # Customers should follow the globally selected PepHaul Entry tab.
         # Only admins use the session-scoped tab switcher.
         if not session.get('is_admin'):
-            return CURRENT_PEPHAUL_TAB
-        return session.get('current_pephaul_tab', CURRENT_PEPHAUL_TAB)
+            # Always reload from settings file to ensure fresh data (handles restarts/deployments)
+            fresh_settings = _load_settings()
+            fresh_tab = fresh_settings.get('current_pephaul_tab', CURRENT_PEPHAUL_TAB)
+            print(f"🌍 Customer viewing tab (from settings): {fresh_tab}")
+            return fresh_tab
+        admin_tab = session.get('current_pephaul_tab', CURRENT_PEPHAUL_TAB)
+        print(f"👤 Admin viewing tab (from session): {admin_tab}")
+        return admin_tab
     except:
         # If session not available (e.g., in background tasks), use persistent storage
-        return CURRENT_PEPHAUL_TAB
+        fresh_settings = _load_settings()
+        fallback_tab = fresh_settings.get('current_pephaul_tab', CURRENT_PEPHAUL_TAB)
+        print(f"⚠️ Session unavailable, using settings: {fallback_tab}")
+        return fallback_tab
 
 def set_current_pephaul_tab(tab_name):
     """Set the current active PepHaul Entry tab name with persistence"""
