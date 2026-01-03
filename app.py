@@ -5189,6 +5189,42 @@ def api_finalize_order(order_id):
             subtotal_php = sum(item.get('line_total_php', 0) for item in order.get('items', []) if item.get('qty', 0) > 0)
             grand_total_php = order.get('grand_total_php', 0)
             
+            # Calculate total vials and tiered admin fee
+            total_vials = 0
+            products = get_products()
+            for item in order.get('items', []):
+                if item.get('qty', 0) > 0:
+                    qty = item.get('qty', 0)
+                    order_type = item.get('order_type', 'Vial')
+                    product_code = str(item.get('product_code', '')).strip()
+                    supplier = str(item.get('supplier', 'Default')).strip()
+                    
+                    # Find product to get vials_per_kit
+                    product = None
+                    for p in products:
+                        p_code = str(p.get('code', '')).strip()
+                        p_supplier = str(p.get('supplier', 'Default')).strip()
+                        if p_code.upper() == product_code.upper() and p_supplier.upper() == supplier.upper():
+                            product = p
+                            break
+                    
+                    # Fallback: try without supplier match if not found
+                    if not product:
+                        matching_codes = [p for p in products if str(p.get('code', '')).strip().upper() == product_code.upper()]
+                        if len(matching_codes) == 1:
+                            product = matching_codes[0]
+                    
+                    vials_per_kit = product.get('vials_per_kit', 10) if product else 10
+                    
+                    if order_type == 'Kit':
+                        total_vials += qty * vials_per_kit
+                    else:
+                        total_vials += qty
+            
+            # Calculate tiered admin fee: ₱300 for every 50 vials (or part thereof)
+            import math
+            admin_fee_calculated = math.ceil(total_vials / 50) * 300 if total_vials > 0 else 0
+            
             telegram_msg = f"""🛒 <b>Order Finalized!</b>
 
 <b>Order ID:</b> {order_id}
@@ -5199,13 +5235,16 @@ def api_finalize_order(order_id):
 {items_text}
 
 <b>Subtotal (PHP):</b> ₱{subtotal_php:,.2f}
-<b>PepHaul Admin Fee:</b> ₱{ADMIN_FEE_PHP:,.2f}
+<b>Total Vials:</b> {int(total_vials)} vials
+<b>PepHaul Admin Fee:</b> ₱{admin_fee_calculated:,.2f} (₱300 per 50 vials)
 <b>Grand Total:</b> ₱{grand_total_php:,.2f}
 
 <b>Status:</b> Finalized - Pending Payment"""
             send_telegram_notification(telegram_msg)
         except Exception as e:
             print(f"⚠️ Error sending Telegram notification: {e}")
+            import traceback
+            traceback.print_exc()
             # Don't fail if Telegram fails
         
         # Also notify customer if registered (non-blocking)
