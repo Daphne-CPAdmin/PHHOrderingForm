@@ -2834,8 +2834,15 @@
         const TAB_SUPPLIER = {{ (tab_supplier|default('Default'))|tojson }};
         const INITIAL_SUPPLIER_FILTER = {{ supplier_filter|default('all')|tojson }};
         
-        // Current PepHaul tab selection (synced from Admin Panel via postMessage)
-        let currentPepHaulTab = localStorage.getItem('currentPepHaulTab') || '';
+        // Current PepHaul tab selection - ALWAYS sync from server's locked view on load
+        // This ensures all devices (Desktop, Mobile, iPad) see the same locked view
+        let currentPepHaulTab = CURRENT_PEPHAUL_TAB;
+        // Update localStorage to match server's persistent setting
+        try {
+            localStorage.setItem('currentPepHaulTab', currentPepHaulTab);
+        } catch (e) {
+            console.warn('Could not sync currentPepHaulTab to localStorage:', e);
+        }
 
         function getTimelineApiUrl() {
             if (currentPepHaulTab && currentPepHaulTab.trim()) {
@@ -3089,7 +3096,9 @@
         try { localStorage.setItem('supplierFilter', supplierFilter); } catch (e) {}
         try { localStorage.setItem(`supplierFilter_${CURRENT_PEPHAUL_TAB}`, supplierFilter); } catch (e) {}
         
-        // Listen for supplier filter changes from admin panel
+        // Listen for tab/supplier changes from admin panel
+        // NOTE: Admin changes the locked view via admin panel → broadcasts to customer panels
+        // On page load, customer panels ALWAYS sync from server's persistent locked view
         window.addEventListener('message', (event) => {
             if (event.data && event.data.type === 'supplierFilter') {
                 supplierFilter = event.data.filter;
@@ -3099,6 +3108,7 @@
             if (event.data && event.data.type === 'tabSwitched') {
                 const tabName = (event.data.tab_name || event.data.tabName || event.data.tab || '').trim();
                 if (tabName) {
+                    // Admin changed the locked view - update current tab
                     currentPepHaulTab = tabName;
                     localStorage.setItem('currentPepHaulTab', currentPepHaulTab);
                     
@@ -4712,8 +4722,8 @@
             // Debounce the lookup
             customerLookupTimeout = setTimeout(async () => {
                 try {
-                    // Get current tab name (prefer localStorage, fallback to template variable)
-                    const tabName = localStorage.getItem('currentPepHaulTab') || CURRENT_PEPHAUL_TAB || 'PepHaul Entry-01';
+                    // Get current tab name (always use server's locked view)
+                    const tabName = currentPepHaulTab || CURRENT_PEPHAUL_TAB || 'PepHaul Entry-01';
                     console.log('Looking up orders for telegram:', telegram, 'in tab:', tabName);
                     const response = await fetch(`/api/orders/lookup?telegram=${encodeURIComponent(telegram)}&tab_name=${encodeURIComponent(tabName)}`);
                     const orders = await response.json();
