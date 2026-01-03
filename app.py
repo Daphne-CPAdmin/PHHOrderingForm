@@ -421,20 +421,20 @@ def set_supplier_filter_for_tab(tab_name: str, supplier_filter: str) -> str:
             try:
                 worksheet = spreadsheet.worksheet('Settings')
                 
-                # Expand columns if needed (same as lock status fix)
+                # Expand columns if needed - need 6 columns for: Setting, Tab Name, Value, Message, Supplier, Updated
                 current_cols = worksheet.col_count
-                if current_cols < 5:
-                    print(f"📊 Expanding Settings sheet from {current_cols} to 5 columns...")
-                    worksheet.resize(cols=5)
+                if current_cols < 6:
+                    print(f"📊 Expanding Settings sheet from {current_cols} to 6 columns...")
+                    worksheet.resize(cols=6)
                 
-                # Ensure header row exists
+                # Ensure header row exists with ALL 6 columns
                 all_values = worksheet.get_all_values()
-                if not all_values or len(all_values[0]) < 5:
-                    worksheet.update('A1:E1', [['Setting', 'Tab Name', 'Value', 'Message', 'Updated']])
+                if not all_values or len(all_values[0]) < 6:
+                    worksheet.update('A1:F1', [['Setting', 'Tab Name', 'Value', 'Message', 'Supplier', 'Updated']])
             except:
                 # Create Settings sheet if doesn't exist
-                worksheet = spreadsheet.add_worksheet(title='Settings', rows=100, cols=5)
-                worksheet.update('A1:E1', [['Setting', 'Tab Name', 'Value', 'Message', 'Updated']])
+                worksheet = spreadsheet.add_worksheet(title='Settings', rows=100, cols=6)
+                worksheet.update('A1:F1', [['Setting', 'Tab Name', 'Value', 'Message', 'Supplier', 'Updated']])
             
             # Find or create the supplier filter setting row
             all_values = worksheet.get_all_values()
@@ -451,10 +451,11 @@ def set_supplier_filter_for_tab(tab_name: str, supplier_filter: str) -> str:
                 worksheet.update_cell(supplier_row, 1, 'Supplier Filter')
                 worksheet.update_cell(supplier_row, 2, tab_name)
             
-            # Update values
-            worksheet.update_cell(supplier_row, 3, supplier_filter)
-            worksheet.update_cell(supplier_row, 4, '')  # No message for supplier filter
-            worksheet.update_cell(supplier_row, 5, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+            # Update values - Column layout: Setting | Tab Name | Value | Message | Supplier | Updated
+            worksheet.update_cell(supplier_row, 3, supplier_filter)  # Column C: Value (for backward compatibility)
+            worksheet.update_cell(supplier_row, 4, '')                # Column D: Message (empty for supplier filter)
+            worksheet.update_cell(supplier_row, 5, supplier_filter)  # Column E: Supplier (primary location)
+            worksheet.update_cell(supplier_row, 6, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))  # Column F: Updated timestamp
             
             print(f"✅ Persisted supplier filter to Google Sheets for {tab_name}: {supplier_filter}")
         except Exception as e:
@@ -945,9 +946,9 @@ def _fetch_per_tab_lock_status():
             try:
                 worksheet = spreadsheet.worksheet('Settings')
             except:
-                # Create Settings sheet if doesn't exist
-                worksheet = spreadsheet.add_worksheet(title='Settings', rows=100, cols=5)
-                worksheet.update('A1:E1', [['Setting', 'Tab Name', 'Value', 'Message', 'Updated']])
+                # Create Settings sheet if doesn't exist with 6 columns
+                worksheet = spreadsheet.add_worksheet(title='Settings', rows=100, cols=6)
+                worksheet.update('A1:F1', [['Setting', 'Tab Name', 'Value', 'Message', 'Supplier', 'Updated']])
                 return {}
             
             records = worksheet.get_all_records()
@@ -997,21 +998,21 @@ def set_tab_lock_status(tab_name, is_locked, message=''):
             try:
                 worksheet = spreadsheet.worksheet('Settings')
                 
-                # CRITICAL: Expand columns if needed (Settings sheet must have 5 columns: A-E)
-                # This fixes "exceeds grid limits" error when existing sheet has < 5 columns
+                # CRITICAL: Expand columns if needed (Settings sheet must have 6 columns: A-F)
+                # This fixes "exceeds grid limits" error and ensures Supplier column (E) is separate from Updated (F)
                 current_cols = worksheet.col_count
-                if current_cols < 5:
-                    print(f"📊 Expanding Settings sheet from {current_cols} to 5 columns...")
-                    worksheet.resize(cols=5)
+                if current_cols < 6:
+                    print(f"📊 Expanding Settings sheet from {current_cols} to 6 columns...")
+                    worksheet.resize(cols=6)
                 
-                # Ensure header row exists
+                # Ensure header row exists with ALL 6 columns
                 all_values = worksheet.get_all_values()
-                if not all_values or len(all_values[0]) < 5:
-                    worksheet.update('A1:E1', [['Setting', 'Tab Name', 'Value', 'Message', 'Updated']])
+                if not all_values or len(all_values[0]) < 6:
+                    worksheet.update('A1:F1', [['Setting', 'Tab Name', 'Value', 'Message', 'Supplier', 'Updated']])
             except:
                 # Create Settings sheet if doesn't exist
-                worksheet = spreadsheet.add_worksheet(title='Settings', rows=100, cols=5)
-                worksheet.update('A1:E1', [['Setting', 'Tab Name', 'Value', 'Message', 'Updated']])
+                worksheet = spreadsheet.add_worksheet(title='Settings', rows=100, cols=6)
+                worksheet.update('A1:F1', [['Setting', 'Tab Name', 'Value', 'Message', 'Supplier', 'Updated']])
             
             # Find or create the tab lock setting row
             all_values = worksheet.get_all_values()
@@ -1028,10 +1029,11 @@ def set_tab_lock_status(tab_name, is_locked, message=''):
                 worksheet.update_cell(tab_row, 1, 'Tab Lock Status')
                 worksheet.update_cell(tab_row, 2, tab_name)
             
-            # Update values - now safe because we ensured 5 columns exist
-            worksheet.update_cell(tab_row, 3, 'Yes' if is_locked else 'No')
-            worksheet.update_cell(tab_row, 4, sanitized_message)
-            worksheet.update_cell(tab_row, 5, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+            # Update values - Column layout: Setting | Tab Name | Value | Message | Supplier | Updated
+            worksheet.update_cell(tab_row, 3, 'Yes' if is_locked else 'No')  # Column C: Value (lock status)
+            worksheet.update_cell(tab_row, 4, sanitized_message)              # Column D: Message (lock message)
+            worksheet.update_cell(tab_row, 5, '')                             # Column E: Supplier (empty for lock status)
+            worksheet.update_cell(tab_row, 6, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))  # Column F: Updated timestamp
             
             print(f"✅ Successfully saved lock status to Google Sheets row {tab_row}")
             
