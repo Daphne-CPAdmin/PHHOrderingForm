@@ -3673,11 +3673,21 @@ def _fetch_timeline_entries(tab_name=None):
             
             try:
                 worksheet = spreadsheet.worksheet(timeline_tab_name)
+                # Check if Sequence column exists, add if missing
+                headers = worksheet.row_values(1)
+                if headers and 'Sequence' not in headers:
+                    # Add Sequence column header
+                    worksheet.update('F1', [['Sequence']])
+                    # Initialize sequence values for existing entries (based on current row order)
+                    all_values = worksheet.get_all_values()
+                    for idx, row in enumerate(all_values[1:], start=2):
+                        if row and len(row) >= 1:  # Has ID
+                            worksheet.update(f'F{idx}', [[idx - 1]])  # Sequence = row index - 1
             except Exception as e:
                 # Create Timeline sheet if doesn't exist with new column structure
                 try:
-                    worksheet = spreadsheet.add_worksheet(title=timeline_tab_name, rows=100, cols=5)
-                    worksheet.update('A1:E1', [['ID', 'PepHaul Entry ID', 'Date', 'Time', 'Details of Transaction']])
+                    worksheet = spreadsheet.add_worksheet(title=timeline_tab_name, rows=100, cols=6)
+                    worksheet.update('A1:F1', [['ID', 'PepHaul Entry ID', 'Date', 'Time', 'Details of Transaction', 'Sequence']])
                     return []
                 except Exception as create_error:
                     print(f"Error creating Timeline sheet: {create_error}")
@@ -3721,12 +3731,20 @@ def _fetch_timeline_entries(tab_name=None):
                 )
                 
                 if is_match and record.get('ID') and record.get('Date'):
+                    # Get sequence value (default to large number to sort at end if missing)
+                    sequence = record.get('Sequence', 999999)
+                    try:
+                        sequence = int(sequence) if sequence else 999999
+                    except (ValueError, TypeError):
+                        sequence = 999999
+                    
                     entries.append({
                         'id': str(record.get('ID', '')),
                         'pephaul_entry_id': pephaul_entry_id,
                         'date': record.get('Date', ''),
                         'time': record.get('Time', ''),
-                        'details': record.get('Details of Transaction', '')
+                        'details': record.get('Details of Transaction', ''),
+                        'sequence': sequence
                     })
         except Exception as e:
             print(f"Error getting timeline entries: {e}")
@@ -3755,11 +3773,21 @@ def _fetch_all_timeline_entries():
             
             try:
                 worksheet = spreadsheet.worksheet(timeline_tab_name)
+                # Check if Sequence column exists, add if missing
+                headers = worksheet.row_values(1)
+                if headers and 'Sequence' not in headers:
+                    # Add Sequence column header
+                    worksheet.update('F1', [['Sequence']])
+                    # Initialize sequence values for existing entries (based on current row order)
+                    all_values = worksheet.get_all_values()
+                    for idx, row in enumerate(all_values[1:], start=2):
+                        if row and len(row) >= 1:  # Has ID
+                            worksheet.update(f'F{idx}', [[idx - 1]])  # Sequence = row index - 1
             except Exception as e:
                 # Create Timeline sheet if doesn't exist
                 try:
-                    worksheet = spreadsheet.add_worksheet(title=timeline_tab_name, rows=100, cols=5)
-                    worksheet.update('A1:E1', [['ID', 'PepHaul Entry ID', 'Date', 'Time', 'Details of Transaction']])
+                    worksheet = spreadsheet.add_worksheet(title=timeline_tab_name, rows=100, cols=6)
+                    worksheet.update('A1:F1', [['ID', 'PepHaul Entry ID', 'Date', 'Time', 'Details of Transaction', 'Sequence']])
                     return []
                 except Exception as create_error:
                     print(f"Error creating Timeline sheet: {create_error}")
@@ -3785,12 +3813,20 @@ def _fetch_all_timeline_entries():
                 
                 # Include all entries (no filtering)
                 if record.get('ID') and record.get('Date'):
+                    # Get sequence value (default to large number to sort at end if missing)
+                    sequence = record.get('Sequence', 999999)
+                    try:
+                        sequence = int(sequence) if sequence else 999999
+                    except (ValueError, TypeError):
+                        sequence = 999999
+                    
                     entries.append({
                         'id': str(record.get('ID', '')),
                         'pephaul_entry_id': pephaul_entry_id or 'Unknown',
                         'date': record.get('Date', ''),
                         'time': record.get('Time', ''),
-                        'details': record.get('Details of Transaction', '')
+                        'details': record.get('Details of Transaction', ''),
+                        'sequence': sequence
                     })
         except Exception as e:
             print(f"Error getting all timeline entries: {e}")
@@ -3833,22 +3869,36 @@ def add_timeline_entry(date, time, details, tab_name=None):
                     header_col_b = headers[1] if len(headers) > 1 else ''
                     if header_col_b == 'PepHaul Number':
                         worksheet.update('B1', [['PepHaul Entry ID']])
+                # Add Sequence column if missing
+                if 'Sequence' not in headers:
+                    worksheet.update('F1', [['Sequence']])
         except Exception as e:
             # Create Timeline sheet if doesn't exist with new column structure
             try:
-                worksheet = spreadsheet.add_worksheet(title=timeline_tab_name, rows=100, cols=5)
-                worksheet.update('A1:E1', [['ID', 'PepHaul Entry ID', 'Date', 'Time', 'Details of Transaction']])
+                worksheet = spreadsheet.add_worksheet(title=timeline_tab_name, rows=100, cols=6)
+                worksheet.update('A1:F1', [['ID', 'PepHaul Entry ID', 'Date', 'Time', 'Details of Transaction', 'Sequence']])
             except Exception as create_error:
                 print(f"Error creating Timeline sheet: {create_error}")
                 import traceback
                 traceback.print_exc()
                 return False
         
-        # Append new row with PepHaul Entry ID
+        # Append new row with PepHaul Entry ID and sequence
         try:
             all_values = worksheet.get_all_values()
             next_row = len(all_values) + 1
-            worksheet.update(f'A{next_row}:E{next_row}', [[entry_id, tab_name, date, time, details]])
+            # Calculate next sequence number (max sequence + 1)
+            max_sequence = 0
+            for row in all_values[1:]:  # Skip header
+                if len(row) >= 6:
+                    try:
+                        seq = int(row[5]) if row[5] else 0
+                        max_sequence = max(max_sequence, seq)
+                    except (ValueError, TypeError):
+                        pass
+            next_sequence = max_sequence + 1
+            
+            worksheet.update(f'A{next_row}:F{next_row}', [[entry_id, tab_name, date, time, details, next_sequence]])
             
             # Clear cache for this tab
             cache_key = f'timeline_entries_{tab_name}'
@@ -3971,6 +4021,109 @@ def update_timeline_entry(entry_id, date, time, details, tab_name=None):
         traceback.print_exc()
         return False
 
+
+def reorder_timeline_entry(entry_id, direction, tab_name=None):
+    """Move a timeline entry up or down in the sequence"""
+    if not tab_name:
+        tab_name = get_current_pephaul_tab()
+    
+    timeline_tab_name = 'Timeline'
+    
+    if not sheets_client:
+        print("Error: sheets_client not initialized")
+        return False
+    
+    try:
+        spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
+        worksheet = spreadsheet.worksheet(timeline_tab_name)
+        
+        all_values = worksheet.get_all_values()
+        if not all_values or len(all_values) < 2:
+            print("Timeline sheet is empty or has no data rows")
+            return False
+        
+        # Get entries for this tab only
+        entries = []
+        for idx, row in enumerate(all_values[1:], start=2):
+            if row and len(row) >= 2:
+                row_tab = str(row[1]).strip()
+                row_id = str(row[0]).strip()
+                
+                # Check if this row belongs to current tab
+                def normalize_tab_name(name):
+                    return name.lower().replace(' ', '').replace('-', '').replace('_', '')
+                
+                normalized_row_tab = normalize_tab_name(row_tab)
+                normalized_tab_name = normalize_tab_name(tab_name)
+                
+                is_match = (
+                    row_tab == tab_name or
+                    normalized_row_tab == normalized_tab_name or
+                    (normalized_row_tab and normalized_tab_name.endswith(normalized_row_tab)) or
+                    (normalized_tab_name and normalized_row_tab.endswith(normalized_tab_name.replace('pephaulentry', '')))
+                )
+                
+                if is_match:
+                    sequence = row[5] if len(row) > 5 else 999999
+                    try:
+                        sequence = int(sequence) if sequence else 999999
+                    except (ValueError, TypeError):
+                        sequence = 999999
+                    
+                    entries.append({
+                        'id': row_id,
+                        'row_idx': idx,
+                        'sequence': sequence
+                    })
+        
+        # Sort by current sequence
+        entries.sort(key=lambda x: x['sequence'])
+        
+        # Find the entry to move
+        current_pos = None
+        for i, entry in enumerate(entries):
+            if entry['id'] == str(entry_id).strip():
+                current_pos = i
+                break
+        
+        if current_pos is None:
+            print(f"Timeline entry ID {entry_id} not found in tab {tab_name}")
+            return False
+        
+        # Determine new position
+        if direction == 'up':
+            if current_pos == 0:
+                print("Entry is already at the top")
+                return False
+            new_pos = current_pos - 1
+        elif direction == 'down':
+            if current_pos == len(entries) - 1:
+                print("Entry is already at the bottom")
+                return False
+            new_pos = current_pos + 1
+        else:
+            print(f"Invalid direction: {direction}")
+            return False
+        
+        # Swap sequences
+        entries[current_pos], entries[new_pos] = entries[new_pos], entries[current_pos]
+        
+        # Update sequences in sheet
+        for i, entry in enumerate(entries):
+            worksheet.update(f'F{entry["row_idx"]}', [[i]])
+        
+        # Clear cache for this tab
+        cache_key = f'timeline_entries_{tab_name}'
+        clear_cache(cache_key)
+        
+        return True
+    except Exception as e:
+        print(f"Error reordering timeline entry: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
 @app.route('/api/admin/timeline')
 def api_get_timeline():
     """Get timeline entries - tab-specific"""
@@ -4032,6 +4185,26 @@ def api_update_timeline(entry_id):
         return jsonify({'success': True})
 
     return jsonify({'error': 'Failed to update timeline entry'}), 500
+
+
+@app.route('/api/admin/timeline/<entry_id>/reorder', methods=['POST'])
+def api_reorder_timeline(entry_id):
+    """Reorder timeline entry - move up or down"""
+    if not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    data = request.json or {}
+    direction = data.get('direction', '').lower()
+    tab_name = data.get('tab_name') or get_current_pephaul_tab()
+    
+    if direction not in ['up', 'down']:
+        return jsonify({'error': 'Direction must be "up" or "down"'}), 400
+    
+    if reorder_timeline_entry(entry_id, direction, tab_name):
+        return jsonify({'success': True})
+    
+    return jsonify({'error': 'Failed to reorder timeline entry'}), 500
+
 
 @app.route('/api/timeline')
 def api_public_timeline():

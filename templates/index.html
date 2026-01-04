@@ -3024,11 +3024,11 @@
                 return { days: diffDays, hours: diffHours };
             }
 
-            // Sort oldest->newest for the timeline flow
+            // Sort by sequence (ascending) instead of date/time
             const sortedEntries = [...entries].sort((a, b) => {
-                const dateA = parseTimelineDate(a.date, a.time);
-                const dateB = parseTimelineDate(b.date, b.time);
-                return dateA - dateB;
+                const seqA = typeof a.sequence === 'number' ? a.sequence : 999999;
+                const seqB = typeof b.sequence === 'number' ? b.sequence : 999999;
+                return seqA - seqB;
             });
 
             // Total span
@@ -6956,11 +6956,11 @@
                     return;
                 }
                 
-                // Sort by date (oldest first for timeline flow)
+                // Sort by sequence (ascending) instead of date/time
                 const sortedEntries = entries.sort((a, b) => {
-                    const dateA = parseTimelineDate(a.date, a.time);
-                    const dateB = parseTimelineDate(b.date, b.time);
-                    return dateA - dateB;
+                    const seqA = typeof a.sequence === 'number' ? a.sequence : 999999;
+                    const seqB = typeof b.sequence === 'number' ? b.sequence : 999999;
+                    return seqA - seqB;
                 });
                 
                 // Helper function to parse date/time
