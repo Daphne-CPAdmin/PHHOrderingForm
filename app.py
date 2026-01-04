@@ -4206,6 +4206,29 @@ def api_reorder_timeline(entry_id):
     return jsonify({'error': 'Failed to reorder timeline entry'}), 500
 
 
+@app.route('/api/admin/clear-timeline-cache', methods=['POST'])
+def api_clear_timeline_cache():
+    """Clear timeline cache to force refresh from Google Sheets"""
+    if not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    try:
+        # Clear all timeline-related caches
+        clear_cache_prefix('timeline_entries_')
+        clear_cache('all_timeline_entries')
+        
+        return jsonify({
+            'success': True,
+            'message': 'Timeline cache cleared successfully'
+        })
+    except Exception as e:
+        print(f"Error clearing timeline cache: {e}")
+        return jsonify({
+            'error': str(e)
+        }), 500
+
+
+
 @app.route('/api/timeline')
 def api_public_timeline():
     """Get timeline entries for public display - tab-specific"""
