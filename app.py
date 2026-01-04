@@ -7396,6 +7396,58 @@ def api_admin_create_pephaul_tab():
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
+
+@app.route('/api/admin/pephaul-tabs/fix-headers', methods=['POST'])
+def api_admin_fix_pephaul_tab_headers():
+    """Fix/update headers for a PepHaul Entry tab to match the standard 25-column structure"""
+    if not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    if not sheets_client:
+        return jsonify({'error': 'Sheets not configured'}), 500
+    
+    try:
+        data = request.json or {}
+        tab_name = data.get('tab_name', '').strip()
+        
+        if not tab_name:
+            return jsonify({'error': 'Tab name is required'}), 400
+        
+        spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
+        
+        # Check if tab exists
+        try:
+            worksheet = spreadsheet.worksheet(tab_name)
+        except Exception:
+            return jsonify({'error': f'Tab "{tab_name}" not found'}), 404
+        
+        # Standard 25-column header structure
+        headers = [
+            'Order ID', 'Order Date', 'Name', 'Telegram Username', 'Supplier',
+            'Product Code', 'Product Name', 'Order Type', 'QTY', 'Unit Price USD',
+            'Line Total USD', 'Exchange Rate', 'Line Total PHP', 'Admin Fee PHP',
+            'Grand Total PHP', 'Order Status', 'Locked', 'Payment Status', 
+            'Remarks', 'Link to Payment', 'Payment Date', 'Full Name', 'Contact Number', 'Mailing Address', 'Tracking Number'
+        ]
+        
+        # Update header row (A1:Y1 = 25 columns)
+        worksheet.update('A1:Y1', [headers])
+        
+        print(f"✅ Fixed headers for tab: {tab_name}")
+        
+        return jsonify({
+            'success': True,
+            'tab_name': tab_name,
+            'message': f'Updated headers for {tab_name} to standard 25-column structure',
+            'headers': headers
+        })
+    except Exception as e:
+        print(f"Error fixing tab headers: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/admin/pephaul-tabs/switch', methods=['POST'])
 def api_admin_switch_pephaul_tab():
     """Switch to a different PepHaul Entry tab"""
