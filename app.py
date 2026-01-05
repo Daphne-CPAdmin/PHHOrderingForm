@@ -627,15 +627,15 @@ def ensure_worksheets_exist():
         
         # Create PepHaul Entry-01 if it doesn't exist
         if 'PepHaul Entry-01' not in existing_sheets:
-            worksheet = spreadsheet.add_worksheet(title='PepHaul Entry-01', rows=1000, cols=25)
+            worksheet = spreadsheet.add_worksheet(title='PepHaul Entry-01', rows=1000, cols=23)
             headers = [
                 'Order ID', 'Order Date', 'Name', 'Telegram Username', 'Supplier',
                 'Product Code', 'Product Name', 'Order Type', 'QTY', 'Unit Price USD',
                 'Line Total USD', 'Exchange Rate', 'Line Total PHP', 'Admin Fee PHP',
                 'Grand Total PHP', 'Order Status', 'Locked', 'Payment Status', 
-                'Remarks', 'Link to Payment', 'Payment Date', 'Full Name', 'Contact Number', 'Mailing Address', 'Tracking Number'
+                'Remarks', 'Full Name', 'Contact Number', 'Mailing Address', 'Tracking Number'
             ]
-            worksheet.update('A1:Y1', [headers])
+            worksheet.update('A1:W1', [headers])
         
         # Product Locks tab (for admin)
         if 'Product Locks' not in existing_sheets:
@@ -1324,7 +1324,7 @@ def _fetch_orders_from_sheets(tab_name=None):
             'Product Code', 'Product Name', 'Order Type', 'QTY', 'Unit Price USD',
             'Line Total USD', 'Exchange Rate', 'Line Total PHP', 'Admin Fee PHP',
             'Grand Total PHP', 'Order Status', 'Locked', 'Payment Status',
-            'Remarks', 'Link to Payment', 'Payment Date', 'Full Name', 'Contact Number', 'Mailing Address', 'Tracking Number'
+            'Remarks', 'Full Name', 'Contact Number', 'Mailing Address', 'Tracking Number'
         ]
         standard_headers = _normalize_order_sheet_headers(standard_headers)
         parse_headers = headers if header_looks_valid else standard_headers
@@ -1661,18 +1661,16 @@ def save_order_to_sheets(order_data, order_id=None):
                 'No' if i == 0 else '',             # Column Q: Locked (only first row)
                 'Unpaid' if i == 0 else '',         # Column R: Payment Status (only first row)
                 '' if i == 0 else '',               # Column S: Remarks (only first row)
-                '',                                 # Column T: Link to Payment (only first row)
-                '',                                 # Column U: Payment Date (only first row)
-                order_data.get('full_name', '') if i == 0 else '',         # Column V: Full Name (only first row)
-                order_data.get('contact_number', '') if i == 0 else '',    # Column W: Contact Number (only first row)
-                order_data.get('mailing_address', '') if i == 0 else '',    # Column X: Mailing Address (only first row)
-                ''                                  # Column Y: Tracking Number (only first row)
+                order_data.get('full_name', '') if i == 0 else '',         # Column T: Full Name (only first row)
+                order_data.get('contact_number', '') if i == 0 else '',    # Column U: Contact Number (only first row)
+                order_data.get('mailing_address', '') if i == 0 else '',   # Column V: Mailing Address (only first row)
+                ''                                  # Column W: Tracking Number (only first row)
             ]
             rows_to_add.append(row)
         
         if rows_to_add:
             end_row = next_row + len(rows_to_add) - 1
-            worksheet.update(f'A{next_row}:Y{end_row}', rows_to_add)
+            worksheet.update(f'A{next_row}:W{end_row}', rows_to_add)
         
         # Clear cache since orders changed (tab-scoped keys)
         clear_cache_prefix('orders_')
@@ -1896,7 +1894,7 @@ def add_items_to_order(order_id, new_items, exchange_rate, telegram_username=Non
             # Insert position is after the last row of existing order
             insert_row = last_order_row + 1
             
-            # Create new first row for the additional order
+            # Create new first row for the additional order (23 columns A-W)
             new_first_row = [
                 new_order_id,                        # Column A: New Order ID
                 new_order_date,                      # Column B: New Order Date
@@ -1917,19 +1915,17 @@ def add_items_to_order(order_id, new_items, exchange_rate, telegram_username=Non
                 'No',                               # Column Q: Locked - No
                 'Unpaid',                           # Column R: Payment Status - Unpaid
                 f'Additional items for {order_id}', # Column S: Remarks - link to original order
-                '',                                 # Column T: Link to Payment
-                '',                                 # Column U: Payment Date
-                '',                                 # Column V: Full Name (duplicate)
-                order_info['contact_number'],        # Column W: Contact Number
-                order_info['mailing_address'],       # Column X: Mailing Address
-                ''                                  # Column Y: Tracking Number
+                order_info['full_name'],            # Column T: Full Name
+                order_info['contact_number'],        # Column U: Contact Number
+                order_info['mailing_address'],       # Column V: Mailing Address
+                ''                                  # Column W: Tracking Number
             ]
             
             # Insert the new first row
             worksheet.insert_rows([new_first_row], insert_row)
             insert_row += 1
             
-            # Add all new items as separate rows below the new first row
+            # Add all new items as separate rows below the new first row (23 columns A-W)
             rows_to_add = []
             for item in items_to_add:
                 row = [
@@ -1952,12 +1948,10 @@ def add_items_to_order(order_id, new_items, exchange_rate, telegram_username=Non
                     '',                               # Column Q: Locked - only on first row
                     '',                               # Column R: Payment Status - only on first row
                     f'Additional items for {order_id}', # Column S: Remarks
-                    '',                               # Column T: Link to Payment
-                    '',                               # Column U: Payment Date
-                    '',                               # Column V: Full Name (duplicate)
-                    '',                               # Column W: Contact Number
-                    '',                               # Column X: Mailing Address
-                    ''                                # Column Y: Tracking Number
+                    '',                               # Column T: Full Name - only on first row
+                    '',                               # Column U: Contact Number - only on first row
+                    '',                               # Column V: Mailing Address - only on first row
+                    ''                                # Column W: Tracking Number - only on first row
                 ]
                 rows_to_add.append(row)
             
@@ -2015,12 +2009,10 @@ def add_items_to_order(order_id, new_items, exchange_rate, telegram_username=Non
                 order_info['locked'],                # Column Q: Locked
                 order_info['payment_status'],        # Column R: Payment Status
                 '',                                  # Column S: Remarks
-                order_info['payment_screenshot'],    # Column T: Link to Payment
-                order_info['payment_date'],          # Column U: Payment Date
-                '',                                  # Column V: Full Name (duplicate)
-                order_info['contact_number'],        # Column W: Contact Number
-                order_info['mailing_address'],       # Column X: Mailing Address
-                ''                                   # Column Y: Tracking Number
+                order_info['full_name'],            # Column T: Full Name
+                order_info['contact_number'],        # Column U: Contact Number
+                order_info['mailing_address'],       # Column V: Mailing Address
+                ''                                   # Column W: Tracking Number
             ]
             
             # Insert the new first row
@@ -2051,12 +2043,10 @@ def add_items_to_order(order_id, new_items, exchange_rate, telegram_username=Non
                         '',                          # Column Q: Locked - only on first row
                         '',                          # Column R: Payment Status - only on first row
                         f'Updated {order_id}',       # Column S: Remarks
-                        '',                          # Column T: Link to Payment
-                        '',                          # Column U: Payment Date
-                        '',                          # Column V: Full Name (duplicate)
-                        '',                          # Column W: Contact Number
-                        '',                          # Column X: Mailing Address
-                        ''                           # Column Y: Tracking Number
+                        '',                          # Column T: Full Name - only on first row
+                        '',                          # Column U: Contact Number - only on first row
+                        '',                          # Column V: Mailing Address - only on first row
+                        ''                           # Column W: Tracking Number - only on first row
                     ]
                     rows_to_add.append(row)
                 
@@ -7510,16 +7500,16 @@ def api_admin_create_pephaul_tab():
         # Create new tab name (e.g., "PepHaul Entry-01")
         new_tab_name = f"PepHaul Entry-{next_num:02d}"
         
-        # Create new worksheet with headers (Supplier in column E)
-        worksheet = spreadsheet.add_worksheet(title=new_tab_name, rows=1000, cols=25)
+        # Create new worksheet with headers (Supplier in column E) - 23 columns (A-W)
+        worksheet = spreadsheet.add_worksheet(title=new_tab_name, rows=1000, cols=23)
         headers = [
             'Order ID', 'Order Date', 'Name', 'Telegram Username', 'Supplier',
             'Product Code', 'Product Name', 'Order Type', 'QTY', 'Unit Price USD',
             'Line Total USD', 'Exchange Rate', 'Line Total PHP', 'Admin Fee PHP',
             'Grand Total PHP', 'Order Status', 'Locked', 'Payment Status', 
-            'Remarks', 'Link to Payment', 'Payment Date', 'Full Name', 'Contact Number', 'Mailing Address', 'Tracking Number'
+            'Remarks', 'Full Name', 'Contact Number', 'Mailing Address', 'Tracking Number'
         ]
-        worksheet.update('A1:Y1', [headers])
+        worksheet.update('A1:W1', [headers])
         
         print(f"✅ Created new PepHaul Entry tab: {new_tab_name}")
         
@@ -7559,24 +7549,24 @@ def api_admin_fix_pephaul_tab_headers():
         except Exception:
             return jsonify({'error': f'Tab "{tab_name}" not found'}), 404
         
-        # Standard 25-column header structure
+        # Standard 23-column header structure (A-W)
         headers = [
             'Order ID', 'Order Date', 'Name', 'Telegram Username', 'Supplier',
             'Product Code', 'Product Name', 'Order Type', 'QTY', 'Unit Price USD',
             'Line Total USD', 'Exchange Rate', 'Line Total PHP', 'Admin Fee PHP',
             'Grand Total PHP', 'Order Status', 'Locked', 'Payment Status', 
-            'Remarks', 'Link to Payment', 'Payment Date', 'Full Name', 'Contact Number', 'Mailing Address', 'Tracking Number'
+            'Remarks', 'Full Name', 'Contact Number', 'Mailing Address', 'Tracking Number'
         ]
         
-        # Update header row (A1:Y1 = 25 columns)
-        worksheet.update('A1:Y1', [headers])
+        # Update header row (A1:W1 = 23 columns)
+        worksheet.update('A1:W1', [headers])
         
         print(f"✅ Fixed headers for tab: {tab_name}")
         
         return jsonify({
             'success': True,
             'tab_name': tab_name,
-            'message': f'Updated headers for {tab_name} to standard 25-column structure',
+            'message': f'Updated headers for {tab_name} to standard 23-column structure',
             'headers': headers
         })
     except Exception as e:
