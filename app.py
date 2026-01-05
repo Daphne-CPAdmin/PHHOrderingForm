@@ -6662,6 +6662,28 @@ def api_admin_orders():
     print(f"📊 Admin panel: Processed {orders_processed} records with Order IDs, {orders_without_id} without Order IDs")
     print(f"📊 Admin panel: Grouped into {len(grouped)} unique orders")
     
+    # Recalculate admin fees and grand totals with tiered calculation
+    products = get_products()
+    for order_id, order_data in grouped.items():
+        if order_data['items']:
+            # Calculate tiered admin fee based on items
+            admin_fee = calculate_tiered_admin_fee(order_data['items'], products)
+            
+            # Calculate subtotal from items
+            subtotal_php = sum(item['line_total_php'] for item in order_data['items'])
+            
+            # Recalculate grand total with tiered admin fee
+            calculated_grand_total = subtotal_php + admin_fee
+            
+            # Update grand total if different from stored value
+            stored_grand_total = order_data['grand_total_php']
+            if abs(stored_grand_total - calculated_grand_total) > 0.01:  # Allow for floating point differences
+                print(f"📊 Order {order_id}: Recalculated grand total - stored: ₱{stored_grand_total:.2f}, calculated: ₱{calculated_grand_total:.2f} (tiered admin fee: ₱{admin_fee:.2f})")
+                order_data['grand_total_php'] = calculated_grand_total
+            
+            # Store admin fee for reference
+            order_data['admin_fee_php'] = admin_fee
+    
     # Debug: Log ALL orders (not just samples) to see what's being returned
     if grouped:
         print(f"📋 All grouped orders:")
