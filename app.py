@@ -23,7 +23,7 @@ app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', secrets.token_hex(32))
 
 # Configuration
-ADMIN_FEE_PHP = float(os.getenv('ADMIN_FEE_PHP', 300))
+ADMIN_FEE_PHP = float(os.getenv('ADMIN_FEE_PHP', 300))  # Base rate for tiered calculation (₱300 per 50 vials)
 FALLBACK_EXCHANGE_RATE = float(os.getenv('FALLBACK_EXCHANGE_RATE', 59.20))
 GOOGLE_SHEETS_ID = os.getenv('GOOGLE_SHEETS_ID', '18Q3A7pmgj7WNi3GL8cgoLiD1gPmxGu_rMqzM3ohBo5s')
 ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD', 'pephaul2024')  # Change in production!
@@ -333,6 +333,48 @@ def send_telegram_notification(message, parse_mode='HTML'):
     return success_count > 0
 VIALS_PER_KIT = 10
 MAX_KITS_DEFAULT = 100  # Default max kits per product
+
+def calculate_tiered_admin_fee(items, products=None):
+    """
+    Calculate tiered admin fee based on total vials ordered.
+    Fee: ₱300 for every 50 vials (or part thereof)
+    
+    Args:
+        items: List of order items with 'product_code', 'order_type', and 'qty'
+        products: Optional product list to get vials_per_kit (fetched if not provided)
+    
+    Returns:
+        float: Calculated admin fee in PHP
+    """
+    if not items:
+        return 0
+    
+    # Get products if not provided
+    if products is None:
+        products = get_products()
+    
+    # Build product lookup for vials_per_kit
+    product_vials_map = {p['code']: p.get('vials_per_kit', VIALS_PER_KIT) for p in products}
+    
+    # Calculate total vials
+    total_vials = 0
+    for item in items:
+        product_code = item.get('product_code', item.get('Product Code', ''))
+        order_type = item.get('order_type', item.get('Order Type', 'Vial'))
+        qty = int(item.get('qty', item.get('QTY', 0)) or 0)
+        
+        if product_code and qty > 0:
+            if order_type == 'Kit':
+                vials_per_kit = product_vials_map.get(product_code, VIALS_PER_KIT)
+                total_vials += qty * vials_per_kit
+            else:
+                total_vials += qty
+    
+    # Tiered admin fee: ₱300 for every 50 vials (or part thereof)
+    admin_fee = math.ceil(total_vials / 50) * 300 if total_vials > 0 else 0
+    
+    return admin_fee
+
 
 # Supplier filter is controlled from Admin Panel and should be applied per PepHaul Entry tab.
 # It is used to:
@@ -1538,9 +1580,19 @@ def get_order_by_id(order_id):
     order['subtotal_usd'] = sum(item.get('line_total_usd', 0) for item in order['items'])
     order['subtotal_php'] = sum(item.get('line_total_php', 0) for item in order['items'])
     
-    # Ensure grand total is correct
-    if order['grand_total_php'] == 0 or order['grand_total_php'] != (order['subtotal_php'] + ADMIN_FEE_PHP):
-        order['grand_total_php'] = order['subtotal_php'] + ADMIN_FEE_PHP
+    # Calculate tiered admin fee based on actual vials in order
+    calculated_admin_fee = calculate_tiered_admin_fee(order['items'])
+    
+    # Use calculated admin fee if different from stored value (recalculate if needed)
+    stored_admin_fee = float(first_item.get('Admin Fee PHP', 0) or 0)
+    if stored_admin_fee != calculated_admin_fee:
+        print(f"⚠️ Order {order_id}: Admin fee mismatch - stored: ₱{stored_admin_fee:.2f}, calculated (tiered): ₱{calculated_admin_fee:.2f} - using calculated")
+        order['admin_fee_php'] = calculated_admin_fee
+    else:
+        order['admin_fee_php'] = stored_admin_fee
+    
+    # Recalculate grand total with correct admin fee
+    order['grand_total_php'] = order['subtotal_php'] + order['admin_fee_php']
     
     return order
 
@@ -1569,6 +1621,13 @@ def save_order_to_sheets(order_data, order_id=None):
         all_values = worksheet.get_all_values()
         next_row = len(all_values) + 1
         
+        # Calculate tiered admin fee based on items
+        admin_fee_php = calculate_tiered_admin_fee(order_data['items'])
+        
+        # Calculate grand total
+        subtotal_php = sum(item.get('line_total_php', 0) for item in order_data['items'])
+        grand_total_php = subtotal_php + admin_fee_php
+        
         # Prepare rows - ALL rows have Order ID, Date, Customer info for easy lookup
         rows_to_add = []
         tab_name = get_current_pephaul_tab()
@@ -1596,8 +1655,8 @@ def save_order_to_sheets(order_data, order_id=None):
                 item.get('line_total_usd', 0),      # Column K: Line Total USD
                 order_data.get('exchange_rate', FALLBACK_EXCHANGE_RATE),  # Column L: Exchange Rate
                 item.get('line_total_php', 0),      # Column M: Line Total PHP
-                ADMIN_FEE_PHP if i == 0 else '',    # Column N: Admin Fee PHP (only first row)
-                order_data.get('grand_total_php', 0) if i == 0 else '',  # Column O: Grand Total PHP (only first row)
+                admin_fee_php if i == 0 else '',    # Column N: Admin Fee PHP (tiered, only first row)
+                grand_total_php if i == 0 else '',  # Column O: Grand Total PHP (only first row)
                 'Pending' if i == 0 else '',        # Column P: Order Status (only first row)
                 'No' if i == 0 else '',             # Column Q: Locked (only first row)
                 'Unpaid' if i == 0 else '',         # Column R: Payment Status (only first row)
@@ -1820,10 +1879,13 @@ def add_items_to_order(order_id, new_items, exchange_rate, telegram_username=Non
             new_order_id = f"ORD-{datetime.now().strftime('%Y%m%d%H%M%S')}"
             new_order_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             
-            # Calculate totals for new order (with admin fee)
+            # Calculate tiered admin fee for new order items
+            admin_fee_php = calculate_tiered_admin_fee(items_to_add)
+            
+            # Calculate totals for new order (with tiered admin fee)
             total_usd = sum(item.get('line_total_usd', 0) for item in items_to_add)
             total_php = sum(item.get('line_total_php', 0) for item in items_to_add)
-            grand_total_php = total_php + ADMIN_FEE_PHP
+            grand_total_php = total_php + admin_fee_php
             
             # Find the last row of the existing order to insert after it
             last_order_row = first_order_row
@@ -1849,7 +1911,7 @@ def add_items_to_order(order_id, new_items, exchange_rate, telegram_username=Non
                 '',                                  # Column K: Line Total USD - EMPTY
                 exchange_rate,                       # Column L: Exchange Rate
                 '',                                  # Column M: Line Total PHP - EMPTY
-                ADMIN_FEE_PHP,                      # Column N: Admin Fee PHP (separate admin fee for new items)
+                admin_fee_php,                      # Column N: Admin Fee PHP (tiered, separate admin fee for new items)
                 grand_total_php,                    # Column O: Grand Total PHP (only on first row)
                 'Pending',                          # Column P: Order Status - Pending (unpaid)
                 'No',                               # Column Q: Locked - No
@@ -2078,20 +2140,27 @@ def recalculate_order_total(order_id, is_post_payment_addition=False):
                 grand_total = original_items_total_php + original_admin_fee + additional_items_total_php
                 print(f"Recalculated order {order_id} (post-payment): Original items ₱{original_items_total_php:.2f} + Admin Fee ₱{original_admin_fee:.2f} + Additional items ₱{additional_items_total_php:.2f} (no admin fee) = Grand Total ₱{grand_total:.2f}")
             else:
-                # Normal recalculation - sum all items + admin fee
+                # Normal recalculation - sum all items + tiered admin fee
                 total_usd = sum(item.get('line_total_usd', 0) for item in order.get('items', []) if item.get('qty', 0) > 0)
                 total_php = sum(item.get('line_total_php', 0) for item in order.get('items', []) if item.get('qty', 0) > 0)
                 # If PHP total is 0 but USD is available, calculate from USD
                 if total_php == 0 and total_usd > 0:
                     total_php = total_usd * order.get('exchange_rate', FALLBACK_EXCHANGE_RATE)
-                grand_total = total_php + ADMIN_FEE_PHP
-                print(f"Recalculated order {order_id}: Subtotal PHP {total_php:.2f} + Admin Fee {ADMIN_FEE_PHP:.2f} = Grand Total PHP {grand_total:.2f}")
+                
+                # Calculate tiered admin fee based on items
+                admin_fee = calculate_tiered_admin_fee(order.get('items', []))
+                grand_total = total_php + admin_fee
+                print(f"Recalculated order {order_id}: Subtotal PHP {total_php:.2f} + Admin Fee {admin_fee:.2f} (tiered) = Grand Total PHP {grand_total:.2f}")
             
-            # Update first row with new grand total
+            # Update first row with new grand total and admin fee
             for row_num, row in enumerate(all_values[1:], start=2):
                 if len(row) > order_id_col and row[order_id_col] == order_id:
-                    # Update grand total in first row
+                    # Update grand total and admin fee in first row
                     worksheet.update_cell(row_num, grand_total_col + 1, grand_total)
+                    # Also update admin fee if not post-payment addition
+                    if not (is_post_payment_addition and first_row_payment_status and first_row_payment_status.lower() == 'paid'):
+                        admin_fee_col = headers.index('Admin Fee PHP') if 'Admin Fee PHP' in headers else 12
+                        worksheet.update_cell(row_num, admin_fee_col + 1, admin_fee)
                     break
                     
         except Exception as e:
@@ -2104,8 +2173,10 @@ def recalculate_order_total(order_id, is_post_payment_addition=False):
         total_php = sum(item.get('line_total_php', 0) for item in order.get('items', []) if item.get('qty', 0) > 0)
         if total_php == 0 and total_usd > 0:
             total_php = total_usd * order.get('exchange_rate', FALLBACK_EXCHANGE_RATE)
-        grand_total = total_php + ADMIN_FEE_PHP
-        print(f"Recalculated order {order_id} (fallback): Subtotal PHP {total_php:.2f} + Admin Fee {ADMIN_FEE_PHP:.2f} = Grand Total PHP {grand_total:.2f}")
+        # Calculate tiered admin fee
+        admin_fee = calculate_tiered_admin_fee(order.get('items', []))
+        grand_total = total_php + admin_fee
+        print(f"Recalculated order {order_id} (fallback): Subtotal PHP {total_php:.2f} + Admin Fee {admin_fee:.2f} (tiered) = Grand Total PHP {grand_total:.2f}")
 
 def upload_to_imgur(file_data, order_id):
     """Upload image to Imgur as fallback storage"""
@@ -5639,12 +5710,14 @@ def update_item_quantity(order_id, product_code, order_type, new_qty):
             for row_num in zero_qty_rows:
                 worksheet.delete_rows(row_num)
         
-        # Recalculate grand total for the entire order
+        # Recalculate grand total for the entire order with tiered admin fee
         if first_order_row and grand_total_col >= 0:
-            # Get fresh data after update
+            # Get fresh data after update and recalculate with tiered admin fee
             all_values = worksheet.get_all_values()
             new_subtotal_php = 0
+            order_items = []
             
+            # Collect all items to calculate tiered admin fee
             for i, row in enumerate(all_values[1:], start=2):
                 if len(row) > order_id_col and row[order_id_col] == order_id:
                     if len(row) > line_total_php_col and row[line_total_php_col]:
@@ -5652,9 +5725,27 @@ def update_item_quantity(order_id, product_code, order_type, new_qty):
                             new_subtotal_php += float(row[line_total_php_col])
                         except:
                             pass
+                    
+                    # Collect item info for admin fee calculation
+                    product_code = row[product_code_col] if len(row) > product_code_col else ''
+                    order_type = row[order_type_col] if len(row) > order_type_col else 'Vial'
+                    qty = int(row[qty_col] or 0) if len(row) > qty_col else 0
+                    if product_code and qty > 0:
+                        order_items.append({
+                            'product_code': product_code,
+                            'order_type': order_type,
+                            'qty': qty
+                        })
             
-            new_grand_total = new_subtotal_php + ADMIN_FEE_PHP
+            # Calculate tiered admin fee based on items
+            admin_fee = calculate_tiered_admin_fee(order_items)
+            new_grand_total = new_subtotal_php + admin_fee
+            
+            # Update both grand total and admin fee
             worksheet.update(f'{chr(65 + grand_total_col)}{first_order_row}', [[new_grand_total]])
+            admin_fee_col = headers.index('Admin Fee PHP') if 'Admin Fee PHP' in headers else -1
+            if admin_fee_col >= 0:
+                worksheet.update(f'{chr(65 + admin_fee_col)}{first_order_row}', [[admin_fee]])
         
         # Clear cache since orders changed (tab-scoped keys)
         clear_cache_prefix('orders_')
@@ -6898,14 +6989,16 @@ def api_admin_customer_summary():
     # Build product lookup for vials_per_kit
     product_vials_map = {p['code']: p.get('vials_per_kit', VIALS_PER_KIT) for p in products}
     
-    # Group orders by customer name
+    # Group orders by customer name and order_id to recalculate admin fees
     customer_summary = {}
-    order_grand_totals = {}  # Track grand totals per order_id to avoid double counting
+    order_items = {}  # Track items per order_id to recalculate admin fee
     order_payment_status = {}  # Track payment status per order_id
+    order_subtotals_php = {}  # Track subtotals per order_id (sum of line totals)
     
     # Track if we've shown debug info for first order
     debug_shown = False
     
+    # First pass: Group items by order_id
     for order in orders:
         order_id = order.get('Order ID', '')
         if not order_id:
@@ -6941,11 +7034,6 @@ def api_admin_customer_summary():
                 'total_grand_total_php': 0
             }
         
-        # Track grand total for this order (store once per order_id)
-        grand_total = float(order.get('Grand Total PHP', 0) or 0)
-        if order_id not in order_grand_totals and grand_total > 0:
-            order_grand_totals[order_id] = grand_total
-        
         # Track payment status for this order (store once per order_id)
         payment_status = order.get('Payment Status', order.get('Confirmed Paid?', 'Unpaid'))
         if order_id not in order_payment_status:
@@ -6955,16 +7043,29 @@ def api_admin_customer_summary():
         if order_id not in customer_summary[customer_name]['order_ids']:
             customer_summary[customer_name]['order_ids'].add(order_id)
             customer_summary[customer_name]['order_count'] += 1
-            # Add grand total (only once per order)
-            if order_id in order_grand_totals:
-                customer_summary[customer_name]['total_grand_total_php'] += order_grand_totals[order_id]
         
-        # Calculate vials for this item
+        # Collect all items for this order to recalculate admin fee
         product_code = order.get('Product Code', '')
         order_type = order.get('Order Type', 'Vial')
         qty = int(order.get('QTY', 0) or 0)
+        line_total_php = float(order.get('Line Total PHP', 0) or 0)
+        
+        if order_id not in order_items:
+            order_items[order_id] = {
+                'customer_name': customer_name,
+                'items': [],
+                'subtotal_php': 0
+            }
         
         if product_code and qty > 0:
+            order_items[order_id]['items'].append({
+                'product_code': product_code,
+                'order_type': order_type,
+                'qty': qty
+            })
+            order_items[order_id]['subtotal_php'] += line_total_php
+            
+            # Calculate vials for this item
             if order_type == 'Kit':
                 # Kit = 10 vials (or product's vials_per_kit)
                 vials_per_kit = product_vials_map.get(product_code, VIALS_PER_KIT)
@@ -6974,6 +7075,21 @@ def api_admin_customer_summary():
                 vials = qty
             
             customer_summary[customer_name]['total_vials'] += vials
+    
+    # Second pass: Calculate tiered admin fee per order and add to customer totals
+    for order_id, order_data in order_items.items():
+        customer_name = order_data['customer_name']
+        items = order_data['items']
+        subtotal_php = order_data['subtotal_php']
+        
+        # Calculate tiered admin fee based on actual vials ordered
+        admin_fee_php = calculate_tiered_admin_fee(items, products)
+        grand_total_php = subtotal_php + admin_fee_php
+        
+        # Add to customer's total grand total
+        customer_summary[customer_name]['total_grand_total_php'] += grand_total_php
+        
+        print(f"📊 Order {order_id}: {len(items)} items, Subtotal: ₱{subtotal_php:.2f}, Admin Fee: ₱{admin_fee_php:.2f} (tiered), Grand Total: ₱{grand_total_php:.2f}")
     
     # Convert to list and sort by total grand total (descending)
     result = []
