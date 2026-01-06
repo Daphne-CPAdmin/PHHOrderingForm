@@ -6160,33 +6160,33 @@ def api_save_mailing_address(order_id):
         if not cell:
             return jsonify({'error': 'Order not found'}), 404
         
-        # Ensure headers exist in columns U, V, W (21, 22, 23)
+        # Ensure headers exist in columns T, U, V (20, 21, 22) - 1-indexed in gspread
         headers = worksheet.row_values(1)
-        if len(headers) < 21:
+        if len(headers) < 20:
             # Extend headers if needed
             while len(headers) < 23:
                 headers.append('')
             worksheet.update('A1:W1', [headers])
         
-        # Set headers for columns U, V, W if not already set
-        if len(headers) < 21 or headers[20] != 'Full Name':
-            worksheet.update_cell(1, 21, 'Full Name')
-        if len(headers) < 22 or headers[21] != 'Contact Number':
-            worksheet.update_cell(1, 22, 'Contact Number')
-        if len(headers) < 23 or headers[22] != 'Mailing Address':
-            worksheet.update_cell(1, 23, 'Mailing Address')
+        # Set headers for columns T, U, V if not already set
+        if len(headers) < 20 or headers[19] != 'Full Name':
+            worksheet.update_cell(1, 20, 'Full Name')  # Column T
+        if len(headers) < 21 or headers[20] != 'Contact Number':
+            worksheet.update_cell(1, 21, 'Contact Number')  # Column U
+        if len(headers) < 22 or headers[21] != 'Mailing Address':
+            worksheet.update_cell(1, 22, 'Mailing Address')  # Column V
         
-        # Update the order row with mailing info in columns U (21), V (22), W (23)
-        worksheet.update_cell(cell.row, 21, mailing_name)  # Column U
-        worksheet.update_cell(cell.row, 22, mailing_phone)  # Column V
-        worksheet.update_cell(cell.row, 23, mailing_address)  # Column W
+        # Update the order row with mailing info in columns T (20), U (21), V (22)
+        worksheet.update_cell(cell.row, 20, mailing_name)  # Column T: Full Name
+        worksheet.update_cell(cell.row, 21, mailing_phone)  # Column U: Contact Number
+        worksheet.update_cell(cell.row, 22, mailing_address)  # Column V: Mailing Address
         
-        # Lock the order (Column P = 16) when shipping details are added
+        # Lock the order (Column Q = 17) when shipping details are added
         # Ensure header exists
-        if len(headers) < 16 or headers[15] != 'Locked':
-            worksheet.update_cell(1, 16, 'Locked')
+        if len(headers) < 17 or headers[16] != 'Locked':
+            worksheet.update_cell(1, 17, 'Locked')  # Column Q
         # Set order to locked
-        worksheet.update_cell(cell.row, 16, 'Yes')
+        worksheet.update_cell(cell.row, 17, 'Yes')  # Column Q: Locked
         
         # Clear cache since orders changed
         clear_cache_prefix('orders_')
@@ -6268,20 +6268,20 @@ def api_save_tracking_number(order_id):
         if not cell:
             return jsonify({'error': 'Order not found in sheets'}), 404
         
-        # Ensure headers exist - column X (24) for Tracking Number
+        # Ensure headers exist - column W (23) for Tracking Number - 1-indexed in gspread
         headers = worksheet.row_values(1)
-        if len(headers) < 24:
+        if len(headers) < 23:
             # Extend headers if needed
-            while len(headers) < 24:
+            while len(headers) < 23:
                 headers.append('')
-            worksheet.update('A1:X1', [headers])
+            worksheet.update('A1:W1', [headers])
         
-        # Set header for column X if not already set
-        if len(headers) < 24 or headers[23] != 'Tracking Number':
-            worksheet.update_cell(1, 24, 'Tracking Number')
+        # Set header for column W if not already set
+        if len(headers) < 23 or headers[22] != 'Tracking Number':
+            worksheet.update_cell(1, 23, 'Tracking Number')  # Column W
         
-        # Update the order row with tracking number in column X (24)
-        worksheet.update_cell(cell.row, 24, tracking_number)
+        # Update the order row with tracking number in column W (23)
+        worksheet.update_cell(cell.row, 23, tracking_number)  # Column W: Tracking Number
         
         # Clear cache since orders changed
         clear_cache_prefix('orders_')
