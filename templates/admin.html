@@ -924,7 +924,7 @@
                         <label style="display: block; font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem;">Goal Amount (USD)</label>
                         <div style="display: flex; gap: 0.5rem;">
                             <span style="display: flex; align-items: center; padding: 0 0.75rem; background: var(--bg-input); border: 1px solid var(--border); border-radius: 10px 0 0 10px; color: var(--text-secondary);">$</span>
-                            <input type="number" id="order-goal-amount" class="form-input" style="border-radius: 0 10px 10px 0; flex: 1;" value="1000" min="1" step="100" placeholder="1000">
+                            <input type="number" id="order-goal-amount" class="form-input" style="border-radius: 0 10px 10px 0; flex: 1;" min="1" step="100" placeholder="Enter goal amount">
                         </div>
                     </div>
                     <button id="save-goal-btn" class="btn" style="padding: 0.75rem 1.5rem; background: #f9a8d4; margin-top: 1.5rem;">
@@ -1418,7 +1418,9 @@
             try {
                 const response = await fetch('/api/admin/order-goal', { credentials: 'same-origin' });
                 const data = await response.json();
-                document.getElementById('order-goal-amount').value = data.goal || 1000;
+                if (data.goal) {
+                    document.getElementById('order-goal-amount').value = data.goal;
+                }
             } catch (error) {
                 console.error('Error loading order goal:', error);
             }

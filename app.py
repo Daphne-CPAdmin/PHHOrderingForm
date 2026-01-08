@@ -1090,7 +1090,7 @@ def set_tab_lock_status(tab_name, is_locked, message=''):
     return True
 
 # Order Goal Settings
-_order_goal = 1000.0  # Default goal
+_order_goal = None  # Will be fetched from sheets
 
 def _fetch_order_goal():
     """Internal function to fetch order goal from sheets"""
@@ -1104,13 +1104,21 @@ def _fetch_order_goal():
             
             for record in records:
                 if record.get('Setting') == 'Order Goal':
-                    try:
-                        _order_goal = float(record.get('Value', 1000))
-                    except:
-                        _order_goal = 1000.0
+                    value = record.get('Value')
+                    if value is not None and str(value).strip():
+                        try:
+                            _order_goal = float(value)
+                            return _order_goal
+                        except (ValueError, TypeError) as e:
+                            print(f"Error parsing order goal value '{value}': {e}")
+                            # Don't update _order_goal if parsing fails - keep existing value
                     break
         except Exception as e:
             print(f"Error getting order goal: {e}")
+    
+    # Only return default if we haven't set a value yet
+    if _order_goal is None:
+        _order_goal = 1000.0  # Fallback only on first run if sheet doesn't exist
     
     return _order_goal
 
@@ -1207,6 +1215,9 @@ def set_order_goal(goal_amount):
     global _order_goal
     _order_goal = float(goal_amount)
     
+    # Always clear cache first to ensure fresh value is used immediately
+    clear_cache('settings_goal')
+    
     if sheets_client:
         try:
             spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
@@ -1236,9 +1247,6 @@ def set_order_goal(goal_amount):
                 # Existing row - batch update only the 2 cells that change (B and C)
                 worksheet.update(f'B{goal_row}:C{goal_row}', update_data)
             
-            # Clear cache since settings changed
-            clear_cache('settings_goal')
-            
             return True
         except Exception as e:
             error_str = str(e)
@@ -1250,8 +1258,10 @@ def set_order_goal(goal_amount):
             print(f"Error setting order goal: {e}")
             import traceback
             traceback.print_exc()
-            return False
+            # Still return True since we updated the in-memory value and cleared cache
+            return True
     
+    # If sheets_client is not available, still return True since we updated in-memory value
     return True
 
 def _fetch_orders_from_sheets(tab_name=None):
@@ -3694,13 +3704,16 @@ def api_set_order_goal():
         return jsonify({'error': 'Unauthorized'}), 401
     
     data = request.json
-    goal = data.get('goal', 1000)
+    goal = data.get('goal')
+    
+    if goal is None:
+        return jsonify({'error': 'Goal amount is required'}), 400
     
     try:
         goal = float(goal)
         if goal <= 0:
             return jsonify({'error': 'Goal must be positive'}), 400
-    except:
+    except (ValueError, TypeError):
         return jsonify({'error': 'Invalid goal amount'}), 400
     
     if set_order_goal(goal):
