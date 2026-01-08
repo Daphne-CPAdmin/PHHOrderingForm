@@ -5095,10 +5095,10 @@
                     // Show "Add Shipping Details" button for paid orders without shipping details
                     const escapedOrderId = escapeJS(order.order_id);
                     const escapedFullName = escapeJS(order.full_name || '');
-                    tableHtml += `<td style="padding: 0.75rem; text-align: center;"><button type="button" class="btn btn-violet" onclick="openMailingAddressModal('${escapedOrderId}', '${escapedFullName}')" style="padding: 0.5rem 1rem; font-size: 0.85rem;" title="Contact @deejay1992 for shipping details updates">📬 Add Shipping Details</button></td>`;
+                    tableHtml += `<td style="padding: 0.75rem; text-align: center;"><button type="button" class="btn btn-violet" onclick="openMailingAddressModal('${escapedOrderId}', '${escapedFullName}')" style="padding: 0.5rem 1rem; font-size: 0.85rem;" title="Contact @pephauler for shipping details updates">📬 Add Shipping Details</button></td>`;
                 } else if (isPaid && hasShippingDetails && !hasTrackingNumber) {
                     // Show note when shipping details have been recorded but no tracking yet
-                    tableHtml += '<td style="padding: 0.75rem; text-align: center;"><span style="color: var(--accent-emerald); font-size: 0.85rem; font-weight: 600; cursor: help;" title="Shipping details recorded. No further action required. For updates, contact PepHaul Admin @deejay1992">✅ Shipping details recorded. No further action required.</span></td>';
+                    tableHtml += '<td style="padding: 0.75rem; text-align: center;"><span style="color: var(--accent-emerald); font-size: 0.85rem; font-weight: 600; cursor: help;" title="Shipping details recorded. No further action required. For updates, contact PepHaul Admin @pephauler">✅ Shipping details recorded. No further action required.</span></td>';
                 } else {
                     tableHtml += '<td style="padding: 0.75rem; text-align: center;"></td>';
                 }
@@ -5265,7 +5265,7 @@
                             </div>
                             ${!hasShippingDetails ? `
                                 <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid rgba(16, 185, 129, 0.2);">
-                                    <button type="button" class="btn btn-violet" onclick="event.stopPropagation(); openMailingAddressModal('${escapeJS(order.order_id)}', '${escapeJS(order.full_name || '')}')" style="width: 100%; padding: 0.75rem 1rem; font-size: 0.9rem;" title="Contact @deejay1992 for shipping details updates">📬 Add Shipping Details</button>
+                                    <button type="button" class="btn btn-violet" onclick="event.stopPropagation(); openMailingAddressModal('${escapeJS(order.order_id)}', '${escapeJS(order.full_name || '')}')" style="width: 100%; padding: 0.75rem 1rem; font-size: 0.9rem;" title="Contact @pephauler for shipping details updates">📬 Add Shipping Details</button>
                                 </div>
                             ` : ''}
                         </div>
@@ -5285,7 +5285,7 @@
                                     <div style="color: var(--text-secondary); white-space: pre-wrap;">${escapeJS(mailingAddress)}</div>
                                 </div>
                                 <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid rgba(192, 132, 252, 0.2); font-size: 0.8rem; color: var(--text-muted);">
-                                    <span>💡 Need to update address? Contact PepHaul Admin @deejay1992</span>
+                                    <span>💡 Need to update address? Contact PepHaul Admin @pephauler</span>
                                 </div>
                             </div>
                         `;
