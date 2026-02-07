@@ -132,7 +132,14 @@
         body.timeline-only .locked-banner,
         body.timeline-only .orders-summary-section,
         body.timeline-only .customer-summary-section,
-        body.timeline-only #view-new-order {
+        body.timeline-only #view-new-order,
+        body.price-only .stats-banner,
+        body.price-only .rate-banner,
+        body.price-only #timeline-section,
+        body.price-only .locked-banner,
+        body.price-only .orders-summary-section,
+        body.price-only .customer-summary-section,
+        body.price-only #view-new-order {
             display: none !important;
         }
 
@@ -141,6 +148,16 @@
         }
 
         body.timeline-only #view-order-timeline .card {
+            max-width: 1400px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        body.price-only #view-price-comparison {
+            display: block !important;
+        }
+
+        body.price-only #view-price-comparison .card {
             max-width: 1400px;
             margin-left: auto;
             margin-right: auto;
@@ -1771,6 +1788,7 @@
             <div class="nav-tabs">
                 <button class="nav-tab active" data-view="new-order">Customer Order Section</button>
                 <button class="nav-tab" data-view="order-timeline">📅 Order Timeline</button>
+                <button class="nav-tab" data-view="price-comparison">💰 Price Comparison</button>
             </div>
             <a href="/admin" class="nav-tab admin">Admin Panel</a>
         </nav>
@@ -2425,7 +2443,7 @@
                         {% if product.inventory.is_locked %}
                         <span class="inv-lock-badge locked">🔒 Locked</span>
                         {% else %}
-                        <button class="btn-click-to-add" onclick="quickAddToCart('{{ product.code }}', '{{ product.name }}', '{{ supplier }}')">
+                        <button class="btn-click-to-add" data-code="{{ product.code }}" data-name="{{ product.name }}" data-supplier="{{ supplier }}">
                             ✨ Click to Add
                         </button>
                         {% endif %}
@@ -2436,12 +2454,59 @@
         </div>
         {% endfor %}
 
-        <!-- Price Comparison Section - At Bottom -->
-        {% if price_comparison|length > 0 %}
-        <div class="orders-summary-section" style="margin-top: 2rem;">
-            <div class="card">
-                <h2 class="card-title"><span class="icon">💰</span> Price Comparison: YIWU vs WWB</h2>
-                
+        </div> <!-- End view-new-order -->
+
+        <!-- Order Timeline View -->
+        <div id="view-order-timeline" class="view-content" style="display: none;">
+            <div class="card" style="max-width: 1400px; margin: 0 auto;">
+                <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem;">
+                    <div style="background: linear-gradient(135deg, #d4a574, #f9a8d4); padding: 1rem; border-radius: 16px; display: flex; align-items: center; justify-content: center;">
+                        <span style="font-size: 2rem;">📅</span>
+                    </div>
+                    <div>
+                        <h2 style="margin: 0; font-size: 1.75rem; font-weight: 700; color: var(--text-primary);">Order Timeline</h2>
+                        <p style="margin: 0; color: var(--text-muted); font-size: 0.95rem;">
+                            Track the latest updates and transaction details for all PepHaul Entry tabs
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Loading State -->
+                <div id="timeline-loading" style="text-align: center; padding: 3rem;">
+                    <div style="display: inline-block; width: 40px; height: 40px; border: 4px solid var(--border); border-top-color: var(--accent-primary); border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                    <p style="color: var(--text-muted); margin-top: 1rem;">Loading timeline entries...</p>
+                </div>
+
+                <!-- Timeline Content Container (All PepHaul Entry timelines) -->
+                <div id="all-timelines-content" style="display: none;">
+                    <!-- All PepHaul Entry timelines will be populated here -->
+                </div>
+
+                <!-- Empty State -->
+                <div id="timeline-empty" style="display: none; text-align: center; padding: 3rem; color: var(--text-muted);">
+                    <span style="font-size: 3rem; display: block; margin-bottom: 1rem;">📭</span>
+                    <p style="font-size: 1.1rem; margin-bottom: 0.5rem; font-weight: 600;">No Timeline Entries Yet</p>
+                    <p style="font-size: 0.9rem;">Timeline entries will appear here once added</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Price Comparison View -->
+        <div id="view-price-comparison" class="view-content" style="display: none;">
+            <div class="card" style="max-width: 1400px; margin: 0 auto;">
+                <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem;">
+                    <div style="background: linear-gradient(135deg, #10b981, #14b8a6); padding: 1rem; border-radius: 16px; display: flex; align-items: center; justify-content: center;">
+                        <span style="font-size: 2rem;">💰</span>
+                    </div>
+                    <div>
+                        <h2 style="margin: 0; font-size: 1.75rem; font-weight: 700; color: var(--text-primary);">Price Comparison</h2>
+                        <p style="margin: 0; color: var(--text-muted); font-size: 0.95rem;">
+                            Compare YIWU and WWB kit pricing across products
+                        </p>
+                    </div>
+                </div>
+
+                {% if price_comparison|length > 0 %}
                 {% set ns = namespace(count=0) %}
                 {% for item in price_comparison %}
                     {% if item.available_in_wwb %}
@@ -2453,7 +2518,7 @@
                         {% set ns.count = ns.count + 1 %}
                     {% endif %}
                 {% endfor %}
-                
+
                 <div class="table-container" style="overflow-x: auto; margin-top: 1.5rem;">
                     <table class="products-table" style="width: 100%;">
                         <thead>
@@ -2521,44 +2586,13 @@
                         </tbody>
                     </table>
                 </div>
-            </div>
-        </div>
-        {% endif %}
-
-        </div> <!-- End view-new-order -->
-
-        <!-- Order Timeline View -->
-        <div id="view-order-timeline" class="view-content" style="display: none;">
-            <div class="card" style="max-width: 1400px; margin: 0 auto;">
-                <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem;">
-                    <div style="background: linear-gradient(135deg, #d4a574, #f9a8d4); padding: 1rem; border-radius: 16px; display: flex; align-items: center; justify-content: center;">
-                        <span style="font-size: 2rem;">📅</span>
-                    </div>
-                    <div>
-                        <h2 style="margin: 0; font-size: 1.75rem; font-weight: 700; color: var(--text-primary);">Order Timeline</h2>
-                        <p style="margin: 0; color: var(--text-muted); font-size: 0.95rem;">
-                            Track the latest updates and transaction details for all PepHaul Entry tabs
-                        </p>
-                    </div>
+                {% else %}
+                <div style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                    <span style="font-size: 3rem; display: block; margin-bottom: 1rem;">📉</span>
+                    <p style="font-size: 1.1rem; margin-bottom: 0.5rem; font-weight: 600;">No Price Comparison Data</p>
+                    <p style="font-size: 0.9rem;">Price comparison will appear here once available</p>
                 </div>
-
-                <!-- Loading State -->
-                <div id="timeline-loading" style="text-align: center; padding: 3rem;">
-                    <div style="display: inline-block; width: 40px; height: 40px; border: 4px solid var(--border); border-top-color: var(--accent-primary); border-radius: 50%; animation: spin 1s linear infinite;"></div>
-                    <p style="color: var(--text-muted); margin-top: 1rem;">Loading timeline entries...</p>
-                </div>
-
-                <!-- Timeline Content Container (All PepHaul Entry timelines) -->
-                <div id="all-timelines-content" style="display: none;">
-                    <!-- All PepHaul Entry timelines will be populated here -->
-                </div>
-
-                <!-- Empty State -->
-                <div id="timeline-empty" style="display: none; text-align: center; padding: 3rem; color: var(--text-muted);">
-                    <span style="font-size: 3rem; display: block; margin-bottom: 1rem;">📭</span>
-                    <p style="font-size: 1.1rem; margin-bottom: 0.5rem; font-weight: 600;">No Timeline Entries Yet</p>
-                    <p style="font-size: 0.9rem;">Timeline entries will appear here once added</p>
-                </div>
+                {% endif %}
             </div>
         </div>
 
@@ -2892,9 +2926,11 @@
         // so that Timeline view shows ONLY the timeline (plus nav/header).
         function applyNonViewVisibilityForActiveView(viewId) {
             const timelineOnly = viewId === 'view-order-timeline';
+            const priceOnly = viewId === 'view-price-comparison';
 
             // Robust toggle: use body class so other JS can't accidentally re-show hidden sections
             document.body.classList.toggle('timeline-only', timelineOnly);
+            document.body.classList.toggle('price-only', priceOnly);
         }
         
         // Navigation tab click handlers
@@ -3164,11 +3200,6 @@
                 section.style.display = (sectionSupplier === TAB_SUPPLIER) ? 'block' : 'none';
             });
 
-            // Price comparison always visible
-            const comparisonSection = document.querySelector('.orders-summary-section');
-            if (comparisonSection && comparisonSection.querySelector('.card-title') && comparisonSection.querySelector('.card-title').textContent.includes('Price Comparison')) {
-                comparisonSection.style.display = 'block';
-            }
         }
         
         // Apply supplier filter on page load (filter controlled by admin panel only)
@@ -3598,6 +3629,53 @@
             document.getElementById('progress-text').textContent = `${inv.remaining_vials}/${vialsPerKit}`;
         }
 
+        function applyInventoryCardUpdate(product, productSupplier, kitQty, vialQty) {
+            if (!product) return;
+            const vialsPerKit = product.vials_per_kit || VIALS_PER_KIT;
+            const addedVials = (kitQty * vialsPerKit) + vialQty;
+            if (addedVials === 0) return;
+
+            if (!product.inventory) {
+                product.inventory = {
+                    total_vials: 0,
+                    kits_generated: 0,
+                    remaining_vials: 0,
+                    slots_to_next_kit: vialsPerKit,
+                    is_locked: false
+                };
+            }
+
+            const currentTotalVials = parseInt(product.inventory.total_vials, 10) || 0;
+            product.inventory.total_vials = Math.max(0, currentTotalVials + addedVials);
+            product.inventory.kits_generated = Math.floor(product.inventory.total_vials / vialsPerKit);
+            product.inventory.remaining_vials = product.inventory.total_vials % vialsPerKit;
+            product.inventory.slots_to_next_kit = product.inventory.remaining_vials === 0
+                ? vialsPerKit
+                : (vialsPerKit - product.inventory.remaining_vials);
+
+            const inventoryCard = document.querySelector(`.inventory-card[data-code="${product.code}"][data-supplier="${productSupplier}"]`);
+            if (inventoryCard) {
+                const statValues = inventoryCard.querySelectorAll('.inv-card-stats .inv-stat-value');
+                if (statValues.length >= 3) {
+                    statValues[0].textContent = product.inventory.kits_generated;
+                    statValues[1].textContent = product.inventory.total_vials;
+                    statValues[2].textContent = `${product.inventory.remaining_vials}/${vialsPerKit}`;
+                }
+                const progressFill = inventoryCard.querySelector('.inv-progress-fill');
+                if (progressFill) {
+                    const progressPercent = vialsPerKit > 0 ? (product.inventory.remaining_vials / vialsPerKit) * 100 : 0;
+                    progressFill.style.width = `${progressPercent}%`;
+                }
+                if (product.inventory.total_vials > 0) {
+                    inventoryCard.classList.add('has-orders');
+                }
+            }
+
+            if (selectedProduct && selectedProduct.code === product.code) {
+                updateInventoryDisplay();
+            }
+        }
+
         // Order Type Toggle
         document.querySelectorAll('.toggle-btn').forEach(btn => {
             btn.addEventListener('click', () => {
@@ -3738,6 +3816,9 @@
             }
             
             console.log('Cart updated:', cartItems);
+            const kitQty = orderType === 'Kit' ? qty : 0;
+            const vialQty = orderType === 'Vial' ? qty : 0;
+            applyInventoryCardUpdate(selectedProduct, productSupplier, kitQty, vialQty);
             updateCart();
             saveCart();
             resetSelection();
@@ -4356,6 +4437,13 @@
             }
             
             const item = cartItems[index];
+            const product = allProducts?.find(p => p.code === item.product_code);
+            if (product) {
+                const productSupplier = item.supplier || product.supplier || 'Default';
+                const kitDelta = item.order_type === 'Kit' ? -item.qty : 0;
+                const vialDelta = item.order_type === 'Vial' ? -item.qty : 0;
+                applyInventoryCardUpdate(product, productSupplier, kitDelta, vialDelta);
+            }
             
             // Removed items tracking no longer needed - we send all items when updating
             
@@ -4388,6 +4476,7 @@
             }
             
             const originalQty = item.originalQty !== undefined ? item.originalQty : item.qty;
+            const prevQty = item.qty;
             const newQty = Math.max(0, item.qty + change);
             
             if (newQty === item.qty) return; // No change
@@ -4407,6 +4496,18 @@
                 item.isUpdated = false; // Revert if quantity matches original
             }
             
+            // Update inventory card to reflect the delta
+            const deltaQty = newQty - prevQty;
+            if (deltaQty !== 0) {
+                const product = allProducts?.find(p => p.code === item.product_code);
+                if (product) {
+                    const productSupplier = item.supplier || product.supplier || 'Default';
+                    const kitDelta = item.order_type === 'Kit' ? deltaQty : 0;
+                    const vialDelta = item.order_type === 'Vial' ? deltaQty : 0;
+                    applyInventoryCardUpdate(product, productSupplier, kitDelta, vialDelta);
+                }
+            }
+
             // If quantity is 0, remove from cart
             if (newQty === 0) {
                 cartItems.splice(index, 1);
@@ -7348,8 +7449,14 @@
             const kitQtyInput = document.getElementById(`inv-kit-qty-${productCode}`);
             const vialQtyInput = document.getElementById(`inv-vial-qty-${productCode}`);
             
-            const kitQty = kitQtyInput ? parseInt(kitQtyInput.value) || 0 : 0;
-            const vialQty = vialQtyInput ? parseInt(vialQtyInput.value) || 0 : 0;
+            let kitQty = kitQtyInput ? parseInt(kitQtyInput.value) || 0 : 0;
+            let vialQty = vialQtyInput ? parseInt(vialQtyInput.value) || 0 : 0;
+
+            // Default to 1 vial if no quantity selected
+            if (kitQty === 0 && vialQty === 0) {
+                vialQty = 1;
+                if (vialQtyInput) vialQtyInput.value = 1;
+            }
             
             let added = false;
             
@@ -7414,6 +7521,7 @@
             }
 
             if (added) {
+                applyInventoryCardUpdate(product, productSupplier, kitQty, vialQty);
                 updateCart();
                 saveCart();
                 showToast(`✅ Added ${productName} to cart!`);
@@ -7444,8 +7552,25 @@
             }
         }
         
-        // Expose quickAddToCart to global scope for onclick handlers
+        // Expose quickAddToCart to global scope
         window.quickAddToCart = quickAddToCart;
+
+        // Delegate click handling for inventory "Click to Add" buttons
+        document.addEventListener('click', (event) => {
+            const button = event.target.closest('.btn-click-to-add');
+            if (!button) return;
+
+            const productCode = button.getAttribute('data-code');
+            const productName = button.getAttribute('data-name') || '';
+            const supplier = button.getAttribute('data-supplier') || '';
+
+            if (!productCode) {
+                console.warn('Missing product code on Click to Add button');
+                return;
+            }
+
+            quickAddToCart(productCode, productName, supplier);
+        });
 
         // Inventory Search
         // Live Inventory Search - support multiple search inputs (one per supplier)
