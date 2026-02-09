@@ -270,16 +270,8 @@ def send_telegram_notification(message, parse_mode='HTML'):
         print("Telegram bot token not configured - skipping notification")
         return False
     
-    # Get list of recipients (can be chat IDs or usernames)
-    recipients = []
-    
-    # First, check for multiple recipients (comma-separated)
-    if TELEGRAM_ADMIN_CHAT_IDS:
-        recipients = [r.strip() for r in TELEGRAM_ADMIN_CHAT_IDS.split(',') if r.strip()]
-    
-    # Also include single recipient for backward compatibility (if not already in list)
-    if TELEGRAM_ADMIN_CHAT_ID and TELEGRAM_ADMIN_CHAT_ID not in recipients:
-        recipients.append(TELEGRAM_ADMIN_CHAT_ID)
+    # Only send notifications to @pephaul_bot
+    recipients = [f"@{TELEGRAM_BOT_USERNAME}"]
     
     if not recipients:
         print("No Telegram admin recipients configured - skipping notification")

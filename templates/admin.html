@@ -2854,9 +2854,19 @@
                     console.log('📊 Admin: Sample order:', orders[0]);
                 }
                 
-                // Get products to match suppliers
-                const productsResponse = await fetch('/api/admin/products', { credentials: 'same-origin' });
-                const products = await productsResponse.json();
+                // Get products to match suppliers (fallback to cache on failure)
+                let products = window._productsCache || [];
+                try {
+                    const productsResponse = await fetch('/api/admin/products', { credentials: 'same-origin' });
+                    if (productsResponse.ok) {
+                        products = await productsResponse.json();
+                        window._productsCache = products;
+                    } else {
+                        console.warn('📊 Admin: Products endpoint failed:', productsResponse.status);
+                    }
+                } catch (productError) {
+                    console.warn('📊 Admin: Products fetch failed, using cache:', productError);
+                }
                 
                 allOrders = orders;
                 
@@ -2869,6 +2879,11 @@
                 console.error('📊 Admin: Error loading orders:', error);
                 console.error('📊 Admin: Error stack:', error.stack);
             }
+        }
+
+        function getPaymentStatus(order) {
+            const status = order?.payment_status ? String(order.payment_status) : 'Unpaid';
+            return status;
         }
 
         function renderOrders(orders, supplier) {
@@ -2889,8 +2904,10 @@
                 const itemsPreview = items.length > 0 
                     ? items.map(i => `${i.product_code || 'N/A'} (${i.qty || 0})`).join(', ')
                     : 'No items';
-                const isPaid = order.payment_status && order.payment_status.toLowerCase() === 'paid';
-                const isWaitingForConfirmation = order.payment_status && order.payment_status.toLowerCase() === 'waiting for confirmation';
+                const paymentStatus = getPaymentStatus(order);
+                const paymentStatusKey = paymentStatus.toLowerCase().replace(/\s+/g, '-').replace('waiting-for-confirmation', 'waiting');
+                const isPaid = paymentStatus.toLowerCase() === 'paid';
+                const isWaitingForConfirmation = paymentStatus.toLowerCase() === 'waiting for confirmation';
                 const isLocked = order.locked === true;
                 const isNonEditableDueToPayment = isPaid || isWaitingForConfirmation;
                 const showUnlockButton = isLocked || isNonEditableDueToPayment;
@@ -2908,7 +2925,7 @@
                         </td>
                         <td><div class="order-items-preview">${itemsPreview.length > 30 ? itemsPreview.substring(0, 30) + '...' : itemsPreview}</div></td>
                         <td style="font-family: 'JetBrains Mono', monospace; font-weight: 600;">₱${order.grand_total_php.toLocaleString('en-PH', {minimumFractionDigits: 2})}</td>
-                        <td><span class="payment-badge ${order.payment_status.toLowerCase().replace(/\s+/g, '-').replace('waiting-for-confirmation', 'waiting')}">${order.payment_status}</span></td>
+                        <td><span class="payment-badge ${paymentStatusKey}">${paymentStatus}</span></td>
                         <td>
                             ${isLocked 
                                 ? '<span style="color: #ec4899; font-weight: 600;">🔒 Locked</span>'
@@ -2917,9 +2934,7 @@
                         <td>
                             <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
                                 <button class="btn-sm btn-view" onclick="viewOrderDetails('${order.order_id}')">View</button>
-                                ${!isPaid && !isLocked 
-                                    ? `<button class="btn-sm" style="background: #c084fc; color: white;" onclick="editOrder('${order.order_id}')" title="Edit order items">✏️ Edit</button>` 
-                                    : ''}
+                                <button class="btn-sm" style="background: #c084fc; color: white;" onclick="editOrder('${order.order_id}')" title="Edit order items">✏️ Edit</button>
                                 ${showUnlockButton 
                                     ? `<button class="btn-sm" style="background: #a78bfa; color: white;" onclick="toggleOrderLock('${order.order_id}', false)">🔓 Unlock</button>`
                                     : `<button class="btn-sm" style="background: #f472b6; color: white;" onclick="toggleOrderLock('${order.order_id}', true)">🔒 Lock</button>`}
@@ -3005,14 +3020,16 @@
             const order = allOrders.find(o => o.order_id === orderId);
             if (!order) return;
 
-            const isPaid = order.payment_status && order.payment_status.toLowerCase() === 'paid';
+            const paymentStatus = getPaymentStatus(order);
+            const paymentStatusKey = paymentStatus.toLowerCase().replace(/\s+/g, '-').replace('waiting-for-confirmation', 'waiting');
+            const isPaid = paymentStatus.toLowerCase() === 'paid';
             
             const body = document.getElementById('order-modal-body');
             body.innerHTML = `
                 <div style="margin-bottom: 1.5rem;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
                         <span style="font-family: 'JetBrains Mono', monospace; color: #a78bfa; font-size: 1.25rem;">${order.order_id}</span>
-                        <span class="payment-badge ${order.payment_status.toLowerCase().replace(/\s+/g, '-').replace('waiting-for-confirmation', 'waiting')}">${order.payment_status}</span>
+                    <span class="payment-badge ${paymentStatusKey}">${paymentStatus}</span>
                     </div>
                     <div style="color: var(--text-muted); font-size: 0.85rem;">${order.order_date}</div>
                 </div>
@@ -3053,9 +3070,8 @@
             `;
 
             const footer = document.getElementById('order-modal-footer');
-            const isLocked = order.locked === true;
             footer.innerHTML = `
-                ${!isPaid && !isLocked ? `<button class="btn" style="padding: 0.75rem 1.5rem; background: #c084fc; color: white;" onclick="editOrder('${order.order_id}'); closeOrderModal();">✏️ Edit Order</button>` : ''}
+                <button class="btn" style="padding: 0.75rem 1.5rem; background: #c084fc; color: white;" onclick="editOrder('${order.order_id}'); closeOrderModal();">✏️ Edit Order</button>
                 ${!isPaid ? `<button class="btn btn-violet" style="padding: 0.75rem 1.5rem;" onclick="confirmPayment('${order.order_id}'); closeOrderModal();">✓ Confirm Payment</button>` : 
                            `<button class="btn" style="padding: 0.75rem 1.5rem; background: #a78bfa; color: white;" onclick="notifyCustomer('${order.order_id}')">📱 Notify Customer</button>`}
                 <button class="btn" style="padding: 0.75rem 1.5rem; background: var(--bg-input); border: 1px solid var(--border); color: var(--text-primary);" onclick="closeOrderModal()">Close</button>
@@ -3073,12 +3089,7 @@
             }
 
             const isPaid = order.payment_status && order.payment_status.toLowerCase() === 'paid';
-            const isLocked = order.locked === true;
-            
-            if (isPaid || isLocked) {
-                showToast(isPaid ? 'Cannot edit paid orders' : 'Cannot edit locked orders. Unlock first.');
-                return;
-            }
+            const isWaitingForConfirmation = order.payment_status && order.payment_status.toLowerCase() === 'waiting for confirmation';
 
             const body = document.getElementById('order-modal-body');
             body.innerHTML = `
