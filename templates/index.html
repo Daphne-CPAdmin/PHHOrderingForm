@@ -4806,6 +4806,10 @@
             }
         }
         
+        function normalizeTelegramUsername(value) {
+            return (value || '').trim().toLowerCase().replace(/^@+/, '');
+        }
+
         function checkReturningCustomer() {
             const telegram = document.getElementById('telegram').value.trim();
             const fullName = document.getElementById('full-name').value.trim();
@@ -4835,17 +4839,21 @@
                 try {
                     // Get current tab name (always use server's locked view)
                     const tabName = currentPepHaulTab || CURRENT_PEPHAUL_TAB || 'PepHaul Entry-01';
-                    console.log('Looking up orders for telegram:', telegram, 'in tab:', tabName);
-                    const response = await fetch(`/api/orders/lookup?telegram=${encodeURIComponent(telegram)}&tab_name=${encodeURIComponent(tabName)}`);
+                    const normalizedTelegram = normalizeTelegramUsername(telegram);
+                    console.log('Looking up orders for telegram:', normalizedTelegram, 'in tab:', tabName);
+                    const response = await fetch(`/api/orders/lookup?telegram=${encodeURIComponent(normalizedTelegram)}&tab_name=${encodeURIComponent(tabName)}`);
                     const orders = await response.json();
-                    console.log('Found orders:', orders);
+                    const exactOrders = Array.isArray(orders)
+                        ? orders.filter(order => normalizeTelegramUsername(order.telegram) === normalizedTelegram)
+                        : [];
+                    console.log('Found orders:', exactOrders);
                     
-                    if (orders && orders.length > 0) {
-                        existingCustomerOrders = orders;
+                    if (exactOrders.length > 0) {
+                        existingCustomerOrders = exactOrders;
                         
                         // Find the most recent unpaid/pending (non-cancelled, not locked) order
                         // Paid orders are locked and should NOT be loaded into cart, but will be shown in locked section
-                        const pendingOrder = orders.find(o => 
+                        const pendingOrder = exactOrders.find(o => 
                             o.status !== 'Cancelled' && 
                             !o.locked && 
                             o.payment_status && 
@@ -5005,9 +5013,9 @@
                         // Always show My Orders section with all orders (including unpaid with Pay Order buttons)
                         // This allows users to pay any unpaid order, not just the most recent one
                         // showMyOrdersSection will filter by telegram username for privacy
-                        showMyOrdersSection(orders);
+                        showMyOrdersSection(exactOrders);
                     } else {
-                        console.log('No orders found for', telegram);
+                        console.log('No orders found for', normalizedTelegram);
                         currentOrderId = null;
                         cartItems = [];
                         originalOrderItems = []; // Clear original order items
@@ -5058,13 +5066,13 @@
                 
                 // Get telegram from input field
                 const telegramInput = document.getElementById('telegram');
-                const currentTelegram = telegramInput?.value.trim().toLowerCase().replace('@', '') || '';
+                const currentTelegram = normalizeTelegramUsername(telegramInput?.value);
                 
                 // Filter orders by telegram username to only show current user's orders (for privacy)
                 let filteredOrders = allOrders;
                 if (currentTelegram) {
                     filteredOrders = allOrders.filter(order => {
-                        const orderTelegram = (order.telegram || '').toLowerCase().replace('@', '');
+                        const orderTelegram = normalizeTelegramUsername(order.telegram);
                         return orderTelegram === currentTelegram;
                     });
                 }
@@ -5076,7 +5084,7 @@
                         if (lookupResponse.ok) {
                             const lookupOrders = await lookupResponse.json();
                             if (lookupOrders && lookupOrders.length > 0) {
-                                filteredOrders = lookupOrders;
+                                filteredOrders = lookupOrders.filter(order => normalizeTelegramUsername(order.telegram) === currentTelegram);
                             }
                         }
                     } catch (lookupError) {
@@ -5238,7 +5246,7 @@
             
             // CRITICAL: Filter orders by current telegram username for privacy/security
             const telegramInput = document.getElementById('telegram');
-            const currentTelegram = telegramInput?.value.trim().toLowerCase().replace('@', '') || '';
+            const currentTelegram = normalizeTelegramUsername(telegramInput?.value);
             
             // Only show orders if telegram is provided and filter orders to match
             if (!currentTelegram) {
@@ -5249,7 +5257,7 @@
             
             // Filter orders to only show those matching current telegram username
             const filteredOrders = orders.filter(order => {
-                const orderTelegram = (order.telegram || '').toLowerCase().replace('@', '');
+                const orderTelegram = normalizeTelegramUsername(order.telegram);
                 return orderTelegram === currentTelegram;
             });
             
