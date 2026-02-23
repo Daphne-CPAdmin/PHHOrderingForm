@@ -36,6 +36,9 @@ TELEGRAM_BOT_USERNAME = os.getenv('TELEGRAM_BOT_USERNAME', 'pephaul_bot')  # Bot
 _cache = {}
 _cache_timestamps = {}
 CACHE_DURATION = 60  # seconds - default fallback cache duration
+# In-memory qty-change tracker for richer finalize Telegram summaries.
+# Shape: {order_id: {"PRODUCT||type": {"old_qty": int, "new_qty": int}}}
+_order_qty_change_log = {}
 
 # PepHaul Entry Tab Management - Persistent Storage Functions
 SETTINGS_FILE = 'data/pephaul_settings.json'
@@ -318,6 +321,49 @@ def build_inline_qty_change(old_qty=None, new_qty=None):
         return ""
 
     return f"(<b>🔄 {label}</b>)"
+
+def _qty_change_key(product_code, order_type):
+    code = str(product_code or '').strip().upper()
+    otype = str(order_type or '').strip().lower()
+    return f"{code}||{otype}"
+
+def record_order_qty_change(order_id, product_code, order_type, old_qty, new_qty):
+    """Track net qty change per order+item so finalize can show inline deltas."""
+    if not order_id:
+        return
+    try:
+        old_val = int(float(old_qty))
+        new_val = int(float(new_qty))
+    except (TypeError, ValueError):
+        return
+
+    key = _qty_change_key(product_code, order_type)
+    order_log = _order_qty_change_log.setdefault(str(order_id), {})
+    existing = order_log.get(key)
+
+    if existing:
+        # Keep first old quantity, update latest new quantity.
+        merged_old = int(existing.get('old_qty', old_val))
+        merged_new = new_val
+        if merged_old == merged_new:
+            order_log.pop(key, None)
+        else:
+            order_log[key] = {'old_qty': merged_old, 'new_qty': merged_new}
+    else:
+        if old_val != new_val:
+            order_log[key] = {'old_qty': old_val, 'new_qty': new_val}
+
+    if not order_log:
+        _order_qty_change_log.pop(str(order_id), None)
+
+def get_order_qty_change(order_id, product_code, order_type):
+    entry = _order_qty_change_log.get(str(order_id), {}).get(_qty_change_key(product_code, order_type))
+    if not entry:
+        return None, None
+    return entry.get('old_qty'), entry.get('new_qty')
+
+def clear_order_qty_changes(order_id):
+    _order_qty_change_log.pop(str(order_id), None)
 
 def build_products_updated_summary(items):
     """Build a readable products-updated block for Telegram notifications."""
@@ -5556,8 +5602,19 @@ def api_update_item(order_id):
     
     if not product_code or not order_type:
         return jsonify({'error': 'Missing product_code or order_type'}), 400
+
+    old_item = next(
+        (
+            item for item in order.get('items', [])
+            if str(item.get('product_code', '')).strip().upper() == str(product_code).strip().upper()
+            and str(item.get('order_type', '')).strip().lower() == str(order_type).strip().lower()
+        ),
+        {}
+    )
+    old_qty = old_item.get('qty', 0)
     
     if update_item_quantity(order_id, product_code, order_type, new_qty):
+        record_order_qty_change(order_id, product_code, order_type, old_qty, new_qty)
         # Don't send Telegram notification here - only send on finalize
         # Telegram notifications will be sent when customer clicks "Finalize Order"
         return jsonify({'success': True})
@@ -5585,11 +5642,17 @@ def api_finalize_order(order_id):
         
         # Send Telegram notification to PepHaul Admin
         try:
-            items_text = '\n'.join([
-                f"• {item['product_name']} ({item['order_type']} x{item['qty']}) - ₱{item['line_total_php']:.2f} {build_inline_qty_change()}".rstrip()
-                for item in order.get('items', [])
-                if item.get('qty', 0) > 0
-            ])
+            item_lines = []
+            for item in order.get('items', []):
+                if item.get('qty', 0) <= 0:
+                    continue
+                old_qty, new_qty = get_order_qty_change(order_id, item.get('product_code'), item.get('order_type'))
+                change_note = build_inline_qty_change(old_qty, new_qty)
+                line = f"• {item['product_name']} ({item['order_type']} x{item['qty']}) - ₱{item['line_total_php']:.2f}"
+                if change_note:
+                    line = f"{line} {change_note}"
+                item_lines.append(line)
+            items_text = '\n'.join(item_lines)
             
             subtotal_php = sum(item.get('line_total_php', 0) for item in order.get('items', []) if item.get('qty', 0) > 0)
             grand_total_php = order.get('grand_total_php', 0)
@@ -5649,6 +5712,7 @@ def api_finalize_order(order_id):
 
 {date_summary}"""
             send_telegram_notification(telegram_msg)
+            clear_order_qty_changes(order_id)
         except Exception as e:
             print(f"⚠️ Error sending Telegram notification: {e}")
             import traceback
@@ -7416,6 +7480,7 @@ def api_admin_update_item(order_id):
     supplier = old_item.get('supplier', '')
 
     if update_item_quantity(order_id, product_code, order_type, new_qty):
+        record_order_qty_change(order_id, product_code, order_type, old_qty, new_qty)
         # Clear cache and reload to ensure inventory is recalculated (tab-scoped keys)
         clear_cache_prefix('orders_')
         clear_cache_prefix('inventory_')
