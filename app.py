@@ -295,6 +295,30 @@ def build_order_date_summary(order=None, updated_at=None, cancellation_date=None
 
     return "\n".join(lines)
 
+def build_inline_qty_change(old_qty=None, new_qty=None):
+    """
+    Build inline quantity change text for Telegram item lines.
+    Returns closed-parentheses note only when quantity changed.
+    Uses a red indicator emoji because Telegram HTML does not support arbitrary text colors.
+    """
+    if old_qty is None or new_qty is None:
+        return ""
+
+    try:
+        old_val = int(float(old_qty))
+        new_val = int(float(new_qty))
+    except (TypeError, ValueError):
+        return ""
+
+    if new_val > old_val:
+        label = f"QTY increased from {old_val} to {new_val}"
+    elif new_val < old_val:
+        label = f"QTY decreased from {old_val} to {new_val}"
+    else:
+        return ""
+
+    return f"(<b>🔄 {label}</b>)"
+
 def build_products_updated_summary(items):
     """Build a readable products-updated block for Telegram notifications."""
     if not items:
@@ -5561,8 +5585,11 @@ def api_finalize_order(order_id):
         
         # Send Telegram notification to PepHaul Admin
         try:
-            items_text = '\n'.join([f"• {item['product_name']} ({item['order_type']} x{item['qty']}) - ₱{item['line_total_php']:.2f}" 
-                                   for item in order.get('items', []) if item.get('qty', 0) > 0])
+            items_text = '\n'.join([
+                f"• {item['product_name']} ({item['order_type']} x{item['qty']}) - ₱{item['line_total_php']:.2f} {build_inline_qty_change()}".rstrip()
+                for item in order.get('items', [])
+                if item.get('qty', 0) > 0
+            ])
             
             subtotal_php = sum(item.get('line_total_php', 0) for item in order.get('items', []) if item.get('qty', 0) > 0)
             grand_total_php = order.get('grand_total_php', 0)
@@ -7409,11 +7436,11 @@ def api_admin_update_item(order_id):
                 {}
             )
             updated_line_total_php = float(updated_item.get('line_total_php', 0) or 0)
-            updated_count_label = 'Updated Vial count' if str(order_type).strip().lower() == 'vial' else 'Updated Kit count'
+            inline_qty_change = build_inline_qty_change(old_qty, new_qty)
             updated_product_line = (
                 f"• {product_name} ({order_type} x{new_qty}) - ₱{updated_line_total_php:,.2f} "
-                f"[{updated_count_label}: From {old_qty} to {new_qty}]"
-            )
+                f"{inline_qty_change}"
+            ).rstrip()
             telegram_msg = f"""🛠️ <b>Order Item Updated (Admin)</b>
 
 <b>Order ID:</b> {order_id}
