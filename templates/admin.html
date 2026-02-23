@@ -640,6 +640,19 @@
                         Lock Form
                     </button>
                 </div>
+
+                <div style="margin-top: 1rem; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; border-top: 1px dashed #e5e7eb; padding-top: 1rem;">
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <span id="cancellation-lock-status" style="padding: 0.75rem 1.5rem; border-radius: 10px; font-weight: 600; font-size: 0.9rem;">CANCELLATION ENABLED</span>
+                        <span id="cancellation-lock-icon" style="font-size: 1.5rem;">✅</span>
+                    </div>
+                    <button id="toggle-cancellation-lock" class="btn" style="padding: 0.75rem 1.5rem; background: #f472b6; color: white; width: auto;">
+                        Disable Cancellation
+                    </button>
+                    <span style="font-size: 0.85rem; color: var(--text-muted);">
+                        Global switch: blocks order cancellation for everyone, while edits/updates still work.
+                    </span>
+                </div>
                 
                 <!-- Lock Message Editor -->
                 <div id="lock-message-container" style="margin-top: 1.5rem; display: none;">
@@ -1271,6 +1284,8 @@
         // Initialize variables early to avoid temporal dead zone errors
         let isLoggedIn = false;
         let allOrders = [];
+        let orderCancellationDisabled = false;
+        let orderCancellationMessage = 'Cancellation is not allowed by Admin to honor other haulers efforts to complete kits. Please contact pephauler for updates arrangement.';
         
         // Get suppliers from template - MUST be declared before any functions that use it
         const ADMIN_SUPPLIERS = {{ suppliers|tojson|safe }};
@@ -1297,6 +1312,7 @@
                     loadOrders();
                     loadCustomerSummary();
                     loadOrderFormStatus();
+                    loadCancellationStatus();
                     loadOrderGoal();
                     loadTheme();
                     loadTimelineEntries();
@@ -1334,6 +1350,7 @@
                     loadOrders();
                     loadCustomerSummary();
                     loadOrderFormStatus();
+                    loadCancellationStatus();
                     loadOrderGoal();
                     loadTheme();
                     loadTimelineEntries();
@@ -1433,6 +1450,41 @@
                 if (statusEl) {
                     statusEl.textContent = 'Error loading status';
                 }
+            }
+        }
+
+        async function loadCancellationStatus() {
+            try {
+                const response = await fetch('/api/admin/order-cancellation-status', { credentials: 'same-origin' });
+                const data = await response.json();
+                orderCancellationDisabled = !!data.is_disabled;
+                orderCancellationMessage = data.message || orderCancellationMessage;
+                updateCancellationUI(orderCancellationDisabled);
+            } catch (error) {
+                console.error('Error loading cancellation status:', error);
+            }
+        }
+
+        function updateCancellationUI(isDisabled) {
+            const statusEl = document.getElementById('cancellation-lock-status');
+            const iconEl = document.getElementById('cancellation-lock-icon');
+            const toggleBtn = document.getElementById('toggle-cancellation-lock');
+            if (!statusEl || !iconEl || !toggleBtn) return;
+
+            if (isDisabled) {
+                statusEl.textContent = 'CANCELLATION DISABLED';
+                statusEl.style.background = 'rgba(244, 114, 182, 0.2)';
+                statusEl.style.color = '#db2777';
+                iconEl.textContent = '🚫';
+                toggleBtn.textContent = 'Enable Cancellation';
+                toggleBtn.style.background = '#a78bfa';
+            } else {
+                statusEl.textContent = 'CANCELLATION ENABLED';
+                statusEl.style.background = 'rgba(16, 185, 129, 0.2)';
+                statusEl.style.color = '#047857';
+                iconEl.textContent = '✅';
+                toggleBtn.textContent = 'Disable Cancellation';
+                toggleBtn.style.background = '#f472b6';
             }
         }
 
@@ -1714,6 +1766,37 @@
                     } catch (error) {
                         console.error('Error toggling form lock:', error);
                         showToast('Error updating lock status');
+                    }
+                });
+            }
+
+            const toggleCancelBtn = document.getElementById('toggle-cancellation-lock');
+            if (toggleCancelBtn) {
+                toggleCancelBtn.addEventListener('click', async () => {
+                    const newDisabledState = !orderCancellationDisabled;
+                    try {
+                        const response = await fetch('/api/admin/order-cancellation-control', {
+                            method: 'POST',
+                            credentials: 'same-origin',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                is_disabled: newDisabledState,
+                                message: orderCancellationMessage
+                            })
+                        });
+                        const data = await response.json();
+                        if (data.success) {
+                            orderCancellationDisabled = !!data.is_disabled;
+                            orderCancellationMessage = data.message || orderCancellationMessage;
+                            updateCancellationUI(orderCancellationDisabled);
+                            showToast(orderCancellationDisabled ? 'Order cancellation is now DISABLED globally.' : 'Order cancellation is now ENABLED globally.');
+                            loadOrders();
+                        } else {
+                            showToast(data.error || 'Failed to update cancellation setting');
+                        }
+                    } catch (error) {
+                        console.error('Error toggling cancellation control:', error);
+                        showToast('Error updating cancellation setting');
                     }
                 });
             }
@@ -3031,7 +3114,9 @@
                                 ${isPaid && hasShippingDetails 
                                     ? `<button class="btn-sm" style="background: #10b981; color: white;" onclick="openTrackingModal('${order.order_id}', '${(order.tracking_number || '').replace(/'/g, "\\'")}')" title="${hasTrackingNumber ? 'Update' : 'Add'} tracking number">📦 ${hasTrackingNumber ? 'Update Tracking' : 'Add Tracking'}</button>` 
                                     : ''}
-                                <button class="btn-sm" style="background: #f472b6; color: white;" onclick="cancelOrder('${order.order_id}', '${order.telegram || ''}')" title="Cancel order and delete all rows">🗑️ Cancel</button>
+                                ${orderCancellationDisabled
+                                    ? `<button class="btn-sm" style="background: #e5e7eb; color: #6b7280; cursor: not-allowed;" disabled title="Cancellation is globally disabled">🚫 Cancel Disabled</button>`
+                                    : `<button class="btn-sm" style="background: #f472b6; color: white;" onclick="cancelOrder('${order.order_id}', '${order.telegram || ''}')" title="Cancel order and delete all rows">🗑️ Cancel</button>`}
                             </div>
                             <div id="quick-edit-${order.order_id}" style="display:none; margin-top: 0.75rem; padding: 0.6rem; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-input);">
                                 <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
@@ -3745,6 +3830,10 @@
 
         // Cancel order function
         async function cancelOrder(orderId, telegramUsername) {
+            if (orderCancellationDisabled) {
+                showToast(orderCancellationMessage || 'Cancellation is not allowed by Admin to honor other haulers efforts to complete kits. Please contact pephauler for updates arrangement.');
+                return;
+            }
             const telegram = telegramUsername || '';
             const telegramDisplay = telegram ? ` (@${telegram.replace('@', '')})` : '';
             

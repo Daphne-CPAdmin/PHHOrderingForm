@@ -900,6 +900,12 @@ def set_product_lock(product_code, is_locked, max_kits=None, admin_name='Admin')
 # In-memory order form lock (persists while server runs, or use Google Sheets for persistence)
 _order_form_locked = False
 _order_form_lock_message = ""
+_order_cancellation_disabled = False
+ORDER_CANCELLATION_BLOCK_MESSAGE = (
+    "Cancellation is not allowed by Admin to honor other haulers efforts to complete kits. "
+    "Please contact pephauler for updates arrangement."
+)
+_order_cancellation_message = ORDER_CANCELLATION_BLOCK_MESSAGE
 
 # Per-tab lock status (dict: tab_name -> {'is_locked': bool, 'message': str})
 _per_tab_lock_status = {}
@@ -1138,6 +1144,91 @@ def set_order_form_lock(is_locked, message=''):
             print(f"Error setting order form lock: {e}")
             return False
     
+    return True
+
+def _fetch_order_cancellation_control():
+    """Internal function to fetch global cancellation control from sheets."""
+    global _order_cancellation_disabled, _order_cancellation_message
+
+    if sheets_client:
+        try:
+            spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
+            try:
+                worksheet = spreadsheet.worksheet('Settings')
+            except:
+                worksheet = spreadsheet.add_worksheet(title='Settings', rows=10, cols=5)
+                worksheet.update('A1:C1', [['Setting', 'Value', 'Updated']])
+                worksheet.update('A2:C2', [['Order Form Locked', 'No', '']])
+                worksheet.update('A3:C3', [['Lock Message', '', '']])
+                worksheet.update('A4:C4', [['Order Cancellation Disabled', 'No', '']])
+                worksheet.update('A5:C5', [['Cancellation Message', _order_cancellation_message, '']])
+                return {'is_disabled': _order_cancellation_disabled, 'message': _order_cancellation_message}
+
+            records = worksheet.get_all_records()
+            for record in records:
+                if record.get('Setting') == 'Order Cancellation Disabled':
+                    _order_cancellation_disabled = str(record.get('Value', '')).lower() == 'yes'
+                if record.get('Setting') == 'Cancellation Message':
+                    raw = str(record.get('Value', '') or '').strip()
+                    if raw:
+                        _order_cancellation_message = raw
+        except Exception as e:
+            print(f"Error getting order cancellation control: {e}")
+
+    return {'is_disabled': _order_cancellation_disabled, 'message': _order_cancellation_message}
+
+def get_order_cancellation_control():
+    """Get global cancellation control status (cached)."""
+    return get_cached('settings_cancellation', _fetch_order_cancellation_control, cache_duration=600)
+
+def set_order_cancellation_control(is_disabled, message=''):
+    """Set global cancellation control status."""
+    global _order_cancellation_disabled, _order_cancellation_message
+    _order_cancellation_disabled = bool(is_disabled)
+    _order_cancellation_message = (
+        str(message or '').strip()
+        or ORDER_CANCELLATION_BLOCK_MESSAGE
+    )
+
+    if sheets_client:
+        try:
+            spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
+            try:
+                worksheet = spreadsheet.worksheet('Settings')
+            except:
+                worksheet = spreadsheet.add_worksheet(title='Settings', rows=10, cols=5)
+                worksheet.update('A1:C1', [['Setting', 'Value', 'Updated']])
+
+            all_values = worksheet.get_all_values()
+            disable_row = None
+            message_row = None
+
+            for i, row in enumerate(all_values):
+                if row and row[0] == 'Order Cancellation Disabled':
+                    disable_row = i + 1
+                if row and row[0] == 'Cancellation Message':
+                    message_row = i + 1
+
+            if disable_row is None:
+                disable_row = len(all_values) + 1
+                worksheet.update_cell(disable_row, 1, 'Order Cancellation Disabled')
+            if message_row is None:
+                message_row = len(all_values) + 2
+                worksheet.update_cell(message_row, 1, 'Cancellation Message')
+
+            now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            worksheet.update_cell(disable_row, 2, 'Yes' if _order_cancellation_disabled else 'No')
+            worksheet.update_cell(disable_row, 3, now_str)
+            worksheet.update_cell(message_row, 2, _order_cancellation_message)
+            worksheet.update_cell(message_row, 3, now_str)
+
+            clear_cache('settings_cancellation')
+            return True
+        except Exception as e:
+            print(f"Error setting order cancellation control: {e}")
+            return False
+
+    clear_cache('settings_cancellation')
     return True
 
 def _fetch_per_tab_lock_status():
@@ -3890,6 +3981,26 @@ def api_order_form_status():
     lock_status = get_order_form_lock()
     return jsonify(lock_status)
 
+@app.route('/api/admin/order-cancellation-status')
+def api_order_cancellation_status():
+    """Get global cancellation control status."""
+    return jsonify(get_order_cancellation_control())
+
+@app.route('/api/admin/order-cancellation-control', methods=['POST'])
+def api_order_cancellation_control():
+    """Enable/disable global order cancellation."""
+    if not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    data = request.json or {}
+    is_disabled = bool(data.get('is_disabled', False))
+    message = str(data.get('message', '') or '').strip()
+
+    if set_order_cancellation_control(is_disabled, message):
+        state = get_order_cancellation_control()
+        return jsonify({'success': True, **state})
+    return jsonify({'error': 'Failed to update cancellation control'}), 500
+
 @app.route('/api/admin/order-goal')
 def api_get_order_goal():
     """Get order goal amount"""
@@ -6094,6 +6205,11 @@ def api_cancel_order(order_id=None):
     """Cancel an order and delete all its rows from Google Sheets - supports order_id or telegram username matching"""
     data = request.json or {}
     telegram_username = data.get('telegram_username')
+    cancellation_control = get_order_cancellation_control()
+    if cancellation_control.get('is_disabled'):
+        return jsonify({
+            'error': ORDER_CANCELLATION_BLOCK_MESSAGE
+        }), 403
     
     # If order_id not in URL, try to get from request body or use telegram lookup
     if not order_id:
