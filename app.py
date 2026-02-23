@@ -5823,6 +5823,10 @@ def api_finalize_order(order_id):
             admin_fee_calculated = math.ceil(total_vials / 50) * 300 if total_vials > 0 else 0
             date_summary = build_order_date_summary(order)
             
+            removed_items_block = ""
+            if removed_items_text:
+                removed_items_block = f"\n\n<b>Removed Items:</b>\n{removed_items_text}"
+
             telegram_msg = f"""🛒 <b>Order Finalized!</b>
 
 <b>Order ID:</b> {order_id}
@@ -5831,7 +5835,7 @@ def api_finalize_order(order_id):
 
 <b>Items:</b>
 {items_text}
-{f"\n\n<b>Removed Items:</b>\n{removed_items_text}" if removed_items_text else ""}
+{removed_items_block}
 
 <b>Subtotal (PHP):</b> ₱{subtotal_php:,.2f}
 <b>Total Vials:</b> {int(total_vials)} vials
