@@ -7104,6 +7104,50 @@ def api_admin_mark_unpaid(order_id):
         return jsonify({'success': True})
     return jsonify({'error': 'Failed to update payment status'}), 500
 
+@app.route('/api/admin/orders/<order_id>/mark-fulfilled', methods=['POST'])
+def api_admin_mark_fulfilled(order_id):
+    """Admin: Mark order as fulfilled (paid orders only)."""
+    if not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    order = get_order_by_id(order_id)
+    if not order:
+        return jsonify({'error': 'Order not found'}), 404
+
+    payment_status = str(order.get('payment_status', '')).strip().lower()
+    if payment_status != 'paid':
+        return jsonify({'error': 'Only paid orders can be marked as fulfilled'}), 400
+
+    if update_order_status(order_id, status='Fulfilled', locked=True):
+        # Non-blocking admin notification
+        try:
+            refreshed = get_order_by_id(order_id) or order
+            items_text = '\n'.join([
+                f"• {i.get('product_name', i.get('product_code', ''))} ({i.get('order_type', 'Vial')} x{i.get('qty', 0)})"
+                for i in refreshed.get('items', [])
+            ])
+            date_summary = build_order_date_summary(refreshed, updated_at=datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+            telegram_msg = f"""📦 <b>Order Marked Fulfilled</b>
+
+<b>Order ID:</b> {order_id}
+<b>Customer:</b> {refreshed.get('full_name', 'N/A')}
+<b>Telegram:</b> @{str(refreshed.get('telegram', 'N/A')).replace('@', '')}
+
+<b>Items:</b>
+{items_text}
+
+<b>Grand Total:</b> ₱{float(refreshed.get('grand_total_php', 0) or 0):,.2f}
+<b>Status:</b> Fulfilled
+
+{date_summary}"""
+            send_telegram_notification(telegram_msg)
+        except Exception as notify_error:
+            print(f"⚠️ Error sending fulfilled notification: {notify_error}")
+
+        return jsonify({'success': True, 'message': 'Order marked as fulfilled'})
+
+    return jsonify({'error': 'Failed to mark order as fulfilled'}), 500
+
 @app.route('/api/admin/customer-summary')
 def api_admin_customer_summary():
     """Get customer summary - unique customers with order counts, total vials, and grand totals"""

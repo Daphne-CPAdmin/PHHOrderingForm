@@ -2930,6 +2930,22 @@
             return status;
         }
 
+        function getQuickEditItemOptions(order) {
+            const items = (order && Array.isArray(order.items)) ? order.items : [];
+            if (!items.length) return '<option value="">No items</option>';
+
+            return items
+                .filter(item => item && item.product_code && item.order_type)
+                .map(item => {
+                    const code = String(item.product_code || '').replace(/"/g, '&quot;');
+                    const type = String(item.order_type || '').replace(/"/g, '&quot;');
+                    const name = String(item.product_name || item.product_code || 'Unknown').replace(/"/g, '&quot;');
+                    const qty = Number(item.qty || 0);
+                    return `<option value="${code}||${type}">${name} (${type}, qty ${qty})</option>`;
+                })
+                .join('');
+        }
+
         function renderOrders(orders, supplier) {
             const tbody = document.querySelector(`.orders-tbody[data-supplier="${supplier}"]`);
             if (!tbody) return;
@@ -2952,11 +2968,13 @@
                 const paymentStatusKey = paymentStatus.toLowerCase().replace(/\s+/g, '-').replace('waiting-for-confirmation', 'waiting');
                 const isPaid = paymentStatus.toLowerCase() === 'paid';
                 const isWaitingForConfirmation = paymentStatus.toLowerCase() === 'waiting for confirmation';
+                const isFulfilled = String(order.status || '').toLowerCase() === 'fulfilled';
                 const isLocked = order.locked === true;
                 const isNonEditableDueToPayment = isPaid || isWaitingForConfirmation;
                 const showUnlockButton = isLocked || isNonEditableDueToPayment;
                 const hasShippingDetails = order.mailing_address && order.mailing_address.trim() !== '';
                 const hasTrackingNumber = order.tracking_number && order.tracking_number.trim() !== '';
+                const quickEditOptions = getQuickEditItemOptions(order);
                 
                 return `
                     <tr data-order-id="${order.order_id}" class="${isLocked ? 'locked-order' : ''}">
@@ -2971,14 +2989,17 @@
                         <td style="font-family: 'JetBrains Mono', monospace; font-weight: 600;">₱${order.grand_total_php.toLocaleString('en-PH', {minimumFractionDigits: 2})}</td>
                         <td><span class="payment-badge ${paymentStatusKey}">${paymentStatus}</span></td>
                         <td>
-                            ${isLocked 
+                            ${isFulfilled
+                                ? '<span style="color: #10b981; font-weight: 700;">✅ Fulfilled</span>'
+                                : (isLocked 
                                 ? '<span style="color: #ec4899; font-weight: 600;">🔒 Locked</span>'
-                                : '<span style="color: #7c3aed; font-weight: 600;">🔓 Open</span>'}
+                                : '<span style="color: #7c3aed; font-weight: 600;">🔓 Open</span>')}
                         </td>
                         <td>
                             <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
                                 <button class="btn-sm btn-view" onclick="viewOrderDetails('${order.order_id}')">View</button>
                                 <button class="btn-sm" style="background: #c084fc; color: white;" onclick="editOrder('${order.order_id}')" title="Edit order items">✏️ Edit</button>
+                                <button class="btn-sm" style="background: #7c3aed; color: white;" onclick="toggleQuickEdit('${order.order_id}')">⚡ Quick Edit</button>
                                 ${showUnlockButton 
                                     ? `<button class="btn-sm" style="background: #a78bfa; color: white;" onclick="toggleOrderLock('${order.order_id}', false)">🔓 Unlock</button>`
                                     : `<button class="btn-sm" style="background: #f472b6; color: white;" onclick="toggleOrderLock('${order.order_id}', true)">🔒 Lock</button>`}
@@ -2986,10 +3007,23 @@
                                     ? `<button class="btn-sm btn-confirm" onclick="confirmPayment('${order.order_id}')">✓ Confirm</button>
                                        <button class="btn-sm" style="background: #c084fc; color: white;" onclick="sendReminder('${order.order_id}')">📲 Remind</button>` 
                                     : `<button class="btn-sm" style="background: #a78bfa; color: white;" onclick="notifyCustomer('${order.order_id}')">📱 Notify</button>`}
+                                ${isPaid && !isFulfilled
+                                    ? `<button class="btn-sm" style="background: #10b981; color: white;" onclick="markOrderFulfilled('${order.order_id}')">✅ Fulfilled</button>`
+                                    : ''}
                                 ${isPaid && hasShippingDetails 
                                     ? `<button class="btn-sm" style="background: #10b981; color: white;" onclick="openTrackingModal('${order.order_id}', '${(order.tracking_number || '').replace(/'/g, "\\'")}')" title="${hasTrackingNumber ? 'Update' : 'Add'} tracking number">📦 ${hasTrackingNumber ? 'Update Tracking' : 'Add Tracking'}</button>` 
                                     : ''}
                                 <button class="btn-sm" style="background: #f472b6; color: white;" onclick="cancelOrder('${order.order_id}', '${order.telegram || ''}')" title="Cancel order and delete all rows">🗑️ Cancel</button>
+                            </div>
+                            <div id="quick-edit-${order.order_id}" style="display:none; margin-top: 0.75rem; padding: 0.6rem; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-input);">
+                                <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+                                    <select id="quick-edit-item-${order.order_id}" class="form-input" style="min-width: 220px; width: auto; padding: 0.4rem 0.6rem;">
+                                        ${quickEditOptions}
+                                    </select>
+                                    <button class="btn-sm" style="background:#f472b6; color:white;" onclick="quickAdjustItem('${order.order_id}', -1)">-1</button>
+                                    <button class="btn-sm" style="background:#10b981; color:white;" onclick="quickAdjustItem('${order.order_id}', 1)">+1</button>
+                                    <button class="btn-sm" style="background: var(--bg-card); border: 1px solid var(--border); color: var(--text-primary);" onclick="toggleQuickEdit('${order.order_id}')">Close</button>
+                                </div>
                             </div>
                         </td>
                     </tr>
@@ -3000,6 +3034,86 @@
             const selectAllCheckbox = document.querySelector(`.select-all-orders[data-supplier="${supplier}"]`);
             if (selectAllCheckbox) selectAllCheckbox.checked = false;
             updateBulkActions(supplier);
+        }
+
+        function toggleQuickEdit(orderId) {
+            const panel = document.getElementById(`quick-edit-${orderId}`);
+            if (!panel) return;
+            panel.style.display = panel.style.display === 'none' || !panel.style.display ? 'block' : 'none';
+        }
+
+        async function quickAdjustItem(orderId, delta) {
+            const select = document.getElementById(`quick-edit-item-${orderId}`);
+            if (!select || !select.value) {
+                showToast('❌ Select an item first');
+                return;
+            }
+
+            const [productCode, orderType] = String(select.value).split('||');
+            if (!productCode || !orderType) {
+                showToast('❌ Invalid item selection');
+                return;
+            }
+
+            const order = allOrders.find(o => o.order_id === orderId);
+            if (!order) {
+                showToast('❌ Order not found');
+                return;
+            }
+
+            const existingItem = (order.items || []).find(i => i.product_code === productCode && i.order_type === orderType);
+            if (!existingItem) {
+                showToast('❌ Selected item not found in order');
+                return;
+            }
+
+            const currentQty = Number(existingItem.qty || 0);
+            const newQty = Math.max(0, currentQty + Number(delta || 0));
+            if (newQty === currentQty) return;
+
+            try {
+                const response = await fetch(`/api/admin/orders/${orderId}/update-item`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({
+                        product_code: productCode,
+                        order_type: orderType,
+                        qty: newQty
+                    })
+                });
+
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    throw new Error(result.error || 'Failed to update item');
+                }
+
+                showToast(`✅ Updated ${productCode} (${orderType}) to ${newQty}`);
+                await loadOrders();
+            } catch (error) {
+                console.error('Quick adjust error:', error);
+                showToast(`❌ ${error.message || 'Quick edit failed'}`);
+            }
+        }
+
+        async function markOrderFulfilled(orderId) {
+            if (!confirm(`Mark order ${orderId} as fulfilled?`)) return;
+            try {
+                const response = await fetch(`/api/admin/orders/${orderId}/mark-fulfilled`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin'
+                });
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    throw new Error(result.error || 'Failed to mark as fulfilled');
+                }
+                showToast('✅ Order marked fulfilled');
+                await loadOrders();
+            } catch (error) {
+                console.error('Mark fulfilled error:', error);
+                showToast(`❌ ${error.message || 'Failed to mark fulfilled'}`);
+            }
         }
 
         // Filter orders per supplier
@@ -3134,6 +3248,8 @@
 
             const isPaid = order.payment_status && order.payment_status.toLowerCase() === 'paid';
             const isWaitingForConfirmation = order.payment_status && order.payment_status.toLowerCase() === 'waiting for confirmation';
+            // Use products cache populated by loadOrders()/loadProducts() to avoid runtime ReferenceError.
+            const allProducts = window._productsCache || [];
 
             const body = document.getElementById('order-modal-body');
             body.innerHTML = `
