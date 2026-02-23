@@ -990,12 +990,12 @@
                         <thead>
                             <tr>
                                 <th>Customer Name</th>
+                                <th>Remarks</th>
                                 <th>Order Number/s</th>
                                 <th>Payment Status</th>
                                 <th>Unique Orders</th>
                                 <th>Total Vials</th>
                                 <th>Grand Total (PHP)</th>
-                                <th>Remarks</th>
                             </tr>
                         </thead>
                         <tbody class="customer-summary-tbody">
@@ -2322,12 +2322,12 @@
                     return `
                         <tr>
                             <td style="font-weight: 500;">${customer.customer_name}</td>
+                            <td style="font-size: 0.85rem; color: var(--text-secondary);">${customer.remarks || 'N/A'}</td>
                             <td style="font-family: 'JetBrains Mono', monospace; color: #c084fc; font-weight: 600; cursor: pointer; user-select: all; position: relative;" onclick="navigator.clipboard.writeText('${customer.order_numbers}').then(() => { const el = event.target; const original = el.textContent; el.textContent = 'Copied!'; el.style.color = '#10b981'; setTimeout(() => { el.textContent = original; el.style.color = '#c084fc'; }, 1000); })" title="Click to copy order numbers">${customer.order_numbers}</td>
                             <td><span class="payment-badge ${paymentStatusClass}" style="font-size: 0.85rem;">${paymentStatusIcon} ${customer.payment_status}</span></td>
                             <td style="font-family: 'JetBrains Mono', monospace; color: #c084fc; font-weight: 600;">${customer.order_count}</td>
                             <td style="font-family: 'JetBrains Mono', monospace; color: #a78bfa; font-weight: 600;">${customer.total_vials}</td>
                             <td style="font-family: 'JetBrains Mono', monospace; color: #7c3aed; font-weight: 700; font-size: 1.1rem;">₱${customer.total_grand_total_php.toLocaleString('en-PH', {minimumFractionDigits: 2})}</td>
-                            <td style="font-size: 0.85rem; color: var(--text-secondary);">${customer.remarks || 'N/A'}</td>
                         </tr>
                     `;
                 }).join('');
@@ -2946,6 +2946,23 @@
                 .join('');
         }
 
+        function getQuickAddProductOptions() {
+            const products = Array.isArray(window._productsCache) ? window._productsCache : [];
+            if (!products.length) return '<option value="">No products</option>';
+
+            return products
+                .map(product => {
+                    const code = String(product.code || '').trim();
+                    if (!code) return '';
+                    const supplier = String(product.supplier || 'Default').trim();
+                    const name = String(product.name || code).replace(/"/g, '&quot;');
+                    const value = `${code}||${supplier}`.replace(/"/g, '&quot;');
+                    return `<option value="${value}">${name} (${supplier})</option>`;
+                })
+                .filter(Boolean)
+                .join('');
+        }
+
         function renderOrders(orders, supplier) {
             const tbody = document.querySelector(`.orders-tbody[data-supplier="${supplier}"]`);
             if (!tbody) return;
@@ -2975,6 +2992,7 @@
                 const hasShippingDetails = order.mailing_address && order.mailing_address.trim() !== '';
                 const hasTrackingNumber = order.tracking_number && order.tracking_number.trim() !== '';
                 const quickEditOptions = getQuickEditItemOptions(order);
+                const quickAddProductOptions = getQuickAddProductOptions();
                 
                 return `
                     <tr data-order-id="${order.order_id}" class="${isLocked ? 'locked-order' : ''}">
@@ -3022,6 +3040,12 @@
                                     </select>
                                     <button class="btn-sm" style="background:#f472b6; color:white;" onclick="quickAdjustItem('${order.order_id}', -1)">-1</button>
                                     <button class="btn-sm" style="background:#10b981; color:white;" onclick="quickAdjustItem('${order.order_id}', 1)">+1</button>
+                                    <span style="width: 1px; height: 22px; background: var(--border);"></span>
+                                    <select id="quick-add-product-${order.order_id}" class="form-input" style="min-width: 220px; width: auto; padding: 0.4rem 0.6rem;">
+                                        ${quickAddProductOptions}
+                                    </select>
+                                    <button class="btn-sm" style="background:#a78bfa; color:white;" onclick="quickCreateLine('${order.order_id}', 'Vial')">+ Vial line</button>
+                                    <button class="btn-sm" style="background:#8b5cf6; color:white;" onclick="quickCreateLine('${order.order_id}', 'Kit')">+ Kit line</button>
                                     <button class="btn-sm" style="background: var(--bg-card); border: 1px solid var(--border); color: var(--text-primary);" onclick="toggleQuickEdit('${order.order_id}')">Close</button>
                                 </div>
                             </div>
@@ -3093,6 +3117,68 @@
             } catch (error) {
                 console.error('Quick adjust error:', error);
                 showToast(`❌ ${error.message || 'Quick edit failed'}`);
+            }
+        }
+
+        async function quickCreateLine(orderId, orderType) {
+            const select = document.getElementById(`quick-add-product-${orderId}`);
+            if (!select || !select.value) {
+                showToast('❌ Select a product first');
+                return;
+            }
+
+            const [productCode, supplier] = String(select.value).split('||');
+            if (!productCode) {
+                showToast('❌ Invalid product selection');
+                return;
+            }
+
+            const order = allOrders.find(o => o.order_id === orderId);
+            if (!order) {
+                showToast('❌ Order not found');
+                return;
+            }
+
+            const existingItem = (order.items || []).find(i =>
+                String(i.product_code || '').trim().toUpperCase() === String(productCode).trim().toUpperCase() &&
+                String(i.order_type || '').trim().toLowerCase() === String(orderType).trim().toLowerCase()
+            );
+
+            // If line already exists, reuse quick adjust to bump by +1.
+            if (existingItem) {
+                const quickSelect = document.getElementById(`quick-edit-item-${orderId}`);
+                if (quickSelect) {
+                    quickSelect.value = `${productCode}||${orderType}`;
+                }
+                await quickAdjustItem(orderId, 1);
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/orders/${orderId}/add-items`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({
+                        items: [{
+                            product_code: productCode,
+                            order_type: orderType,
+                            supplier: supplier || 'Default',
+                            qty: 1
+                        }]
+                    })
+                });
+
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    throw new Error(result.error || 'Failed to add item line');
+                }
+
+                showToast(`✅ Added ${productCode} (${orderType} x1)`);
+                await loadOrders();
+            } catch (error) {
+                console.error('Quick create line error:', error);
+                showToast(`❌ ${error.message || 'Failed to add line'}`);
             }
         }
 

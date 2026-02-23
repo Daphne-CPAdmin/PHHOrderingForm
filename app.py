@@ -5219,10 +5219,12 @@ def api_add_items(order_id=None):
                     'error': f'Item {idx + 1}: Quantity must be a positive number'
                 }), 400
         
-        # Check if order form is locked
+        is_admin = session.get('is_admin', False)
+
+        # Check if order form is locked (admins can still modify orders)
         try:
             order_form_lock = get_order_form_lock()
-            if order_form_lock.get('is_locked', False):
+            if order_form_lock.get('is_locked', False) and not is_admin:
                 lock_message = order_form_lock.get('message', 'Orders are currently closed. Order updates cannot be submitted at this time.')
                 return jsonify({
                     'success': False,
@@ -5332,7 +5334,6 @@ def api_add_items(order_id=None):
             }), 404
         
         # Check if order is locked (admins can still add items to locked orders)
-        is_admin = session.get('is_admin', False)
         if order.get('locked') and not is_admin:
             return jsonify({
                 'success': False,
