@@ -1222,13 +1222,18 @@ def set_order_cancellation_control(is_disabled, message=''):
             worksheet.update_cell(message_row, 2, _order_cancellation_message)
             worksheet.update_cell(message_row, 3, now_str)
 
-            clear_cache('settings_cancellation')
-            return True
+            # Continue to cache update below so the UI reads the latest value immediately.
         except Exception as e:
             print(f"Error setting order cancellation control: {e}")
-            return False
+            # Do not fail hard here; keep in-memory/cached state updated so admins can
+            # still control cancellation even if Sheets is temporarily unavailable.
 
     clear_cache('settings_cancellation')
+    _cache['settings_cancellation'] = {
+        'is_disabled': _order_cancellation_disabled,
+        'message': _order_cancellation_message
+    }
+    _cache_timestamps['settings_cancellation'] = time.time()
     return True
 
 def _fetch_per_tab_lock_status():
@@ -3997,8 +4002,11 @@ def api_order_cancellation_control():
     message = str(data.get('message', '') or '').strip()
 
     if set_order_cancellation_control(is_disabled, message):
-        state = get_order_cancellation_control()
-        return jsonify({'success': True, **state})
+        return jsonify({
+            'success': True,
+            'is_disabled': is_disabled,
+            'message': (message or ORDER_CANCELLATION_BLOCK_MESSAGE)
+        })
     return jsonify({'error': 'Failed to update cancellation control'}), 500
 
 @app.route('/api/admin/order-goal')
