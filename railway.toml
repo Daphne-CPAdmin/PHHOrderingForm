@@ -10,6 +10,6 @@ restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 10
 
 # Health check (Railway handles this automatically, but you can customize)
-healthcheckPath = "/"
+healthcheckPath = "/health"
 healthcheckTimeout = 100
 

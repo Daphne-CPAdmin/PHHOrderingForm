@@ -3135,19 +3135,26 @@ def get_consolidated_order_stats():
 @app.route('/health')
 def health_check():
     """Health check endpoint for deployment"""
+    # Keep healthcheck lightweight and independent from external services so
+    # Railway can keep the container healthy while background init completes.
+    payload = {
+        'status': 'healthy',
+        'timestamp': datetime.now().isoformat(),
+        'components': {
+            'sheets_configured': bool(sheets_client),
+            'drive_configured': bool(drive_service),
+            'supplier_filter_loaded': bool(_pephaul_supplier_filter)
+        }
+    }
+
+    # Optional best-effort diagnostics (never fail health for these).
     try:
-        # Quick checks to ensure app is working
-        current_tab = get_current_pephaul_tab()
-        return jsonify({
-            'status': 'healthy',
-            'current_tab': current_tab,
-            'timestamp': datetime.now().isoformat()
-        }), 200
+        payload['current_tab'] = get_current_pephaul_tab()
     except Exception as e:
-        return jsonify({
-            'status': 'unhealthy',
-            'error': str(e)
-        }), 500
+        payload['current_tab'] = None
+        payload['current_tab_error'] = str(e)
+
+    return jsonify(payload), 200
 
 @app.route('/')
 def index():
