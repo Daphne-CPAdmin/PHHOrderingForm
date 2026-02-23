@@ -6158,6 +6158,45 @@
                     
                     // Convert consolidated map to array
                     const itemsToSend = Array.from(consolidatedMap.values());
+
+                    // Build quantity delta payload so finalize notification can always
+                    // render increased/decreased qty, even across different workers.
+                    const qtyChanges = [];
+                    const originalQtyByKey = new Map();
+                    const originalNameByKey = new Map();
+                    const finalQtyByKey = new Map();
+
+                    (originalOrderItems || []).forEach(item => {
+                        const code = String(item.product_code || '').trim().toUpperCase();
+                        const type = String(item.order_type || 'Vial').trim().toLowerCase();
+                        if (!code) return;
+                        const key = `${code}||${type}`;
+                        originalQtyByKey.set(key, parseFloat(item.qty) || 0);
+                        originalNameByKey.set(key, String(item.product_name || '').trim());
+                    });
+
+                    itemsToSend.forEach(item => {
+                        const code = String(item.product_code || '').trim().toUpperCase();
+                        const type = String(item.order_type || 'Vial').trim().toLowerCase();
+                        if (!code) return;
+                        const key = `${code}||${type}`;
+                        finalQtyByKey.set(key, parseFloat(item.qty) || 0);
+                    });
+
+                    const allKeys = new Set([...originalQtyByKey.keys(), ...finalQtyByKey.keys()]);
+                    allKeys.forEach(key => {
+                        const [productCode, orderType] = key.split('||');
+                        const oldQty = originalQtyByKey.get(key) || 0;
+                        const newQty = finalQtyByKey.get(key) || 0;
+                        if (oldQty === newQty) return;
+                        qtyChanges.push({
+                            product_code: productCode,
+                            product_name: originalNameByKey.get(key) || '',
+                            order_type: orderType,
+                            old_qty: oldQty,
+                            new_qty: newQty
+                        });
+                    });
                     
                     console.log(`[confirmOrderSubmission] Updating order ${pendingOrder.order_id}:`, {
                         totalCartItems: cartItems.length,
@@ -6243,7 +6282,8 @@
                         try {
                             const finalizeResponse = await fetch(`/api/orders/${pendingOrder.order_id}/finalize`, {
                                 method: 'POST',
-                                headers: { 'Content-Type': 'application/json' }
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ qty_changes: qtyChanges })
                             });
                             
                             if (!finalizeResponse.ok) {

@@ -365,6 +365,38 @@ def get_order_qty_change(order_id, product_code, order_type):
 def clear_order_qty_changes(order_id):
     _order_qty_change_log.pop(str(order_id), None)
 
+def parse_qty_changes_payload(changes_payload):
+    """
+    Normalize qty change payload from client into a lookup map.
+    Expected item shape:
+    {product_code, product_name?, order_type, old_qty, new_qty}
+    """
+    change_lookup = {}
+    if not isinstance(changes_payload, list):
+        return change_lookup
+
+    for raw in changes_payload:
+        if not isinstance(raw, dict):
+            continue
+        try:
+            product_code = raw.get('product_code')
+            order_type = raw.get('order_type', 'Vial')
+            old_qty = int(float(raw.get('old_qty', 0) or 0))
+            new_qty = int(float(raw.get('new_qty', 0) or 0))
+        except (TypeError, ValueError):
+            continue
+
+        key = _qty_change_key(product_code, order_type)
+        change_lookup[key] = {
+            'product_code': str(product_code or '').strip(),
+            'product_name': str(raw.get('product_name', '') or '').strip(),
+            'order_type': str(order_type or 'Vial').strip(),
+            'old_qty': old_qty,
+            'new_qty': new_qty
+        }
+
+    return change_lookup
+
 def build_products_updated_summary(items):
     """Build a readable products-updated block for Telegram notifications."""
     if not items:
@@ -5442,6 +5474,19 @@ def api_add_items(order_id=None):
         except (KeyError, TypeError, ValueError):
             exchange_rate = FALLBACK_EXCHANGE_RATE
             print(f"⚠️ Using fallback exchange rate: {exchange_rate}")
+
+        # Snapshot existing item quantities so finalize notification can show
+        # inline QTY increase/decrease for replacement-style updates.
+        previous_qty_by_key = {}
+        for existing_item in order.get('items', []):
+            try:
+                existing_qty = int(float(existing_item.get('qty', 0) or 0))
+            except (TypeError, ValueError):
+                continue
+            if existing_qty <= 0:
+                continue
+            existing_key = _qty_change_key(existing_item.get('product_code'), existing_item.get('order_type'))
+            previous_qty_by_key[existing_key] = existing_qty
         
         items_with_prices = []
         for idx, item in enumerate(items):
@@ -5540,6 +5585,26 @@ def api_add_items(order_id=None):
                 'success': False,
                 'error': 'Failed to add items to order. Please try again.'
             }), 500
+
+        # Record quantity changes for items that existed before this replacement update.
+        # This powers inline "(QTY increased/decreased ...)" notes in finalize notifications.
+        if not is_paid:
+            for updated_item in items_with_prices:
+                item_key = _qty_change_key(updated_item.get('product_code'), updated_item.get('order_type'))
+                old_qty = previous_qty_by_key.get(item_key)
+                if old_qty is None:
+                    continue
+                try:
+                    new_qty = int(float(updated_item.get('qty', 0) or 0))
+                except (TypeError, ValueError):
+                    continue
+                record_order_qty_change(
+                    order_id,
+                    updated_item.get('product_code'),
+                    updated_item.get('order_type'),
+                    old_qty,
+                    new_qty
+                )
         
         # Clean up any 0-quantity rows for this order
         try:
@@ -5615,8 +5680,39 @@ def api_update_item(order_id):
     
     if update_item_quantity(order_id, product_code, order_type, new_qty):
         record_order_qty_change(order_id, product_code, order_type, old_qty, new_qty)
-        # Don't send Telegram notification here - only send on finalize
-        # Telegram notifications will be sent when customer clicks "Finalize Order"
+
+        # Send Telegram notification for item update (non-blocking)
+        try:
+            updated_order = get_order_by_id(order_id)
+            date_summary = build_order_date_summary(updated_order)
+            updated_item = next(
+                (
+                    item for item in (updated_order.get('items', []) if updated_order else [])
+                    if str(item.get('product_code', '')).strip().upper() == str(product_code).strip().upper()
+                    and str(item.get('order_type', '')).strip().lower() == str(order_type).strip().lower()
+                ),
+                {}
+            )
+            updated_line_total_php = float(updated_item.get('line_total_php', 0) or 0)
+            inline_qty_change = build_inline_qty_change(old_qty, new_qty)
+            updated_product_line = (
+                f"• {updated_item.get('product_name', old_item.get('product_name', product_code))} "
+                f"({order_type} x{new_qty}) - ₱{updated_line_total_php:,.2f} {inline_qty_change}"
+            ).rstrip()
+            telegram_msg = f"""🛠️ <b>Order Item Updated</b>
+
+<b>Order ID:</b> {order_id}
+<b>Customer:</b> {updated_order.get('full_name', order.get('full_name', 'N/A'))}
+<b>Telegram:</b> @{str(updated_order.get('telegram', order.get('telegram', 'N/A'))).replace('@', '')}
+
+<b>Items:</b>
+{updated_product_line}
+
+{date_summary}"""
+            send_telegram_notification(telegram_msg)
+        except Exception as notify_error:
+            print(f"⚠️ Error sending item update notification: {notify_error}")
+
         return jsonify({'success': True})
     
     return jsonify({'error': 'Failed to update item'}), 500
@@ -5640,19 +5736,45 @@ def api_finalize_order(order_id):
         if not order:
             return jsonify({'error': 'Order not found after recalculation'}), 404
         
+        data = request.get_json(silent=True) or {}
+        request_qty_change_lookup = parse_qty_changes_payload(data.get('qty_changes', []))
+
         # Send Telegram notification to PepHaul Admin
         try:
             item_lines = []
+            removed_lines = []
             for item in order.get('items', []):
                 if item.get('qty', 0) <= 0:
                     continue
-                old_qty, new_qty = get_order_qty_change(order_id, item.get('product_code'), item.get('order_type'))
+                lookup_key = _qty_change_key(item.get('product_code'), item.get('order_type'))
+                payload_change = request_qty_change_lookup.get(lookup_key, {})
+                old_qty = payload_change.get('old_qty')
+                new_qty = payload_change.get('new_qty')
+                if old_qty is None and new_qty is None:
+                    old_qty, new_qty = get_order_qty_change(order_id, item.get('product_code'), item.get('order_type'))
                 change_note = build_inline_qty_change(old_qty, new_qty)
                 line = f"• {item['product_name']} ({item['order_type']} x{item['qty']}) - ₱{item['line_total_php']:.2f}"
                 if change_note:
                     line = f"{line} {change_note}"
                 item_lines.append(line)
             items_text = '\n'.join(item_lines)
+
+            for change in request_qty_change_lookup.values():
+                old_qty = change.get('old_qty')
+                new_qty = change.get('new_qty')
+                if old_qty is None or new_qty is None:
+                    continue
+                if old_qty <= 0 or new_qty > 0:
+                    continue
+
+                removed_name = change.get('product_name') or change.get('product_code') or 'Unknown Product'
+                removed_type = change.get('order_type') or 'Vial'
+                removed_note = build_inline_qty_change(old_qty, new_qty)
+                removed_line = f"• {removed_name} ({removed_type} x0)"
+                if removed_note:
+                    removed_line = f"{removed_line} {removed_note}"
+                removed_lines.append(removed_line)
+            removed_items_text = '\n'.join(removed_lines)
             
             subtotal_php = sum(item.get('line_total_php', 0) for item in order.get('items', []) if item.get('qty', 0) > 0)
             grand_total_php = order.get('grand_total_php', 0)
@@ -5702,6 +5824,7 @@ def api_finalize_order(order_id):
 
 <b>Items:</b>
 {items_text}
+{f"\n\n<b>Removed Items:</b>\n{removed_items_text}" if removed_items_text else ""}
 
 <b>Subtotal (PHP):</b> ₱{subtotal_php:,.2f}
 <b>Total Vials:</b> {int(total_vials)} vials
