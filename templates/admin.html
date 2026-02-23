@@ -966,6 +966,25 @@
                     Overview of all customers showing unique orders, total vials, and grand totals (including PepHaul Admin fee) for {{ current_tab|default('PepHaul Entry') }}.
                 </p>
 
+                <div class="stats-grid" style="margin-bottom: 1rem;">
+                    <div class="stat-card">
+                        <div class="stat-value" id="customer-summary-unique-orders">0</div>
+                        <div class="stat-label">Unique Orders</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="customer-summary-paid-orders">0</div>
+                        <div class="stat-label">Paid Orders</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="customer-summary-unpaid-orders">0</div>
+                        <div class="stat-label">Unpaid Orders</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="customer-summary-total-php">₱0.00</div>
+                        <div class="stat-label">Total (PHP)</div>
+                    </div>
+                </div>
+
                 <div class="table-container">
                     <table class="products-table">
                         <thead>
@@ -976,6 +995,7 @@
                                 <th>Unique Orders</th>
                                 <th>Total Vials</th>
                                 <th>Grand Total (PHP)</th>
+                                <th>Remarks</th>
                             </tr>
                         </thead>
                         <tbody class="customer-summary-tbody">
@@ -2238,12 +2258,16 @@
                     throw new Error(`API returned ${response.status}: ${response.statusText}`);
                 }
                 
-                const customers = await response.json();
+                const payload = await response.json();
                 
                 // Handle error response from API
-                if (customers.error) {
-                    throw new Error(customers.error);
+                if (payload.error) {
+                    throw new Error(payload.error);
                 }
+
+                // Backward compatibility: old API returned array directly
+                const customers = Array.isArray(payload) ? payload : (payload.customers || []);
+                const summaryStats = Array.isArray(payload) ? {} : (payload.summary_stats || {});
                 
                 // Find the customer summary table body (single table for current PepHaul Entry tab)
                 const tbody = document.querySelector('.customer-summary-tbody');
@@ -2255,12 +2279,28 @@
                 // Ensure customers is an array
                 if (!Array.isArray(customers)) {
                     console.error('Invalid response format:', customers);
-                    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: var(--accent-rose);">Error: Invalid response format</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 2rem; color: var(--accent-rose);">Error: Invalid response format</td></tr>';
                     return;
                 }
+
+                // Update summary cards
+                const uniqueOrdersEl = document.getElementById('customer-summary-unique-orders');
+                const paidOrdersEl = document.getElementById('customer-summary-paid-orders');
+                const unpaidOrdersEl = document.getElementById('customer-summary-unpaid-orders');
+                const totalPhpEl = document.getElementById('customer-summary-total-php');
+
+                const uniqueOrders = Number(summaryStats.unique_orders || 0);
+                const paidOrders = Number(summaryStats.paid_orders || 0);
+                const unpaidOrders = Number(summaryStats.unpaid_orders || 0);
+                const totalPhp = Number(summaryStats.total_php || 0);
+
+                if (uniqueOrdersEl) uniqueOrdersEl.textContent = uniqueOrders.toLocaleString('en-PH');
+                if (paidOrdersEl) paidOrdersEl.textContent = paidOrders.toLocaleString('en-PH');
+                if (unpaidOrdersEl) unpaidOrdersEl.textContent = unpaidOrders.toLocaleString('en-PH');
+                if (totalPhpEl) totalPhpEl.textContent = `₱${totalPhp.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
                 
                 if (!customers || customers.length === 0) {
-                    tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-muted);">No customers found for ${CURRENT_PEPHAUL_TAB}</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 2rem; color: var(--text-muted);">No customers found for ${CURRENT_PEPHAUL_TAB}</td></tr>`;
                     return;
                 }
                 
@@ -2287,6 +2327,7 @@
                             <td style="font-family: 'JetBrains Mono', monospace; color: #c084fc; font-weight: 600;">${customer.order_count}</td>
                             <td style="font-family: 'JetBrains Mono', monospace; color: #a78bfa; font-weight: 600;">${customer.total_vials}</td>
                             <td style="font-family: 'JetBrains Mono', monospace; color: #7c3aed; font-weight: 700; font-size: 1.1rem;">₱${customer.total_grand_total_php.toLocaleString('en-PH', {minimumFractionDigits: 2})}</td>
+                            <td style="font-size: 0.85rem; color: var(--text-secondary);">${customer.remarks || 'N/A'}</td>
                         </tr>
                     `;
                 }).join('');
@@ -2295,7 +2336,7 @@
                 console.error('Error loading customer summary:', error);
                 const tbody = document.querySelector('.customer-summary-tbody');
                 if (tbody) {
-                    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: var(--accent-rose);">Error loading customer summary</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 2rem; color: var(--accent-rose);">Error loading customer summary</td></tr>';
                 }
             }
         }

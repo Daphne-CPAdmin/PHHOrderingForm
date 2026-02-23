@@ -5602,9 +5602,6 @@ def api_finalize_order(order_id):
             import math
             admin_fee_calculated = math.ceil(total_vials / 50) * 300 if total_vials > 0 else 0
             date_summary = build_order_date_summary(order)
-            products_updated_text = build_products_updated_summary(
-                [item for item in order.get('items', []) if item.get('qty', 0) > 0]
-            )
             
             telegram_msg = f"""🛒 <b>Order Finalized!</b>
 
@@ -5614,9 +5611,6 @@ def api_finalize_order(order_id):
 
 <b>Items:</b>
 {items_text}
-
-<b>Products Updated:</b>
-{products_updated_text}
 
 <b>Subtotal (PHP):</b> ₱{subtotal_php:,.2f}
 <b>Total Vials:</b> {int(total_vials)} vials
@@ -7148,7 +7142,8 @@ def api_admin_customer_summary():
     customer_summary = {}
     order_items = {}  # Track items per order_id to recalculate admin fee
     order_payment_status = {}  # Track payment status per order_id
-    order_subtotals_php = {}  # Track subtotals per order_id (sum of line totals)
+    customer_product_keys = {}  # Track product keys per customer for remarks
+    product_total_vials = {}  # Track total vials per product key for incomplete-kit detection
     
     # Track if we've shown debug info for first order
     debug_shown = False
@@ -7188,6 +7183,7 @@ def api_admin_customer_summary():
                 'total_vials': 0,
                 'total_grand_total_php': 0
             }
+            customer_product_keys[customer_name] = set()
         
         # Track payment status for this order (store once per order_id)
         payment_status = order.get('Payment Status', order.get('Confirmed Paid?', 'Unpaid'))
@@ -7201,6 +7197,7 @@ def api_admin_customer_summary():
         
         # Collect all items for this order to recalculate admin fee
         product_code = order.get('Product Code', '')
+        product_supplier = str(order.get('Supplier', '') or '').strip()
         order_type = order.get('Order Type', 'Vial')
         qty = int(order.get('QTY', 0) or 0)
         line_total_php = float(order.get('Line Total PHP', 0) or 0)
@@ -7219,6 +7216,8 @@ def api_admin_customer_summary():
                 'qty': qty
             })
             order_items[order_id]['subtotal_php'] += line_total_php
+            product_key = f"{str(product_code).strip().upper()}||{product_supplier.upper()}"
+            customer_product_keys[customer_name].add(product_key)
             
             # Calculate vials for this item
             if order_type == 'Kit':
@@ -7230,6 +7229,7 @@ def api_admin_customer_summary():
                 vials = qty
             
             customer_summary[customer_name]['total_vials'] += vials
+            product_total_vials[product_key] = product_total_vials.get(product_key, 0) + vials
     
     # Second pass: Calculate tiered admin fee per order and add to customer totals
     for order_id, order_data in order_items.items():
@@ -7246,6 +7246,12 @@ def api_admin_customer_summary():
         
         print(f"📊 Order {order_id}: {len(items)} items, Subtotal: ₱{subtotal_php:.2f}, Admin Fee: ₱{admin_fee_php:.2f} (tiered), Grand Total: ₱{grand_total_php:.2f}")
     
+    # Detect products with incomplete next kit (remaining vials > 0)
+    incomplete_product_keys = set()
+    for product_key, total_vials in product_total_vials.items():
+        if total_vials and (total_vials % VIALS_PER_KIT) > 0:
+            incomplete_product_keys.add(product_key)
+
     # Convert to list and sort by total grand total (descending)
     result = []
     for name, data in customer_summary.items():
@@ -7264,13 +7270,23 @@ def api_admin_customer_summary():
         else:
             payment_status = 'Unpaid'
         
+        customer_incomplete_products = sorted(
+            [p for p in customer_product_keys.get(name, set()) if p in incomplete_product_keys]
+        )
+        if customer_incomplete_products:
+            product_codes = sorted({p.split('||', 1)[0] for p in customer_incomplete_products if p})
+            remarks = f"INCOMPLETE: {', '.join(product_codes)}" if product_codes else "INCOMPLETE"
+        else:
+            remarks = "ALL COMPLETE"
+
         result.append({
             'customer_name': name,
             'order_count': data['order_count'],
             'order_numbers': order_numbers,
             'total_vials': data['total_vials'],
             'payment_status': payment_status,
-            'total_grand_total_php': round(data['total_grand_total_php'], 2)
+            'total_grand_total_php': round(data['total_grand_total_php'], 2),
+            'remarks': remarks
         })
     
     result.sort(key=lambda x: x['total_grand_total_php'], reverse=True)
@@ -7280,7 +7296,21 @@ def api_admin_customer_summary():
         print(f"⚠️ Customer Summary: WARNING - {len(orders)} orders found but 0 customers extracted!")
         print(f"⚠️ Customer Summary: This suggests customer name fields are missing or empty")
     
-    return jsonify(result)
+    # Build top summary cards data
+    unique_order_ids = set(order_payment_status.keys())
+    paid_orders = sum(1 for status in order_payment_status.values() if str(status).strip().lower() == 'paid')
+    unpaid_orders = len(unique_order_ids) - paid_orders
+    total_php = round(sum(v.get('total_grand_total_php', 0) for v in customer_summary.values()), 2)
+
+    return jsonify({
+        'customers': result,
+        'summary_stats': {
+            'unique_orders': len(unique_order_ids),
+            'paid_orders': paid_orders,
+            'unpaid_orders': unpaid_orders,
+            'total_php': total_php
+        }
+    })
 
 @app.route('/api/admin/orders/<order_id>/update-item', methods=['POST'])
 def api_admin_update_item(order_id):
@@ -7325,14 +7355,27 @@ def api_admin_update_item(order_id):
         try:
             updated_order = get_order_by_id(order_id)
             date_summary = build_order_date_summary(updated_order)
-            updated_product_line = f"• {product_name} ({product_code}) [{order_type}] {old_qty} → {new_qty}"
+            updated_item = next(
+                (
+                    item for item in (updated_order.get('items', []) if updated_order else [])
+                    if str(item.get('product_code', '')).strip().upper() == str(product_code).strip().upper()
+                    and str(item.get('order_type', '')).strip().lower() == str(order_type).strip().lower()
+                ),
+                {}
+            )
+            updated_line_total_php = float(updated_item.get('line_total_php', 0) or 0)
+            updated_count_label = 'Updated Vial count' if str(order_type).strip().lower() == 'vial' else 'Updated Kit count'
+            updated_product_line = (
+                f"• {product_name} ({order_type} x{new_qty}) - ₱{updated_line_total_php:,.2f} "
+                f"[{updated_count_label}: From {old_qty} to {new_qty}]"
+            )
             telegram_msg = f"""🛠️ <b>Order Item Updated (Admin)</b>
 
 <b>Order ID:</b> {order_id}
 <b>Customer:</b> {updated_order.get('full_name', order.get('full_name', 'N/A'))}
 <b>Telegram:</b> @{str(updated_order.get('telegram', order.get('telegram', 'N/A'))).replace('@', '')}
 
-<b>Products Updated:</b>
+<b>Items:</b>
 {updated_product_line}
 {f"• Supplier: {supplier}" if supplier else ""}
 
