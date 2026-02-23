@@ -295,6 +295,33 @@ def build_order_date_summary(order=None, updated_at=None, cancellation_date=None
 
     return "\n".join(lines)
 
+def build_products_updated_summary(items):
+    """Build a readable products-updated block for Telegram notifications."""
+    if not items:
+        return "• N/A"
+
+    lines = []
+    for item in items:
+        product_name = str(item.get('product_name', '') or '').strip()
+        product_code = str(item.get('product_code', '') or '').strip()
+        order_type = str(item.get('order_type', 'Vial') or 'Vial').strip()
+        supplier = str(item.get('supplier', '') or '').strip()
+        qty = item.get('qty', 0)
+
+        try:
+            qty_text = str(int(float(qty)))
+        except (TypeError, ValueError):
+            qty_text = str(qty)
+
+        product_label = product_name or product_code or 'Unknown Product'
+        if product_code and product_name:
+            product_label = f"{product_name} ({product_code})"
+
+        supplier_text = f" - {supplier}" if supplier else ""
+        lines.append(f"• {product_label} [{order_type} x{qty_text}]{supplier_text}")
+
+    return "\n".join(lines)
+
 def send_telegram_notification(message, parse_mode='HTML'):
     """Send notification to admin(s) via Telegram bot - supports multiple recipients (chat IDs or usernames)"""
     if not TELEGRAM_BOT_TOKEN:
@@ -5575,6 +5602,9 @@ def api_finalize_order(order_id):
             import math
             admin_fee_calculated = math.ceil(total_vials / 50) * 300 if total_vials > 0 else 0
             date_summary = build_order_date_summary(order)
+            products_updated_text = build_products_updated_summary(
+                [item for item in order.get('items', []) if item.get('qty', 0) > 0]
+            )
             
             telegram_msg = f"""🛒 <b>Order Finalized!</b>
 
@@ -5584,6 +5614,9 @@ def api_finalize_order(order_id):
 
 <b>Items:</b>
 {items_text}
+
+<b>Products Updated:</b>
+{products_updated_text}
 
 <b>Subtotal (PHP):</b> ₱{subtotal_php:,.2f}
 <b>Total Vials:</b> {int(total_vials)} vials
@@ -7267,6 +7300,19 @@ def api_admin_update_item(order_id):
     if not product_code or not order_type:
         return jsonify({'error': 'Missing product_code or order_type'}), 400
     
+    # Capture old item details before update for Telegram change summary
+    old_item = next(
+        (
+            item for item in order.get('items', [])
+            if str(item.get('product_code', '')).strip().upper() == str(product_code).strip().upper()
+            and str(item.get('order_type', '')).strip().lower() == str(order_type).strip().lower()
+        ),
+        {}
+    )
+    old_qty = old_item.get('qty', 0)
+    product_name = old_item.get('product_name', product_code)
+    supplier = old_item.get('supplier', '')
+
     if update_item_quantity(order_id, product_code, order_type, new_qty):
         # Clear cache and reload to ensure inventory is recalculated (tab-scoped keys)
         clear_cache_prefix('orders_')
@@ -7274,6 +7320,27 @@ def api_admin_update_item(order_id):
         clear_cache_prefix('order_stats_')
         # Recalculate order total
         recalculate_order_total(order_id)
+
+        # Send Telegram notification for admin product update (non-blocking)
+        try:
+            updated_order = get_order_by_id(order_id)
+            date_summary = build_order_date_summary(updated_order)
+            updated_product_line = f"• {product_name} ({product_code}) [{order_type}] {old_qty} → {new_qty}"
+            telegram_msg = f"""🛠️ <b>Order Item Updated (Admin)</b>
+
+<b>Order ID:</b> {order_id}
+<b>Customer:</b> {updated_order.get('full_name', order.get('full_name', 'N/A'))}
+<b>Telegram:</b> @{str(updated_order.get('telegram', order.get('telegram', 'N/A'))).replace('@', '')}
+
+<b>Products Updated:</b>
+{updated_product_line}
+{f"• Supplier: {supplier}" if supplier else ""}
+
+{date_summary}"""
+            send_telegram_notification(telegram_msg)
+        except Exception as notify_error:
+            print(f"⚠️ Error sending admin item update notification: {notify_error}")
+
         return jsonify({'success': True, 'message': 'Item updated successfully'})
     
     return jsonify({'error': 'Failed to update item'}), 500
