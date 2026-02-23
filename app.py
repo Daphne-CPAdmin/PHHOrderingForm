@@ -264,14 +264,57 @@ def resolve_telegram_recipient(recipient):
     
     return None
 
+def build_order_date_summary(order=None, updated_at=None, cancellation_date=None):
+    """
+    Build a consistent order date summary for Telegram notifications.
+    Includes created date, update date, and other relevant dates if available.
+    """
+    order = order or {}
+    created_date = (
+        order.get('order_date')
+        or order.get('Order Date')
+        or ''
+    )
+    payment_date = (
+        order.get('payment_date')
+        or order.get('Payment Date')
+        or ''
+    )
+    updated_value = updated_at or datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+    lines = [
+        "<b>Date Summary:</b>",
+        f"• Created: {created_date or 'N/A'}",
+        f"• Updated: {updated_value}",
+    ]
+
+    if payment_date:
+        lines.append(f"• Payment Date: {payment_date}")
+    if cancellation_date:
+        lines.append(f"• Cancellation Date: {cancellation_date}")
+
+    return "\n".join(lines)
+
 def send_telegram_notification(message, parse_mode='HTML'):
     """Send notification to admin(s) via Telegram bot - supports multiple recipients (chat IDs or usernames)"""
     if not TELEGRAM_BOT_TOKEN:
         print("Telegram bot token not configured - skipping notification")
         return False
     
-    # Only send notifications to @pephaul_bot
-    recipients = [f"@{TELEGRAM_BOT_USERNAME}"]
+    # Build list of admin recipients (chat IDs or usernames)
+    recipients = []
+    
+    # First, check for multiple recipients (comma-separated)
+    if TELEGRAM_ADMIN_CHAT_IDS:
+        recipients = [r.strip() for r in TELEGRAM_ADMIN_CHAT_IDS.split(',') if r.strip()]
+    
+    # Also include single recipient for backward compatibility (if not already in list)
+    if TELEGRAM_ADMIN_CHAT_ID and TELEGRAM_ADMIN_CHAT_ID not in recipients:
+        recipients.append(TELEGRAM_ADMIN_CHAT_ID)
+    
+    # Safe fallback for current primary admin username
+    if not recipients:
+        recipients = ['@pephauler']
     
     if not recipients:
         print("No Telegram admin recipients configured - skipping notification")
@@ -1546,6 +1589,7 @@ def get_order_by_id(order_id):
     order = {
         'order_id': order_id,
         'order_date': first_item.get('Order Date', ''),
+        'payment_date': first_item.get('Payment Date', ''),
         'full_name': customer_full_name,
         'telegram': telegram_value,
         'exchange_rate': float(first_item.get('Exchange Rate', FALLBACK_EXCHANGE_RATE) or FALLBACK_EXCHANGE_RATE),
@@ -3385,6 +3429,33 @@ def api_admin_whoami():
     """Return whether the current session is authenticated as admin (used by admin UI bootstrapping)."""
     return jsonify({'is_admin': bool(session.get('is_admin'))})
 
+@app.route('/api/admin/test-telegram', methods=['POST'])
+def api_admin_test_telegram():
+    """Admin: send a one-click Telegram test notification."""
+    if not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    if not TELEGRAM_BOT_TOKEN:
+        return jsonify({'success': False, 'error': 'Telegram bot token is not configured'}), 400
+
+    now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    test_msg = f"""🧪 <b>Telegram Test Notification</b>
+
+<b>Source:</b> Admin Panel
+<b>Bot:</b> @{TELEGRAM_BOT_USERNAME}
+<b>Triggered At:</b> {now_str}
+
+If you received this, admin notifications are working."""
+
+    sent = send_telegram_notification(test_msg)
+    if sent:
+        return jsonify({'success': True, 'message': 'Test notification sent successfully'})
+
+    return jsonify({
+        'success': False,
+        'error': f'Could not deliver test message. Ensure admin recipients are configured and have messaged @{TELEGRAM_BOT_USERNAME}.'
+    }), 500
+
 @app.route('/api/admin/debug/orders')
 def api_admin_debug_orders():
     """
@@ -5030,6 +5101,11 @@ def api_submit_order():
         # Send Telegram notification (non-blocking - don't fail if this fails)
         try:
             items_text = '\n'.join([f"• {item['product_name']} ({item['order_type']} x{item['qty']}) - ₱{item['line_total_php']:.2f}" for item in items_with_prices])
+            now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            date_summary = build_order_date_summary(
+                {'order_date': now_str},
+                updated_at=now_str
+            )
             telegram_msg = f"""🛒 <b>New Order!</b>
 
 <b>Order ID:</b> {order_id}
@@ -5044,7 +5120,9 @@ def api_submit_order():
 <b>Total Vials:</b> {int(total_vials)} vials
 <b>Admin Fee:</b> ₱{admin_fee_php:,.2f} (₱300 per 50 vials)
 <b>Grand Total:</b> ₱{grand_total_php:,.2f}
-<b>Status:</b> Pending Payment"""
+<b>Status:</b> Pending Payment
+
+{date_summary}"""
             send_telegram_notification(telegram_msg)
         except Exception as e:
             print(f"⚠️ Error sending Telegram notification: {e}")
@@ -5496,6 +5574,7 @@ def api_finalize_order(order_id):
             # Calculate tiered admin fee: ₱300 for every 50 vials (or part thereof)
             import math
             admin_fee_calculated = math.ceil(total_vials / 50) * 300 if total_vials > 0 else 0
+            date_summary = build_order_date_summary(order)
             
             telegram_msg = f"""🛒 <b>Order Finalized!</b>
 
@@ -5511,7 +5590,9 @@ def api_finalize_order(order_id):
 <b>PepHaul Admin Fee:</b> ₱{admin_fee_calculated:,.2f} (₱300 per 50 vials)
 <b>Grand Total:</b> ₱{grand_total_php:,.2f}
 
-<b>Status:</b> Finalized - Pending Payment"""
+<b>Status:</b> Finalized - Pending Payment
+
+{date_summary}"""
             send_telegram_notification(telegram_msg)
         except Exception as e:
             print(f"⚠️ Error sending Telegram notification: {e}")
@@ -5812,6 +5893,8 @@ def api_cancel_order(order_id=None):
         customer_name = order.get('name', 'Unknown Customer')
         telegram_user = order.get('telegram', 'N/A')
         current_tab = get_current_pephaul_tab()
+        cancelled_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        date_summary = build_order_date_summary(order, cancellation_date=cancelled_at)
         
         notification_message = (
             f"🚫 <b>Order Cancelled</b>\n\n"
@@ -5819,7 +5902,8 @@ def api_cancel_order(order_id=None):
             f"👤 Customer: {customer_name}\n"
             f"💬 Telegram: @{telegram_user.lstrip('@')}\n"
             f"📊 Tab: {current_tab}\n"
-            f"🕐 Cancelled: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+            f"🕐 Cancelled: {cancelled_at}\n\n"
+            f"{date_summary}"
         )
         
         try:
@@ -5982,6 +6066,7 @@ def api_upload_payment(order_id):
         # Get order details for notification
         order = get_order_by_id(order_id)
         if order:
+            date_summary = build_order_date_summary(order)
             telegram_msg = f"""💰 <b>Payment Uploaded!</b>
 
 <b>Order ID:</b> {order_id}
@@ -5991,7 +6076,9 @@ def api_upload_payment(order_id):
 
 <b>Screenshot:</b> <a href="{drive_link}">View Payment</a>
 
-⚠️ Please verify and confirm payment in Admin Panel."""
+⚠️ Please verify and confirm payment in Admin Panel.
+
+{date_summary}"""
             send_telegram_notification(telegram_msg)
         
         print(f"✅ Upload successful: {drive_link}")
@@ -6025,6 +6112,7 @@ def api_submit_payment_link(order_id):
         # Get order details for notification
         order = get_order_by_id(order_id)
         if order:
+            date_summary = build_order_date_summary(order)
             telegram_msg = f"""💰 <b>Payment Link Submitted!</b>
 
 <b>Order ID:</b> {order_id}
@@ -6034,7 +6122,9 @@ def api_submit_payment_link(order_id):
 
 <b>Payment Link:</b> <a href="{payment_link}">View Payment</a>
 
-⚠️ Please verify and confirm payment in Admin Panel."""
+⚠️ Please verify and confirm payment in Admin Panel.
+
+{date_summary}"""
             send_telegram_notification(telegram_msg)
         
         print(f"✅ Payment link saved successfully")
@@ -6053,6 +6143,7 @@ def api_mark_payment_sent(order_id):
         # Get order details for notification
         order = get_order_by_id(order_id)
         if order:
+            date_summary = build_order_date_summary(order)
             telegram_msg = f"""💸 <b>Payment Sent Notification!</b>
 
 <b>Order ID:</b> {order_id}
@@ -6063,7 +6154,9 @@ def api_mark_payment_sent(order_id):
 Customer has marked payment as sent to PepHaul Admin.
 ⏳ Status: <b>Waiting for Confirmation</b>
 
-Please check GCash and confirm payment in Admin Panel."""
+Please check GCash and confirm payment in Admin Panel.
+
+{date_summary}"""
             send_telegram_notification(telegram_msg)
         
         # Also notify customer if registered (non-blocking)
@@ -6122,6 +6215,7 @@ def api_upload_payment_generic():
         # Get order details for notification
         order = get_order_by_id(order_id)
         if order:
+            date_summary = build_order_date_summary(order)
             telegram_msg = f"""💰 <b>Payment Uploaded!</b>
 
 <b>Order ID:</b> {order_id}
@@ -6131,7 +6225,9 @@ def api_upload_payment_generic():
 
 <b>Screenshot:</b> <a href="{drive_link}">View Payment</a>
 
-⚠️ Please verify and confirm payment in Admin Panel."""
+⚠️ Please verify and confirm payment in Admin Panel.
+
+{date_summary}"""
             send_telegram_notification(telegram_msg)
         
         print(f"✅ Upload successful: {drive_link}")
@@ -6202,6 +6298,7 @@ def api_save_mailing_address(order_id):
         try:
             order = get_order_by_id(order_id)
             if order:
+                date_summary = build_order_date_summary(order)
                 telegram_msg = f"""📬 <b>Mailing Address Added!</b>
 
 <b>Order ID:</b> {order_id}
@@ -6213,7 +6310,9 @@ def api_save_mailing_address(order_id):
 {mailing_phone}
 {mailing_address}
 
-✅ Ready for fulfillment!"""
+✅ Ready for fulfillment!
+
+{date_summary}"""
                 send_telegram_notification(telegram_msg)
                 
                 # Also notify customer if registered (non-blocking)
@@ -6295,6 +6394,7 @@ def api_save_tracking_number(order_id):
         
         # Send notification to admin (non-blocking)
         try:
+            date_summary = build_order_date_summary(order)
             telegram_msg = f"""📦 <b>Tracking Number Added!</b>
 
 <b>Order ID:</b> {order_id}
@@ -6302,7 +6402,9 @@ def api_save_tracking_number(order_id):
 <b>Telegram:</b> {order.get('telegram', 'N/A')}
 <b>Tracking Number:</b> {tracking_number}
 
-✅ Order is ready for shipment!"""
+✅ Order is ready for shipment!
+
+{date_summary}"""
             send_telegram_notification(telegram_msg)
         except Exception as notify_error:
             print(f"⚠️ Error sending notification (tracking number saved successfully): {notify_error}")
@@ -6745,6 +6847,7 @@ def api_admin_confirm_payment(order_id):
         order = get_order_by_id(order_id)
         if order:
             items_text = '\n'.join([f"• {item['product_name']} ({item['order_type']} x{item['qty']})" for item in order.get('items', [])])
+            date_summary = build_order_date_summary(order)
             
             # Notify PepHaul Admin via Telegram
             admin_msg = f"""✅ <b>Payment Confirmed!</b>
@@ -6758,7 +6861,9 @@ def api_admin_confirm_payment(order_id):
 
 <b>Grand Total:</b> ₱{order.get('grand_total_php', 0):,.2f}
 
-Payment has been confirmed and order is ready for fulfillment."""
+Payment has been confirmed and order is ready for fulfillment.
+
+{date_summary}"""
             send_telegram_notification(admin_msg)
             
             # Try to notify customer via Telegram

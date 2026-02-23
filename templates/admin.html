@@ -558,6 +558,9 @@
             <div class="header">
                 <h1>Admin Panel</h1>
                 <div style="display: flex; gap: 1rem; align-items: center;">
+                    <button id="test-telegram-btn" class="btn" style="padding: 0.75rem 1.5rem; background: #8b5cf6; color: white; width: auto;">
+                        📲 Test Telegram
+                    </button>
                     <button id="export-html-btn" class="btn" style="padding: 0.75rem 1.5rem; background: #10b981; color: white; width: auto;">
                         📄 Export Page as HTML
                     </button>
@@ -3561,6 +3564,42 @@
             }
         }
 
+        async function testTelegramNotification() {
+            try {
+                const btn = document.getElementById('test-telegram-btn');
+                if (btn) {
+                    btn.disabled = true;
+                    btn.textContent = 'Sending...';
+                }
+
+                const response = await fetch('/api/admin/test-telegram', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({})
+                });
+
+                const result = await response.json();
+                if (response.ok && result.success) {
+                    showToast('✅ Telegram test sent');
+                } else {
+                    const msg = result.error || 'Failed to send Telegram test';
+                    showToast(`❌ ${msg}`);
+                    alert(msg);
+                }
+            } catch (error) {
+                console.error('Error sending Telegram test:', error);
+                showToast('❌ Telegram test failed');
+                alert('Failed to send Telegram test message.');
+            } finally {
+                const btn = document.getElementById('test-telegram-btn');
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = '📲 Test Telegram';
+                }
+            }
+        }
+
         // Load available PepHaul Entry tabs for admin tab viewer selector
         async function loadAdminTabViewer() {
             try {
@@ -4185,6 +4224,12 @@
             if (exportBtn && !exportBtn.dataset.listenerAttached) {
                 exportBtn.addEventListener('click', exportPageAsHTML);
                 exportBtn.dataset.listenerAttached = 'true';
+            }
+
+            const testTelegramBtn = document.getElementById('test-telegram-btn');
+            if (testTelegramBtn && !testTelegramBtn.dataset.listenerAttached) {
+                testTelegramBtn.addEventListener('click', testTelegramNotification);
+                testTelegramBtn.dataset.listenerAttached = 'true';
             }
             
             // Admin Tab Viewer Selector
