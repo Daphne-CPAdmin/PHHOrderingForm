@@ -24,7 +24,8 @@ app.secret_key = os.getenv('SECRET_KEY', secrets.token_hex(32))
 
 # Configuration
 ADMIN_FEE_PHP = float(os.getenv('ADMIN_FEE_PHP', 300))  # Base rate for tiered calculation (₱300 per 50 vials)
-FALLBACK_EXCHANGE_RATE = float(os.getenv('FALLBACK_EXCHANGE_RATE', 59.20))
+FALLBACK_EXCHANGE_RATE = float(os.getenv('FALLBACK_EXCHANGE_RATE', 59.95))
+MIN_EXCHANGE_RATE = 59.95
 GOOGLE_SHEETS_ID = os.getenv('GOOGLE_SHEETS_ID', '18Q3A7pmgj7WNi3GL8cgoLiD1gPmxGu_rMqzM3ohBo5s')
 ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD', 'pephaul2024')  # Change in production!
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '')  # Create bot via @BotFather
@@ -148,6 +149,16 @@ def _normalize_order_sheet_headers(headers):
                 hs = f'Unnamed_{idx}'
         normalized.append(_canonical_order_key(hs))
     return normalized
+
+def normalize_exchange_rate(rate):
+    """Normalize exchange rate and enforce minimum PHP multiplier."""
+    try:
+        parsed = float(rate)
+    except (TypeError, ValueError):
+        parsed = FALLBACK_EXCHANGE_RATE
+    if parsed <= 0:
+        parsed = FALLBACK_EXCHANGE_RATE
+    return max(parsed, MIN_EXCHANGE_RATE)
 
 def _normalize_order_record_keys(record):
     """
@@ -1817,7 +1828,7 @@ def get_order_by_id(order_id):
         'payment_date': first_item.get('Payment Date', ''),
         'full_name': customer_full_name,
         'telegram': telegram_value,
-        'exchange_rate': float(first_item.get('Exchange Rate', FALLBACK_EXCHANGE_RATE) or FALLBACK_EXCHANGE_RATE),
+        'exchange_rate': normalize_exchange_rate(first_item.get('Exchange Rate', FALLBACK_EXCHANGE_RATE)),
         'admin_fee_php': float(first_item.get('Admin Fee PHP', ADMIN_FEE_PHP) or 0),
         'grand_total_php': float(first_item.get('Grand Total PHP', 0) or 0),
         'status': first_item.get('Order Status', 'Pending'),
@@ -1924,7 +1935,7 @@ def save_order_to_sheets(order_data, order_id=None):
                 item['qty'],                        # Column I: QTY
                 item.get('unit_price_usd', 0),      # Column J: Unit Price USD
                 item.get('line_total_usd', 0),      # Column K: Line Total USD
-                order_data.get('exchange_rate', FALLBACK_EXCHANGE_RATE),  # Column L: Exchange Rate
+                normalize_exchange_rate(order_data.get('exchange_rate', FALLBACK_EXCHANGE_RATE)),  # Column L: Exchange Rate
                 item.get('line_total_php', 0),      # Column M: Line Total PHP
                 admin_fee_php if i == 0 else '',    # Column N: Admin Fee PHP (tiered, only first row)
                 grand_total_php if i == 0 else '',  # Column O: Grand Total PHP (only first row)
@@ -2406,7 +2417,7 @@ def recalculate_order_total(order_id, is_post_payment_addition=False):
                 total_php = sum(item.get('line_total_php', 0) for item in order.get('items', []) if item.get('qty', 0) > 0)
                 # If PHP total is 0 but USD is available, calculate from USD
                 if total_php == 0 and total_usd > 0:
-                    total_php = total_usd * order.get('exchange_rate', FALLBACK_EXCHANGE_RATE)
+                    total_php = total_usd * normalize_exchange_rate(order.get('exchange_rate', FALLBACK_EXCHANGE_RATE))
                 
                 # Calculate tiered admin fee based on items
                 admin_fee = calculate_tiered_admin_fee(order.get('items', []))
@@ -2433,7 +2444,7 @@ def recalculate_order_total(order_id, is_post_payment_addition=False):
         total_usd = sum(item.get('line_total_usd', 0) for item in order.get('items', []) if item.get('qty', 0) > 0)
         total_php = sum(item.get('line_total_php', 0) for item in order.get('items', []) if item.get('qty', 0) > 0)
         if total_php == 0 and total_usd > 0:
-            total_php = total_usd * order.get('exchange_rate', FALLBACK_EXCHANGE_RATE)
+            total_php = total_usd * normalize_exchange_rate(order.get('exchange_rate', FALLBACK_EXCHANGE_RATE))
         # Calculate tiered admin fee
         admin_fee = calculate_tiered_admin_fee(order.get('items', []))
         grand_total = total_php + admin_fee
@@ -3046,10 +3057,11 @@ def get_exchange_rate():
     try:
         response = requests.get('https://api.exchangerate-api.com/v4/latest/USD', timeout=5)
         if response.status_code == 200:
-            return response.json()['rates'].get('PHP', FALLBACK_EXCHANGE_RATE)
+            live_rate = response.json()['rates'].get('PHP', FALLBACK_EXCHANGE_RATE)
+            return normalize_exchange_rate(live_rate)
     except:
         pass
-    return FALLBACK_EXCHANGE_RATE
+    return normalize_exchange_rate(FALLBACK_EXCHANGE_RATE)
 
 def _fetch_consolidated_order_stats():
     """Internal function to calculate consolidated order stats per supplier"""
@@ -5098,13 +5110,10 @@ def api_submit_order():
         
         # Get exchange rate with error handling
         try:
-            exchange_rate = get_exchange_rate()
-            if not exchange_rate or exchange_rate <= 0:
-                exchange_rate = FALLBACK_EXCHANGE_RATE
-                print(f"⚠️ Using fallback exchange rate: {exchange_rate}")
+            exchange_rate = normalize_exchange_rate(get_exchange_rate())
         except Exception as e:
             print(f"⚠️ Error getting exchange rate: {e}, using fallback")
-            exchange_rate = FALLBACK_EXCHANGE_RATE
+            exchange_rate = normalize_exchange_rate(FALLBACK_EXCHANGE_RATE)
         
         # Check for locked products
         try:
@@ -5593,12 +5602,9 @@ def api_add_items(order_id=None):
             }), 500
         
         try:
-            exchange_rate = order.get('exchange_rate')
-            if not exchange_rate or exchange_rate <= 0:
-                exchange_rate = FALLBACK_EXCHANGE_RATE
-                print(f"⚠️ Using fallback exchange rate: {exchange_rate}")
+            exchange_rate = normalize_exchange_rate(order.get('exchange_rate'))
         except (KeyError, TypeError, ValueError):
-            exchange_rate = FALLBACK_EXCHANGE_RATE
+            exchange_rate = normalize_exchange_rate(FALLBACK_EXCHANGE_RATE)
             print(f"⚠️ Using fallback exchange rate: {exchange_rate}")
 
         # Snapshot existing item quantities so finalize notification can show
@@ -6106,7 +6112,7 @@ def update_item_quantity(order_id, product_code, order_type, new_qty):
         # Get current values
         current_row = all_values[target_row - 1]  # Convert to 0-indexed
         unit_price = float(current_row[unit_price_col]) if unit_price_col >= 0 and current_row[unit_price_col] else 0
-        exchange_rate = float(current_row[exchange_rate_col]) if exchange_rate_col >= 0 and current_row[exchange_rate_col] else FALLBACK_EXCHANGE_RATE
+        exchange_rate = normalize_exchange_rate(current_row[exchange_rate_col]) if exchange_rate_col >= 0 and current_row[exchange_rate_col] else normalize_exchange_rate(FALLBACK_EXCHANGE_RATE)
         
         # Calculate new line totals
         new_line_total_usd = unit_price * new_qty
@@ -7913,7 +7919,7 @@ def api_admin_update_supplier(order_id):
                 
                 # Get quantity and exchange rate
                 qty = float(row[col_indices['qty']]) if row[col_indices['qty']] else 0
-                exchange_rate = float(row[col_indices['exchange_rate']]) if row[col_indices['exchange_rate']] else FALLBACK_EXCHANGE_RATE
+                exchange_rate = normalize_exchange_rate(row[col_indices['exchange_rate']]) if row[col_indices['exchange_rate']] else normalize_exchange_rate(FALLBACK_EXCHANGE_RATE)
                 
                 # Calculate new totals
                 new_line_total_usd = new_price * qty
