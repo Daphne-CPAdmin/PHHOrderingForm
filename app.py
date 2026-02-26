@@ -7016,6 +7016,23 @@ def send_customer_telegram(chat_id, message, parse_mode='HTML'):
         print(f"Error sending customer Telegram: {e}")
         return False
 
+def notify_admin_customer_delivery(action_label, order_id, telegram_handle, success, error_message=''):
+    """Send delivery outcome to admin Telegram recipients."""
+    status_text = "✅ Sent" if success else "❌ Failed"
+    clean_handle = str(telegram_handle or '').strip().lstrip('@') or 'unknown'
+    extra_line = f"\n<b>Error:</b> {error_message}" if (error_message and not success) else ""
+    msg = f"""📨 <b>Customer Telegram Delivery</b>
+
+<b>Action:</b> {action_label}
+<b>Order ID:</b> {order_id}
+<b>Customer:</b> @{clean_handle}
+<b>Status:</b> {status_text}{extra_line}
+"""
+    try:
+        send_telegram_notification(msg)
+    except Exception as e:
+        print(f"⚠️ Failed to send admin delivery status: {e}")
+
 @app.route('/api/telegram/webhook', methods=['POST'])
 def telegram_webhook():
     """Handle incoming Telegram messages (for customer registration)"""
@@ -7500,10 +7517,17 @@ def api_admin_notify_customer(order_id):
     if telegram_handle.startswith('@'):
         telegram_handle = telegram_handle[1:]
     
-    # Check if customer has messaged the bot
-    chat_id = telegram_customers.get(telegram_handle) or telegram_customers.get(f"@{telegram_handle}")
+    # Resolve recipient from in-memory map, PepHaulers tab, or Telegram lookup.
+    chat_id = resolve_telegram_recipient(telegram_handle)
     
     if not chat_id:
+        notify_admin_customer_delivery(
+            action_label='Manual Payment Confirmation',
+            order_id=order_id,
+            telegram_handle=telegram_handle,
+            success=False,
+            error_message=f"Recipient not found. Ask customer to message @{TELEGRAM_BOT_USERNAME}."
+        )
         return jsonify({
             'error': f'Customer @{telegram_handle} hasn\'t messaged @{TELEGRAM_BOT_USERNAME} yet',
             'telegram_handle': telegram_handle,
@@ -7529,11 +7553,24 @@ Thank you for your order! 💜"""
     
     if send_customer_telegram(chat_id, customer_msg):
         print(f"✅ Manual payment confirmation sent to customer @{telegram_handle}")
+        notify_admin_customer_delivery(
+            action_label='Manual Payment Confirmation',
+            order_id=order_id,
+            telegram_handle=telegram_handle,
+            success=True
+        )
         return jsonify({
             'success': True,
             'message': f'Payment confirmation sent to @{telegram_handle} via Telegram'
         })
     else:
+        notify_admin_customer_delivery(
+            action_label='Manual Payment Confirmation',
+            order_id=order_id,
+            telegram_handle=telegram_handle,
+            success=False,
+            error_message='Telegram API sendMessage failed.'
+        )
         return jsonify({'error': 'Failed to send Telegram notification'}), 500
 
 @app.route('/api/admin/orders/<order_id>/lock', methods=['POST'])
@@ -8027,6 +8064,13 @@ def api_admin_send_reminder(order_id):
     chat_id = resolve_telegram_recipient(telegram_handle)
     
     if not chat_id:
+        notify_admin_customer_delivery(
+            action_label='Payment Reminder',
+            order_id=order_id,
+            telegram_handle=telegram_handle,
+            success=False,
+            error_message=f"Recipient not found. Ask customer to message @{TELEGRAM_BOT_USERNAME}."
+        )
         return jsonify({
             'error': f'Cannot send reminder to @{telegram_handle}',
             'message': f'Customer needs to message @{TELEGRAM_BOT_USERNAME} on Telegram first.\n\nOnce they send any message to the bot, you can send reminders.'
@@ -8057,8 +8101,21 @@ Thank you! 💜"""
     
     # Send reminder
     if send_customer_telegram(chat_id, message):
+        notify_admin_customer_delivery(
+            action_label='Payment Reminder',
+            order_id=order_id,
+            telegram_handle=telegram_handle,
+            success=True
+        )
         return jsonify({'success': True, 'message': f'Reminder sent to @{telegram_handle}'})
     else:
+        notify_admin_customer_delivery(
+            action_label='Payment Reminder',
+            order_id=order_id,
+            telegram_handle=telegram_handle,
+            success=False,
+            error_message='Telegram API sendMessage failed.'
+        )
         return jsonify({'error': 'Failed to send Telegram message'}), 500
 
 @app.route('/api/admin/orders/<order_id>/update-supplier', methods=['POST'])
