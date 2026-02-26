@@ -561,6 +561,9 @@
                     <button id="test-telegram-btn" class="btn" style="padding: 0.75rem 1.5rem; background: #8b5cf6; color: white; width: auto;">
                         📲 Test Telegram
                     </button>
+                    <button id="sync-telegram-users-btn" class="btn" style="padding: 0.75rem 1.5rem; background: #7c3aed; color: white; width: auto;">
+                        🔄 Sync Telegram Users
+                    </button>
                     <button id="export-html-btn" class="btn" style="padding: 0.75rem 1.5rem; background: #10b981; color: white; width: auto;">
                         📄 Export Page as HTML
                     </button>
@@ -3932,6 +3935,58 @@
             }
         }
 
+        async function syncTelegramUsers() {
+            const btn = document.getElementById('sync-telegram-users-btn');
+            try {
+                if (btn) {
+                    btn.disabled = true;
+                    btn.textContent = 'Syncing...';
+                }
+
+                const response = await fetch('/api/admin/sync-telegram-users', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({})
+                });
+
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    const errorMsg = result.error || 'Failed to sync Telegram users';
+                    showToast(`❌ ${errorMsg}`, 5000);
+                    alert(errorMsg);
+                    return;
+                }
+
+                const synced = result.synced_users || 0;
+                const scannedUpdates = result.updates_scanned || 0;
+                const scannedMessages = result.messages_scanned || 0;
+                const usersPreview = (result.usernames || []).join(', ');
+                const restoreNote = result.webhook_temporarily_disabled
+                    ? (result.webhook_restored ? 'Webhook restored successfully.' : 'Webhook restore failed. Please re-set webhook.')
+                    : 'Webhook was not active.';
+
+                showToast(`✅ Synced ${synced} Telegram user(s) to PepHaulers.`);
+                alert(
+                    `Telegram sync complete.\n\n` +
+                    `Synced users: ${synced}\n` +
+                    `Updates scanned: ${scannedUpdates}\n` +
+                    `Messages scanned: ${scannedMessages}\n` +
+                    `${restoreNote}\n\n` +
+                    `${usersPreview ? `Sample users: ${usersPreview}` : 'No /start users found in recent updates.'}`
+                );
+            } catch (error) {
+                console.error('Error syncing Telegram users:', error);
+                showToast('❌ Telegram sync failed');
+                alert('Failed to sync Telegram users.');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = '🔄 Sync Telegram Users';
+                }
+            }
+        }
+
         // Load available PepHaul Entry tabs for admin tab viewer selector
         async function loadAdminTabViewer() {
             try {
@@ -4562,6 +4617,12 @@
             if (testTelegramBtn && !testTelegramBtn.dataset.listenerAttached) {
                 testTelegramBtn.addEventListener('click', testTelegramNotification);
                 testTelegramBtn.dataset.listenerAttached = 'true';
+            }
+
+            const syncTelegramBtn = document.getElementById('sync-telegram-users-btn');
+            if (syncTelegramBtn && !syncTelegramBtn.dataset.listenerAttached) {
+                syncTelegramBtn.addEventListener('click', syncTelegramUsers);
+                syncTelegramBtn.dataset.listenerAttached = 'true';
             }
             
             // Admin Tab Viewer Selector

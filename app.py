@@ -235,6 +235,90 @@ def clear_cache_prefix(prefix: str):
             _cache.pop(k, None)
             _cache_timestamps.pop(k, None)
 
+def normalize_telegram_username(username):
+    """Normalize Telegram username for consistent matching."""
+    if not username:
+        return ''
+    return str(username).strip().lstrip('@').lower()
+
+def _fetch_pephaulers_chat_map():
+    """
+    Load Telegram contacts from the PepHaulers tab.
+    Expected columns: Telegram Username, Chat ID (header names are flexible).
+    """
+    contacts = {}
+    if not sheets_client:
+        return contacts
+
+    try:
+        spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
+        worksheet = spreadsheet.worksheet('PepHaulers')
+        rows = worksheet.get_all_values() or []
+        if not rows:
+            return contacts
+
+        # Detect if first row is header-like. If not, treat all rows as data with username in col A.
+        first_row = [str(cell or '').strip().lower() for cell in rows[0]]
+        looks_like_header = any('telegram' in c or 'chat' in c or 'username' in c for c in first_row)
+        data_rows = rows[1:] if looks_like_header else rows
+
+        for row in data_rows:
+            if not row:
+                continue
+            raw_username = row[0] if len(row) > 0 else ''
+            raw_chat_id = row[1] if len(row) > 1 else ''
+            username = normalize_telegram_username(raw_username)
+            if not username:
+                continue
+
+            # If chat_id column is not present/filled, keep username row but skip mapping.
+            chat_id = str(raw_chat_id).strip() if raw_chat_id is not None else ''
+            if chat_id:
+                contacts[username] = chat_id
+                contacts[f"@{username}"] = chat_id
+    except Exception as e:
+        print(f"Could not load PepHaulers chat map: {e}")
+
+    return contacts
+
+def upsert_pephauler_contact(username, chat_id):
+    """Persist Telegram username + chat_id into PepHaulers tab."""
+    normalized = normalize_telegram_username(username)
+    if not normalized or not chat_id or not sheets_client:
+        return
+
+    try:
+        spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
+        try:
+            worksheet = spreadsheet.worksheet('PepHaulers')
+        except Exception:
+            worksheet = spreadsheet.add_worksheet(title='PepHaulers', rows=1000, cols=3)
+            worksheet.update('A1:C1', [['Telegram Username', 'Chat ID', 'Updated']])
+
+        all_values = worksheet.get_all_values() or []
+        if not all_values:
+            worksheet.update('A1:C1', [['Telegram Username', 'Chat ID', 'Updated']])
+            all_values = worksheet.get_all_values() or []
+
+        target_row = None
+        for idx, row in enumerate(all_values[1:], start=2):
+            existing = normalize_telegram_username(row[0] if len(row) > 0 else '')
+            if existing == normalized:
+                target_row = idx
+                break
+
+        now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        if target_row is None:
+            worksheet.append_row([f"@{normalized}", str(chat_id), now_str])
+        else:
+            worksheet.update_cell(target_row, 1, f"@{normalized}")
+            worksheet.update_cell(target_row, 2, str(chat_id))
+            worksheet.update_cell(target_row, 3, now_str)
+
+        clear_cache('pephaulers_chat_map')
+    except Exception as e:
+        print(f"Could not upsert PepHauler contact @{normalized}: {e}")
+
 def resolve_telegram_recipient(recipient):
     """
     Resolve Telegram recipient to chat ID.
@@ -251,11 +335,19 @@ def resolve_telegram_recipient(recipient):
         return recipient
     
     # It's a username - normalize it (remove @ if present, lowercase)
-    username = recipient.lstrip('@').lower()
+    username = normalize_telegram_username(recipient)
     
     # First, check the telegram_customers mapping (users who have messaged the bot)
     chat_id = telegram_customers.get(username) or telegram_customers.get(f"@{username}")
     if chat_id:
+        return str(chat_id)
+
+    # Then check persisted contacts from PepHaulers sheet.
+    sheet_contacts = get_cached('pephaulers_chat_map', _fetch_pephaulers_chat_map, cache_duration=300) or {}
+    chat_id = sheet_contacts.get(username) or sheet_contacts.get(f"@{username}")
+    if chat_id:
+        telegram_customers[username] = str(chat_id)
+        telegram_customers[f"@{username}"] = str(chat_id)
         return str(chat_id)
     
     # Try to get chat ID from Telegram API (only works if user has messaged the bot)
@@ -271,6 +363,7 @@ def resolve_telegram_recipient(recipient):
                     # Cache it for future use
                     telegram_customers[username] = chat_id
                     telegram_customers[f"@{username}"] = chat_id
+                    upsert_pephauler_contact(username, chat_id)
                     print(f"Auto-resolved Telegram username @{username} to chat_id: {chat_id}")
                     return chat_id
         except Exception as e:
@@ -3700,6 +3793,108 @@ If you received this, admin notifications are working."""
         'error': f'Could not deliver test message. Ensure admin recipients are configured and have messaged @{TELEGRAM_BOT_USERNAME}.'
     }), 500
 
+@app.route('/api/admin/sync-telegram-users', methods=['POST'])
+def api_admin_sync_telegram_users():
+    """Admin: one-click sync of /start users into PepHaulers tab."""
+    if not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    if not TELEGRAM_BOT_TOKEN:
+        return jsonify({'success': False, 'error': 'Telegram bot token is not configured'}), 400
+
+    webhook_url = ''
+    webhook_temporarily_disabled = False
+    webhook_restored = False
+
+    try:
+        # If a webhook is active, temporarily disable it so getUpdates can run.
+        webhook_info_resp = requests.get(
+            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getWebhookInfo",
+            timeout=10
+        )
+        webhook_info = webhook_info_resp.json() if webhook_info_resp.status_code == 200 else {}
+        webhook_url = str((webhook_info.get('result') or {}).get('url') or '').strip()
+
+        if webhook_url:
+            delete_resp = requests.post(
+                f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/deleteWebhook",
+                json={'drop_pending_updates': False},
+                timeout=10
+            )
+            delete_result = delete_resp.json() if delete_resp.status_code == 200 else {}
+            if not delete_result.get('ok'):
+                return jsonify({
+                    'success': False,
+                    'error': f"Failed to temporarily disable webhook: {delete_result.get('description', 'Unknown error')}"
+                }), 500
+            webhook_temporarily_disabled = True
+
+        updates_resp = requests.get(
+            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates",
+            params={'limit': 100, 'timeout': 0, 'allowed_updates': json.dumps(['message'])},
+            timeout=20
+        )
+        updates_result = updates_resp.json() if updates_resp.status_code == 200 else {}
+        if not updates_result.get('ok'):
+            return jsonify({
+                'success': False,
+                'error': updates_result.get('description', 'Failed to fetch Telegram updates')
+            }), 500
+
+        updates = updates_result.get('result', []) or []
+        start_users = {}
+        total_messages = 0
+        for upd in updates:
+            msg = upd.get('message') or {}
+            text = str(msg.get('text') or '').strip()
+            if not text:
+                continue
+            total_messages += 1
+
+            normalized_text = text.split(' ')[0].strip().lower()
+            if normalized_text != '/start':
+                continue
+
+            from_user = msg.get('from') or {}
+            username = normalize_telegram_username(from_user.get('username'))
+            chat_id = (msg.get('chat') or {}).get('id')
+            if username and chat_id is not None:
+                start_users[username] = str(chat_id)
+
+        synced_count = 0
+        for username, chat_id in start_users.items():
+            telegram_customers[username] = chat_id
+            telegram_customers[f"@{username}"] = chat_id
+            upsert_pephauler_contact(username, chat_id)
+            synced_count += 1
+
+        if webhook_url and webhook_temporarily_disabled:
+            try:
+                restore_resp = requests.post(
+                    f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setWebhook",
+                    json={'url': webhook_url},
+                    timeout=10
+                )
+                restore_result = restore_resp.json() if restore_resp.status_code == 200 else {}
+                webhook_restored = bool(restore_result.get('ok'))
+                if not webhook_restored:
+                    print(f"⚠️ Failed to restore webhook after sync: {restore_result}")
+            except Exception as restore_err:
+                print(f"⚠️ Error restoring webhook after sync: {restore_err}")
+
+        return jsonify({
+            'success': True,
+            'synced_users': synced_count,
+            'start_users_found': len(start_users),
+            'updates_scanned': len(updates),
+            'messages_scanned': total_messages,
+            'usernames': [f"@{u}" for u in sorted(start_users.keys())[:20]],
+            'webhook_temporarily_disabled': webhook_temporarily_disabled,
+            'webhook_restored': webhook_restored
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Sync failed: {e}'}), 500
+
 @app.route('/api/admin/debug/orders')
 def api_admin_debug_orders():
     """
@@ -6831,23 +7026,25 @@ def telegram_webhook():
         text = message.get('text', '')
         username = message.get('from', {}).get('username', '')
         first_name = message.get('from', {}).get('first_name', '')
+        normalized_username = normalize_telegram_username(username)
         
         # Check if this is the admin (@dee_jay)
-        is_admin = username.lower() == 'dee_jay'
+        is_admin = normalized_username == 'dee_jay'
+
+        # Register contact on any inbound message (not only /start).
+        if normalized_username and chat_id:
+            telegram_customers[normalized_username] = str(chat_id)
+            telegram_customers[f"@{normalized_username}"] = str(chat_id)
+            upsert_pephauler_contact(normalized_username, chat_id)
+            print(f"Registered Telegram customer: @{normalized_username} -> {chat_id}")
         
         if text.startswith('/start'):
-            # Register customer for notifications
-            if username:
-                telegram_customers[username.lower()] = chat_id
-                telegram_customers[f"@{username.lower()}"] = chat_id
-                print(f"Registered Telegram customer: @{username} -> {chat_id}")
-                
-                # If admin, also set as admin chat ID
-                if is_admin:
-                    # Store admin chat ID in environment (for current session)
-                    global TELEGRAM_ADMIN_CHAT_ID
-                    TELEGRAM_ADMIN_CHAT_ID = str(chat_id)
-                    print(f"✅ PepHaul Admin registered: @{username} (chat_id: {chat_id})")
+            # If admin, also set as admin chat ID
+            if is_admin:
+                # Store admin chat ID in environment (for current session)
+                global TELEGRAM_ADMIN_CHAT_ID
+                TELEGRAM_ADMIN_CHAT_ID = str(chat_id)
+                print(f"✅ PepHaul Admin registered: @{normalized_username} (chat_id: {chat_id})")
             
             # Send welcome message
             if is_admin:
@@ -6860,7 +7057,7 @@ You'll receive notifications for:
 • 💸 Payment status updates
 • ⏳ Orders waiting for confirmation
 
-<i>Your Telegram: @{username}</i>
+<i>Your Telegram: @{normalized_username or username}</i>
 
 Admin panel: https://pephaul-order-form.onrender.com/admin
 
@@ -6875,7 +7072,7 @@ When you place an order on our website with your Telegram username, you'll recei
 • 📦 Order updates
 • 💳 Payment reminders
 
-<i>Your Telegram: @{username}</i>
+<i>Your Telegram: @{normalized_username or username}</i>
 
 Thank you for joining PepHaul! 💜✨"""
             
@@ -7811,8 +8008,8 @@ def api_admin_send_reminder(order_id):
     if telegram_handle.startswith('@'):
         telegram_handle = telegram_handle[1:]
     
-    # Check if we have their chat_id
-    chat_id = telegram_customers.get(telegram_handle) or telegram_customers.get(f"@{telegram_handle}")
+    # Resolve recipient from in-memory map, PepHaulers tab, or Telegram lookup.
+    chat_id = resolve_telegram_recipient(telegram_handle)
     
     if not chat_id:
         return jsonify({
