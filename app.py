@@ -7482,9 +7482,9 @@ Payment has been confirmed and order is ready for fulfillment.
 
 <b>Grand Total:</b> ₱{order.get('grand_total_php', 0):,.2f}
 
-🎉 Your payment has been confirmed! Your order is now being processed.
+🎉 Your payment has been confirmed!
 
-Thank you for your order! 💜"""
+Thank you for being a responsible PepHauler! 💜"""
                     
                     send_customer_telegram(chat_id, customer_msg)
                     print(f"✅ Payment confirmation sent to customer @{telegram_handle}")
