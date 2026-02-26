@@ -999,6 +999,14 @@
                         <div class="stat-value" id="customer-summary-total-php">₱0.00</div>
                         <div class="stat-label">Total (PHP)</div>
                     </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="customer-summary-amount-received-php">₱0.00</div>
+                        <div class="stat-label">Amount Received (Paid)</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="customer-summary-amount-receivable-php">₱0.00</div>
+                        <div class="stat-label">Amount Receivable (Unpaid)</div>
+                    </div>
                 </div>
 
                 <div class="table-container">
@@ -1030,7 +1038,7 @@
                 </p>
 
                 <div class="search-bar" style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem;">
-                    <input type="text" class="search-input order-search" data-supplier="{{ supplier }}" placeholder="Search orders by name, telegram, or order ID...">
+                    <input type="text" class="search-input order-search" data-supplier="{{ supplier }}" placeholder="Search orders by name, telegram, or order ID..." autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
                     <select class="form-input payment-filter" data-supplier="{{ supplier }}" style="width: auto; padding: 0.75rem 1rem;">
                         <option value="all">All Orders</option>
                         <option value="unpaid">Unpaid Only</option>
@@ -2374,16 +2382,22 @@
                 const paidOrdersEl = document.getElementById('customer-summary-paid-orders');
                 const unpaidOrdersEl = document.getElementById('customer-summary-unpaid-orders');
                 const totalPhpEl = document.getElementById('customer-summary-total-php');
+                const amountReceivedEl = document.getElementById('customer-summary-amount-received-php');
+                const amountReceivableEl = document.getElementById('customer-summary-amount-receivable-php');
 
                 const uniqueOrders = Number(summaryStats.unique_orders || 0);
                 const paidOrders = Number(summaryStats.paid_orders || 0);
                 const unpaidOrders = Number(summaryStats.unpaid_orders || 0);
                 const totalPhp = Number(summaryStats.total_php || 0);
+                const amountReceivedPhp = Number(summaryStats.amount_received_php || 0);
+                const amountReceivablePhp = Number(summaryStats.amount_receivable_php || 0);
 
                 if (uniqueOrdersEl) uniqueOrdersEl.textContent = uniqueOrders.toLocaleString('en-PH');
                 if (paidOrdersEl) paidOrdersEl.textContent = paidOrders.toLocaleString('en-PH');
                 if (unpaidOrdersEl) unpaidOrdersEl.textContent = unpaidOrders.toLocaleString('en-PH');
                 if (totalPhpEl) totalPhpEl.textContent = `₱${totalPhp.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                if (amountReceivedEl) amountReceivedEl.textContent = `₱${amountReceivedPhp.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                if (amountReceivableEl) amountReceivableEl.textContent = `₱${amountReceivablePhp.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
                 
                 if (!customers || customers.length === 0) {
                     tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 2rem; color: var(--text-muted);">No customers found for ${CURRENT_PEPHAUL_TAB}</td></tr>`;
@@ -3003,6 +3017,13 @@
                 // This admin view is per PepHaul Entry tab (one supplier per tab),
                 // so render all orders without trying to infer supplier from pricelist codes.
                 ADMIN_SUPPLIERS.forEach(supplier => {
+                    const searchInput = document.querySelector(`.order-search[data-supplier="${supplier}"]`);
+                    // Browser/password-manager autofill can inject values like "PHH-Admin"
+                    // into this search box and hide all orders. If the user has not actually
+                    // typed in this field, clear it before rendering/filtering.
+                    if (searchInput && searchInput.value && searchInput.dataset.userEdited !== 'true') {
+                        searchInput.value = '';
+                    }
                     renderOrders(orders, supplier);
                 });
             } catch (error) {
@@ -3296,7 +3317,13 @@
             const paymentFilter = document.querySelector(`.payment-filter[data-supplier="${supplier}"]`);
             
             if (searchInput) {
-                searchInput.addEventListener('input', () => filterOrders(supplier));
+                // Only treat query as intentional when user actively edits this field.
+                searchInput.addEventListener('input', () => {
+                    if (document.activeElement === searchInput) {
+                        searchInput.dataset.userEdited = 'true';
+                    }
+                    filterOrders(supplier);
+                });
             }
             if (paymentFilter) {
                 paymentFilter.addEventListener('change', () => filterOrders(supplier));
@@ -3309,7 +3336,8 @@
             
             if (!searchInput || !paymentFilterEl) return;
             
-            const query = searchInput.value.toLowerCase();
+            const rawQuery = (searchInput.value || '').toLowerCase().trim();
+            const query = searchInput.dataset.userEdited === 'true' ? rawQuery : '';
             const paymentFilter = paymentFilterEl.value;
             
             // Get products to match suppliers

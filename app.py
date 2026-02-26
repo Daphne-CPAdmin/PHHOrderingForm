@@ -7898,6 +7898,19 @@ def api_admin_customer_summary():
     paid_orders = sum(1 for status in order_payment_status.values() if str(status).strip().lower() == 'paid')
     unpaid_orders = len(unique_order_ids) - paid_orders
     total_php = round(sum(v.get('total_grand_total_php', 0) for v in customer_summary.values()), 2)
+    amount_received_php = 0.0
+    amount_receivable_php = 0.0
+
+    for order_id, order_data in order_items.items():
+        subtotal_php = float(order_data.get('subtotal_php', 0) or 0)
+        admin_fee_php = float(calculate_tiered_admin_fee(order_data.get('items', []), products) or 0)
+        grand_total_php = subtotal_php + admin_fee_php
+
+        payment_status = str(order_payment_status.get(order_id, 'Unpaid')).strip().lower()
+        if payment_status == 'paid':
+            amount_received_php += grand_total_php
+        else:
+            amount_receivable_php += grand_total_php
 
     return jsonify({
         'customers': result,
@@ -7905,7 +7918,9 @@ def api_admin_customer_summary():
             'unique_orders': len(unique_order_ids),
             'paid_orders': paid_orders,
             'unpaid_orders': unpaid_orders,
-            'total_php': total_php
+            'total_php': total_php,
+            'amount_received_php': round(amount_received_php, 2),
+            'amount_receivable_php': round(amount_receivable_php, 2)
         }
     })
 
