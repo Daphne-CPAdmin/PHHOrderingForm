@@ -8090,12 +8090,11 @@ def api_admin_send_reminder(order_id):
 
 <b>Total Amount:</b> ₱{grand_total:,.2f}
 
-Dear customer, this is a friendly reminder that we haven't received your payment yet.
+Dear PepHauler, this is a friendly reminder that @pephauler hasn't received your payment yet.
 
-Please send your payment and upload the screenshot through the order form:
-https://pephaul-order-form.onrender.com
+Please send your payment and send the screenshot to @pephauler.
 
-If you've already paid, please upload your payment screenshot so we can confirm your order.
+Once sent, please pull up your order by adding your Name & Telegram Username in the form: 👉https://tinyurl.com/PepHaulersHub and click "Payment sent to PepHaul Admin" to notify @pephauler.
 
 Thank you! 💜"""
     
