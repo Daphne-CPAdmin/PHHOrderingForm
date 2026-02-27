@@ -7484,7 +7484,7 @@ Payment has been confirmed and order is ready for fulfillment.
 
 🎉 Your payment has been confirmed!
 
-Thank you for being a responsible PepHauler! 💜"""
+Thank you for being a responsible PepHauler! 💜 — Until our next PepHaul🫡"""
                     
                     send_customer_telegram(chat_id, customer_msg)
                     print(f"✅ Payment confirmation sent to customer @{telegram_handle}")
@@ -7547,9 +7547,9 @@ def api_admin_notify_customer(order_id):
 
 <b>Grand Total:</b> ₱{order.get('grand_total_php', 0):,.2f}
 
-🎉 Your payment has been confirmed! Your order is now being processed.
+🎉 Your payment has been confirmed! 
 
-Thank you for your order! 💜"""
+Thank you for being a responsible PepHauler! 💜 — Until our next PepHaul🫡 """
     
     if send_customer_telegram(chat_id, customer_msg):
         print(f"✅ Manual payment confirmation sent to customer @{telegram_handle}")
