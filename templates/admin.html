@@ -1354,7 +1354,7 @@
         let orderCancellationMessage = 'Cancellation is not allowed by Admin to honor other haulers efforts to complete kits. Please contact pephauler for updates arrangement.';
         
         // Get suppliers from template - MUST be declared before any functions that use it
-        const ADMIN_SUPPLIERS = {{ suppliers|tojson|safe }};
+        const ADMIN_SUPPLIERS = JSON.parse('{{ suppliers|tojson|safe }}');
 
         // Login function - will be attached via addEventListener
         async function handleLogin() {
@@ -1635,8 +1635,8 @@
         });
 
         // Supplier Filter Functions (per PepHaul Entry tab)
-        const CURRENT_PEPHAUL_TAB = {{ current_tab|default('PepHaul Entry-01')|tojson }};
-        let currentSupplierFilter = {{ supplier_filter|default('all')|tojson }};
+        const CURRENT_PEPHAUL_TAB = JSON.parse('{{ current_tab|default("PepHaul Entry-01")|tojson|safe }}');
+        let currentSupplierFilter = JSON.parse('{{ supplier_filter|default("all")|tojson|safe }}');
         try {
             const saved = localStorage.getItem(`supplierFilter_${CURRENT_PEPHAUL_TAB}`);
             if (saved) currentSupplierFilter = saved;
