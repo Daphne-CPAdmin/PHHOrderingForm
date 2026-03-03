@@ -536,6 +536,61 @@
             font-size: 0.8rem;
             margin-top: 0.5rem;
         }
+
+        /* Very small screens: render tables as stacked cards */
+        @media (max-width: 560px) {
+            .container { padding: 0.7rem; }
+            .card { padding: 0.85rem; border-radius: 12px; }
+            .table-container { overflow: visible; }
+            .products-table { width: 100%; min-width: 0; border-collapse: separate; border-spacing: 0; }
+            .products-table thead { display: none; }
+
+            .products-table tbody tr {
+                display: block;
+                background: var(--bg-input);
+                border: 1px solid var(--border);
+                border-radius: 12px;
+                margin-bottom: 0.7rem;
+                padding: 0.35rem 0.55rem;
+            }
+            .products-table tbody tr.locked-order {
+                background: rgba(245, 158, 11, 0.08);
+            }
+
+            .products-table td {
+                display: grid;
+                grid-template-columns: 110px minmax(0, 1fr);
+                gap: 0.5rem;
+                align-items: center;
+                border-bottom: 1px dashed var(--border);
+                padding: 0.45rem 0.2rem;
+                text-align: left;
+            }
+            .products-table td:last-child { border-bottom: none; }
+
+            .products-table td::before {
+                content: attr(data-label);
+                color: var(--text-muted);
+                font-size: 0.72rem;
+                text-transform: uppercase;
+                font-weight: 600;
+                letter-spacing: 0.02em;
+            }
+
+            .products-table tbody tr.no-results td {
+                display: block;
+                border-bottom: none;
+                text-align: center;
+                padding: 0.4rem 0.2rem;
+            }
+            .products-table tbody tr.no-results td::before {
+                content: none;
+            }
+
+            .products-table td[data-label="Actions"] .btn-sm {
+                width: 100%;
+            }
+        }
     </style>
 </head>
 <body>
@@ -1346,6 +1401,7 @@
             if (loginBtn) {
                 loginBtn.addEventListener('click', handleLogin);
             }
+            applyResponsiveTableLabels();
         });
 
         // Boot: if session is already authenticated, show admin content and load data.
@@ -2334,6 +2390,8 @@
                         `;
                     }).join('');  // Close arrow function body, map(), and join
                 });
+
+                applyResponsiveTableLabels();
                 
             } catch (error) {
                 console.error('Error loading products:', error);
@@ -2974,6 +3032,22 @@
             setTimeout(() => document.getElementById('toast').classList.remove('show'), 3000);
         }
 
+        function applyResponsiveTableLabels(root = document) {
+            const tables = root.querySelectorAll('.products-table');
+            tables.forEach((table) => {
+                const headers = Array.from(table.querySelectorAll('thead th')).map((th) => th.textContent.trim());
+                if (!headers.length) return;
+                table.querySelectorAll('tbody tr').forEach((row) => {
+                    const cells = Array.from(row.children).filter((el) => el.tagName === 'TD');
+                    cells.forEach((td, idx) => {
+                        if (!td.dataset.label || td.dataset.label.trim() === '') {
+                            td.dataset.label = headers[idx] || 'Field';
+                        }
+                    });
+                });
+            });
+        }
+
         // ===== ORDERS MANAGEMENT =====
         async function loadOrders() {
             try {
@@ -3078,7 +3152,7 @@
             
             if (!orders || orders.length === 0) {
                 console.warn('📊 Admin: No orders to render');
-                tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; padding: 2rem; color: var(--text-muted);">No orders found</td></tr>';
+                tbody.innerHTML = '<tr class="no-results"><td colspan="9" style="text-align: center; padding: 2rem; color: var(--text-muted);">No orders found</td></tr>';
                 return;
             }
             
@@ -3162,6 +3236,7 @@
                     </tr>
                 `;
             }).join('');
+            applyResponsiveTableLabels(tbody.closest('table') || document);
             
             // Reset select all checkbox for this supplier
             const selectAllCheckbox = document.querySelector(`.select-all-orders[data-supplier="${supplier}"]`);
