@@ -1098,6 +1098,7 @@
                         <option value="all">All Orders</option>
                         <option value="unpaid">Unpaid Only</option>
                         <option value="paid">Paid Only</option>
+                        <option value="waiting">Waiting for Confirmation</option>
                     </select>
                 </div>
                 
@@ -3415,18 +3416,9 @@
             const query = searchInput.dataset.userEdited === 'true' ? rawQuery : '';
             const paymentFilter = paymentFilterEl.value;
             
-            // Get products to match suppliers
-            const products = window._productsCache || [];
-            
-            // Filter orders for this supplier
-            const supplierOrders = allOrders.filter(order => {
-                // Check if order has items from this supplier
-                const hasSupplierItems = order.items?.some(item => {
-                    const product = products.find(p => p.code === item.product_code);
-                    return product && (product.supplier || 'Default') === supplier;
-                });
-                return hasSupplierItems;
-            });
+            // This admin page is already scoped by PepHaul Entry tab.
+            // Use the complete tab order set here; only apply search/payment filters.
+            const supplierOrders = allOrders;
             
             console.log('📊 Admin: Filtering orders - query:', query, 'paymentFilter:', paymentFilter);
             console.log('📊 Admin: Total orders before filter:', allOrders.length);
@@ -3437,11 +3429,15 @@
                     order.full_name.toLowerCase().includes(query) ||
                     (order.telegram && order.telegram.toLowerCase().includes(query));
                 
-                const isPaid = order.payment_status && order.payment_status.toLowerCase() === 'paid';
+                const paymentStatus = String(order.payment_status || '').toLowerCase().trim();
+                const isPaid = paymentStatus === 'paid';
+                const isWaiting = paymentStatus === 'waiting for confirmation';
+                const isUnpaid = !isPaid && !isWaiting;
                 const matchesPayment = 
                     paymentFilter === 'all' ||
                     (paymentFilter === 'paid' && isPaid) ||
-                    (paymentFilter === 'unpaid' && !isPaid);
+                    (paymentFilter === 'unpaid' && isUnpaid) ||
+                    (paymentFilter === 'waiting' && isWaiting);
                 
                 return matchesSearch && matchesPayment;
             });
