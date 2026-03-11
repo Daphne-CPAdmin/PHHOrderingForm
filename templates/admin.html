@@ -4060,6 +4060,7 @@
                 const synced = result.synced_users || 0;
                 const scannedUpdates = result.updates_scanned || 0;
                 const scannedMessages = result.messages_scanned || 0;
+                const noUsernameMessages = result.messages_without_username || 0;
                 const usersPreview = (result.usernames || []).join(', ');
                 const restoreNote = result.webhook_temporarily_disabled
                     ? (result.webhook_restored ? 'Webhook restored successfully.' : 'Webhook restore failed. Please re-set webhook.')
@@ -4071,8 +4072,9 @@
                     `Synced users: ${synced}\n` +
                     `Updates scanned: ${scannedUpdates}\n` +
                     `Messages scanned: ${scannedMessages}\n` +
+                    `Messages without @username: ${noUsernameMessages}\n` +
                     `${restoreNote}\n\n` +
-                    `${usersPreview ? `Sample users: ${usersPreview}` : 'No /start users found in recent updates.'}`
+                    `${usersPreview ? `Sample users: ${usersPreview}` : 'No Telegram usernames found in recent updates.'}`
                 );
             } catch (error) {
                 console.error('Error syncing Telegram users:', error);

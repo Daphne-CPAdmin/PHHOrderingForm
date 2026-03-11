@@ -3877,27 +3877,43 @@ def api_admin_sync_telegram_users():
             if last_update_id is None:
                 break
 
-        start_users = {}
+        discovered_users = {}
+        start_command_users = {}
         total_messages = 0
+        start_messages = 0
+        messages_without_username = 0
         for upd in updates:
-            msg = upd.get('message') or {}
-            text = str(msg.get('text') or '').strip()
-            if not text:
+            msg = (
+                upd.get('message')
+                or upd.get('edited_message')
+                or upd.get('channel_post')
+                or upd.get('edited_channel_post')
+                or {}
+            )
+            if not msg:
                 continue
-            total_messages += 1
 
-            normalized_text = text.split(' ')[0].strip().lower()
-            if normalized_text != '/start':
-                continue
+            total_messages += 1
 
             from_user = msg.get('from') or {}
             username = normalize_telegram_username(from_user.get('username'))
             chat_id = (msg.get('chat') or {}).get('id')
             if username and chat_id is not None:
-                start_users[username] = str(chat_id)
+                discovered_users[username] = str(chat_id)
+            elif chat_id is not None:
+                messages_without_username += 1
+
+            text = str(msg.get('text') or '').strip()
+            if text:
+                normalized_text = text.split(' ')[0].strip().lower()
+                # Handle /start, /start payload, and /start@botname.
+                if normalized_text.startswith('/start'):
+                    start_messages += 1
+                    if username and chat_id is not None:
+                        start_command_users[username] = str(chat_id)
 
         synced_count = 0
-        for username, chat_id in start_users.items():
+        for username, chat_id in discovered_users.items():
             telegram_customers[username] = chat_id
             telegram_customers[f"@{username}"] = chat_id
             upsert_pephauler_contact(username, chat_id)
@@ -3908,10 +3924,13 @@ def api_admin_sync_telegram_users():
         return jsonify({
             'success': True,
             'synced_users': synced_count,
-            'start_users_found': len(start_users),
+            'users_found_in_updates': len(discovered_users),
+            'start_users_found': len(start_command_users),
+            'start_messages_found': start_messages,
             'updates_scanned': len(updates),
             'messages_scanned': total_messages,
-            'usernames': [f"@{u}" for u in sorted(start_users.keys())[:20]],
+            'messages_without_username': messages_without_username,
+            'usernames': [f"@{u}" for u in sorted(discovered_users.keys())[:20]],
             'webhook_temporarily_disabled': webhook_temporarily_disabled,
             'webhook_restored': webhook_restored
         })
