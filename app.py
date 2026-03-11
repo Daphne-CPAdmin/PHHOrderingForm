@@ -9,6 +9,7 @@ import json
 import os
 import base64
 import math
+import html
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from collections import defaultdict
@@ -240,6 +241,122 @@ def normalize_telegram_username(username):
     if not username:
         return ''
     return str(username).strip().lstrip('@').lower()
+
+def _format_php(amount):
+    """Format numeric amount as PHP currency string."""
+    try:
+        return f"₱{float(amount or 0):,.2f}"
+    except Exception:
+        return "₱0.00"
+
+def _safe_invoice_filename(order_id):
+    """Return filesystem-safe invoice filename based on order ID."""
+    raw = str(order_id or 'order').strip() or 'order'
+    safe = ''.join(ch if ch.isalnum() or ch in ('-', '_') else '_' for ch in raw)
+    return f"{safe}_invoice.html"
+
+def build_invoice_html(order):
+    """Build a downloadable HTML invoice for a single order."""
+    order_id = html.escape(str(order.get('order_id', '') or ''))
+    order_date = html.escape(str(order.get('order_date', '') or ''))
+    full_name = html.escape(str(order.get('full_name', '') or ''))
+    telegram = html.escape(str(order.get('telegram', '') or ''))
+    payment_status = html.escape(str(order.get('payment_status', 'Unpaid') or 'Unpaid'))
+    status = html.escape(str(order.get('status', 'Pending') or 'Pending'))
+    generated_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+    items = order.get('items') or []
+    subtotal_php = sum(float(i.get('line_total_php', 0) or 0) for i in items)
+    admin_fee_php = float(order.get('admin_fee_php', 0) or 0)
+    grand_total_php = float(order.get('grand_total_php', 0) or 0)
+    if grand_total_php <= 0:
+        grand_total_php = subtotal_php + admin_fee_php
+
+    rows = []
+    for idx, item in enumerate(items, start=1):
+        product = html.escape(str(item.get('product_name') or item.get('product_code') or 'Item'))
+        code = html.escape(str(item.get('product_code', '') or ''))
+        order_type = html.escape(str(item.get('order_type', 'Vial') or 'Vial'))
+        qty = int(item.get('qty', 0) or 0)
+        line_php = float(item.get('line_total_php', 0) or 0)
+        rows.append(
+            f"<tr>"
+            f"<td>{idx}</td>"
+            f"<td><strong>{product}</strong><br><span style='color:#6b7280;font-size:12px'>{code}</span></td>"
+            f"<td>{order_type}</td>"
+            f"<td>{qty}</td>"
+            f"<td style='text-align:right'>{_format_php(line_php)}</td>"
+            f"</tr>"
+        )
+
+    items_rows_html = ''.join(rows) if rows else (
+        "<tr><td colspan='5' style='text-align:center;color:#6b7280'>No billable items found.</td></tr>"
+    )
+
+    return f"""<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Invoice {order_id}</title>
+  <style>
+    body {{ font-family: Arial, sans-serif; margin: 24px; color: #111827; }}
+    .header {{ display:flex; justify-content:space-between; align-items:flex-start; gap:16px; }}
+    .brand {{ font-size: 24px; font-weight: 700; color: #7c3aed; }}
+    .meta {{ font-size: 13px; color: #4b5563; line-height: 1.5; }}
+    .section {{ margin-top: 18px; }}
+    table {{ width:100%; border-collapse: collapse; margin-top: 8px; }}
+    th, td {{ border:1px solid #e5e7eb; padding:10px; font-size: 13px; vertical-align: top; }}
+    th {{ background: #f9fafb; text-align: left; }}
+    .totals {{ margin-top: 14px; width: 320px; margin-left: auto; }}
+    .totals-row {{ display:flex; justify-content:space-between; padding:6px 0; font-size: 14px; }}
+    .grand {{ font-weight:700; font-size:16px; border-top:2px solid #111827; margin-top:6px; padding-top:8px; }}
+    .footer {{ margin-top: 28px; color:#6b7280; font-size: 12px; }}
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <div class="brand">PepHaul Invoice</div>
+      <div class="meta">Order ID: <strong>{order_id}</strong><br/>Order Date: {order_date}<br/>Generated: {generated_at}</div>
+    </div>
+    <div class="meta" style="text-align:right">
+      <strong>Customer</strong><br/>
+      {full_name}<br/>
+      @{telegram.lstrip('@') if telegram else ''}<br/>
+      Status: {status}<br/>
+      Payment: {payment_status}
+    </div>
+  </div>
+
+  <div class="section">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:50px">#</th>
+          <th>Item</th>
+          <th style="width:90px">Type</th>
+          <th style="width:70px">Qty</th>
+          <th style="width:130px; text-align:right">Line Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {items_rows_html}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="totals">
+    <div class="totals-row"><span>Items Subtotal</span><span>{_format_php(subtotal_php)}</span></div>
+    <div class="totals-row"><span>Admin Fee</span><span>{_format_php(admin_fee_php)}</span></div>
+    <div class="totals-row grand"><span>Grand Total</span><span>{_format_php(grand_total_php)}</span></div>
+  </div>
+
+  <div class="footer">
+    This invoice is generated from your PepHaul order records.
+  </div>
+</body>
+</html>"""
 
 def _fetch_pephaulers_chat_map():
     """
@@ -5261,6 +5378,37 @@ def api_get_order(order_id):
     if order:
         return jsonify(order)
     return jsonify({'error': 'Order not found'}), 404
+
+@app.route('/api/orders/<order_id>/invoice')
+def api_download_invoice(order_id):
+    """Download order invoice as HTML (customer must match telegram username)."""
+    telegram = normalize_telegram_username(request.args.get('telegram', ''))
+    if not telegram:
+        return jsonify({'error': 'Telegram username is required'}), 400
+
+    order = get_order_by_id(order_id)
+    if not order:
+        return jsonify({'error': 'Order not found'}), 404
+
+    order_telegram = normalize_telegram_username(order.get('telegram', ''))
+    if not order_telegram or order_telegram != telegram:
+        return jsonify({'error': 'Unauthorized invoice access for this order'}), 403
+
+    invoice_html = build_invoice_html(order)
+    filename = _safe_invoice_filename(order_id)
+
+    try:
+        invoices_dir = os.path.join('data', 'output', 'invoices')
+        os.makedirs(invoices_dir, exist_ok=True)
+        with open(os.path.join(invoices_dir, filename), 'w', encoding='utf-8') as f:
+            f.write(invoice_html)
+    except Exception as e:
+        print(f"⚠️ Could not save invoice snapshot for {order_id}: {e}")
+
+    response = make_response(invoice_html)
+    response.headers['Content-Type'] = 'text/html; charset=utf-8'
+    response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
 
 @app.route('/api/orders/search')
 def api_search_orders():

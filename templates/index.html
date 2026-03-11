@@ -5216,26 +5216,26 @@
                 tableHtml += `<td style="padding: 0.75rem;"><span style="display: inline-block; padding: 0.35rem 0.85rem; border-radius: 20px; font-size: 0.75rem; font-weight: 700; background: ${statusBg}; color: ${statusColor};">${statusText}</span></td>`;
                 
                 // Action column logic - check tracking number first (highest priority)
+                const escapedOrderId = escapeJS(order.order_id);
+                const invoiceBtn = `<button type="button" class="btn btn-secondary" onclick="downloadInvoiceById('${escapedOrderId}')" style="padding: 0.5rem 1rem; font-size: 0.85rem;">🧾 Invoice</button>`;
                 if (hasTrackingNumber && isPaid) {
                     // Show fulfillment message when tracking number is added
-                    tableHtml += '<td style="padding: 0.75rem; text-align: center;"><span style="color: #10b981; font-size: 0.85rem; font-weight: 600;">🚚 Order is fulfilled. Soon to be at your doorstep.</span></td>';
+                    tableHtml += `<td style="padding: 0.75rem; text-align: center;"><div style="display:flex; justify-content:center; align-items:center; gap:0.5rem; flex-wrap:wrap;"><span style="color: #10b981; font-size: 0.85rem; font-weight: 600;">🚚 Order is fulfilled. Soon to be at your doorstep.</span>${invoiceBtn}</div></td>`;
                 } else if (isWaitingForConfirmation) {
                     // Show waiting message for orders waiting for confirmation
-                    tableHtml += '<td style="padding: 0.75rem; text-align: center;"><span style="color: #3b82f6; font-size: 0.85rem; font-weight: 600;">⏳ Pending payment confirmation by PepHaul Admin. Thank you for your patience.</span></td>';
+                    tableHtml += `<td style="padding: 0.75rem; text-align: center;"><div style="display:flex; justify-content:center; align-items:center; gap:0.5rem; flex-wrap:wrap;"><span style="color: #3b82f6; font-size: 0.85rem; font-weight: 600;">⏳ Pending payment confirmation by PepHaul Admin. Thank you for your patience.</span>${invoiceBtn}</div></td>`;
                 } else if (!isPaid && !isWaitingForConfirmation) {
                     // Show "Pay Order" button for unpaid orders
-                    const escapedOrderId = escapeJS(order.order_id);
-                    tableHtml += `<td style="padding: 0.75rem; text-align: center;"><button type="button" class="btn btn-emerald" onclick="payOrderByIdFromSummary('${escapedOrderId}')" style="padding: 0.5rem 1rem; font-size: 0.85rem;">💳 Pay Order</button></td>`;
+                    tableHtml += `<td style="padding: 0.75rem; text-align: center;"><div style="display:flex; justify-content:center; gap:0.5rem; flex-wrap:wrap;"><button type="button" class="btn btn-emerald" onclick="payOrderByIdFromSummary('${escapedOrderId}')" style="padding: 0.5rem 1rem; font-size: 0.85rem;">💳 Pay Order</button>${invoiceBtn}</div></td>`;
                 } else if (isPaid && !hasShippingDetails) {
                     // Show "Add Shipping Details" button for paid orders without shipping details
-                    const escapedOrderId = escapeJS(order.order_id);
                     const escapedFullName = escapeJS(order.full_name || '');
-                    tableHtml += `<td style="padding: 0.75rem; text-align: center;"><button type="button" class="btn btn-violet" onclick="openMailingAddressModal('${escapedOrderId}', '${escapedFullName}')" style="padding: 0.5rem 1rem; font-size: 0.85rem;" title="Contact @pephauler for shipping details updates">📬 Add Shipping Details</button></td>`;
+                    tableHtml += `<td style="padding: 0.75rem; text-align: center;"><div style="display:flex; justify-content:center; gap:0.5rem; flex-wrap:wrap;"><button type="button" class="btn btn-violet" onclick="openMailingAddressModal('${escapedOrderId}', '${escapedFullName}')" style="padding: 0.5rem 1rem; font-size: 0.85rem;" title="Contact @pephauler for shipping details updates">📬 Add Shipping Details</button>${invoiceBtn}</div></td>`;
                 } else if (isPaid && hasShippingDetails && !hasTrackingNumber) {
                     // Show note when shipping details have been recorded but no tracking yet
-                    tableHtml += '<td style="padding: 0.75rem; text-align: center;"><span style="color: var(--accent-emerald); font-size: 0.85rem; font-weight: 600; cursor: help;" title="Shipping details recorded. No further action required. For updates, contact PepHaul Admin @pephauler">✅ Shipping details recorded. No further action required.</span></td>';
+                    tableHtml += `<td style="padding: 0.75rem; text-align: center;"><div style="display:flex; justify-content:center; align-items:center; gap:0.5rem; flex-wrap:wrap;"><span style="color: var(--accent-emerald); font-size: 0.85rem; font-weight: 600; cursor: help;" title="Shipping details recorded. No further action required. For updates, contact PepHaul Admin @pephauler">✅ Shipping details recorded. No further action required.</span>${invoiceBtn}</div></td>`;
                 } else {
-                    tableHtml += '<td style="padding: 0.75rem; text-align: center;"></td>';
+                    tableHtml += `<td style="padding: 0.75rem; text-align: center;">${invoiceBtn}</td>`;
                 }
                 tableHtml += '</tr>';
             });
@@ -5400,9 +5400,16 @@
                             </div>
                             ${!hasShippingDetails ? `
                                 <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid rgba(16, 185, 129, 0.2);">
-                                    <button type="button" class="btn btn-violet" onclick="event.stopPropagation(); openMailingAddressModal('${escapeJS(order.order_id)}', '${escapeJS(order.full_name || '')}')" style="width: 100%; padding: 0.75rem 1rem; font-size: 0.9rem;" title="Contact @pephauler for shipping details updates">📬 Add Shipping Details</button>
+                                    <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+                                        <button type="button" class="btn btn-violet" onclick="event.stopPropagation(); openMailingAddressModal('${escapeJS(order.order_id)}', '${escapeJS(order.full_name || '')}')" style="flex:1; min-width:220px; padding: 0.75rem 1rem; font-size: 0.9rem;" title="Contact @pephauler for shipping details updates">📬 Add Shipping Details</button>
+                                        <button type="button" class="btn btn-secondary" onclick="event.stopPropagation(); downloadInvoiceById('${escapeJS(order.order_id)}')" style="flex:1; min-width:180px;">🧾 Download Invoice</button>
+                                    </div>
                                 </div>
-                            ` : ''}
+                            ` : `
+                                <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid rgba(16, 185, 129, 0.2);">
+                                    <button type="button" class="btn btn-secondary" onclick="event.stopPropagation(); downloadInvoiceById('${escapeJS(order.order_id)}')" style="width: 100%;">🧾 Download Invoice</button>
+                                </div>
+                            `}
                         </div>
                     `;
                     
@@ -5491,6 +5498,7 @@
                             ${order.payment_screenshot ? '<div style="margin-top: 0.75rem; margin-bottom: 0.75rem; font-size: 0.8rem; color: var(--accent-teal);">📷 Payment screenshot uploaded - pending confirmation</div>' : ''}
                             <div style="margin-top: 1rem; display: flex; gap: 0.5rem;">
                                 <button type="button" class="btn btn-emerald btn-full" onclick="event.stopPropagation(); payOrderById('${escapeJS(order.order_id)}')" style="flex: 1;">💳 Pay Order</button>
+                                <button type="button" class="btn btn-secondary" onclick="event.stopPropagation(); downloadInvoiceById('${escapeJS(order.order_id)}')" style="flex: 1;">🧾 Download Invoice</button>
                             </div>
                         </div>
                     `;
@@ -5814,10 +5822,54 @@
                 showToast('Error loading order. Please try again.', 3000);
             }
         }
+
+        async function downloadInvoiceById(orderId) {
+            const telegramInput = document.getElementById('telegram');
+            const normalizedTelegram = normalizeTelegramUsername(telegramInput?.value || '');
+            if (!normalizedTelegram) {
+                showToast('Enter your Telegram username first', 3000);
+                return;
+            }
+
+            try {
+                const response = await fetch(
+                    `/api/orders/${encodeURIComponent(orderId)}/invoice?telegram=${encodeURIComponent(normalizedTelegram)}`
+                );
+
+                if (!response.ok) {
+                    let errText = 'Failed to download invoice';
+                    try {
+                        const err = await response.json();
+                        errText = err.error || errText;
+                    } catch (_) {
+                        // Response may not be JSON; keep fallback text.
+                    }
+                    throw new Error(errText);
+                }
+
+                const blob = await response.blob();
+                const downloadUrl = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                const fallbackName = `${orderId}_invoice.html`;
+                const contentDisposition = response.headers.get('Content-Disposition') || '';
+                const match = contentDisposition.match(/filename="([^"]+)"/i);
+                a.href = downloadUrl;
+                a.download = match && match[1] ? match[1] : fallbackName;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(downloadUrl);
+                showToast('✅ Invoice downloaded');
+            } catch (error) {
+                console.error('Invoice download error:', error);
+                showToast(`❌ ${error.message || 'Failed to download invoice'}`, 4000);
+            }
+        }
         
         // Expose to global scope
         window.payOrderById = payOrderById;
         window.payOrderByIdFromSummary = payOrderByIdFromSummary;
+        window.downloadInvoiceById = downloadInvoiceById;
         
         function showPaymentModal(order) {
             const modal = document.getElementById('payment-modal');
