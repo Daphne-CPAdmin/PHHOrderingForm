@@ -7698,9 +7698,9 @@ def api_admin_confirm_payment_post():
 
 <b>Grand Total:</b> ₱{order.get('grand_total_php', 0):,.2f}
 
-🎉 Your payment has been confirmed by admin! Your order is now being processed.
+🎉 Your payment has been confirmed by admin! 
 
-Thank you for your order! 💜"""
+Thank you for being a responsible PepHauler! 💜 — Until our next PepHaul🫡"""
                     
                     send_customer_telegram(chat_id, customer_msg)
                     print(f"✅ Payment confirmation sent to customer @{telegram_handle}")
