@@ -3806,6 +3806,23 @@ def api_admin_sync_telegram_users():
     webhook_temporarily_disabled = False
     webhook_restored = False
 
+    def _restore_webhook_if_needed():
+        nonlocal webhook_restored
+        if not (webhook_url and webhook_temporarily_disabled):
+            return
+        try:
+            restore_resp = requests.post(
+                f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setWebhook",
+                json={'url': webhook_url},
+                timeout=10
+            )
+            restore_result = restore_resp.json() if restore_resp.status_code == 200 else {}
+            webhook_restored = bool(restore_result.get('ok'))
+            if not webhook_restored:
+                print(f"⚠️ Failed to restore webhook after sync: {restore_result}")
+        except Exception as restore_err:
+            print(f"⚠️ Error restoring webhook after sync: {restore_err}")
+
     try:
         # If a webhook is active, temporarily disable it so getUpdates can run.
         webhook_info_resp = requests.get(
@@ -3829,19 +3846,37 @@ def api_admin_sync_telegram_users():
                 }), 500
             webhook_temporarily_disabled = True
 
-        updates_resp = requests.get(
-            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates",
-            params={'limit': 100, 'timeout': 0, 'allowed_updates': json.dumps(['message'])},
-            timeout=20
-        )
-        updates_result = updates_resp.json() if updates_resp.status_code == 200 else {}
-        if not updates_result.get('ok'):
-            return jsonify({
-                'success': False,
-                'error': updates_result.get('description', 'Failed to fetch Telegram updates')
-            }), 500
+        # Poll updates in pages using offset so we don't get stuck on old updates.
+        # This also confirms processed updates and lets newer /start messages surface.
+        updates = []
+        last_update_id = None
+        while True:
+            params = {
+                'limit': 100,
+                'timeout': 0,
+                'allowed_updates': json.dumps(['message'])
+            }
+            if last_update_id is not None:
+                params['offset'] = last_update_id + 1
 
-        updates = updates_result.get('result', []) or []
+            updates_resp = requests.get(
+                f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates",
+                params=params,
+                timeout=20
+            )
+            updates_result = updates_resp.json() if updates_resp.status_code == 200 else {}
+            if not updates_result.get('ok'):
+                raise RuntimeError(updates_result.get('description', 'Failed to fetch Telegram updates'))
+
+            page = updates_result.get('result', []) or []
+            if not page:
+                break
+
+            updates.extend(page)
+            last_update_id = page[-1].get('update_id')
+            if last_update_id is None:
+                break
+
         start_users = {}
         total_messages = 0
         for upd in updates:
@@ -3868,19 +3903,7 @@ def api_admin_sync_telegram_users():
             upsert_pephauler_contact(username, chat_id)
             synced_count += 1
 
-        if webhook_url and webhook_temporarily_disabled:
-            try:
-                restore_resp = requests.post(
-                    f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setWebhook",
-                    json={'url': webhook_url},
-                    timeout=10
-                )
-                restore_result = restore_resp.json() if restore_resp.status_code == 200 else {}
-                webhook_restored = bool(restore_result.get('ok'))
-                if not webhook_restored:
-                    print(f"⚠️ Failed to restore webhook after sync: {restore_result}")
-            except Exception as restore_err:
-                print(f"⚠️ Error restoring webhook after sync: {restore_err}")
+        _restore_webhook_if_needed()
 
         return jsonify({
             'success': True,
@@ -3894,6 +3917,9 @@ def api_admin_sync_telegram_users():
         })
     except Exception as e:
         return jsonify({'success': False, 'error': f'Sync failed: {e}'}), 500
+    finally:
+        if webhook_temporarily_disabled and not webhook_restored:
+            _restore_webhook_if_needed()
 
 @app.route('/api/admin/debug/orders')
 def api_admin_debug_orders():
