@@ -8381,11 +8381,16 @@ def api_admin_customer_summary():
     total_php = round(sum(v.get('total_grand_total_php', 0) for v in customer_summary.values()), 2)
     amount_received_php = 0.0
     amount_receivable_php = 0.0
+    total_product_subtotal_php = 0.0
+    total_admin_fee_php = 0.0
 
     for order_id, order_data in order_items.items():
         subtotal_php = float(order_data.get('subtotal_php', 0) or 0)
         admin_fee_php = float(calculate_tiered_admin_fee(order_data.get('items', []), products) or 0)
         grand_total_php = subtotal_php + admin_fee_php
+
+        total_product_subtotal_php += subtotal_php
+        total_admin_fee_php += admin_fee_php
 
         payment_status = str(order_payment_status.get(order_id, 'Unpaid')).strip().lower()
         if payment_status == 'paid':
@@ -8400,6 +8405,8 @@ def api_admin_customer_summary():
             'paid_orders': paid_orders,
             'unpaid_orders': unpaid_orders,
             'total_php': total_php,
+            'total_product_subtotal_php': round(total_product_subtotal_php, 2),
+            'total_admin_fee_php': round(total_admin_fee_php, 2),
             'amount_received_php': round(amount_received_php, 2),
             'amount_receivable_php': round(amount_receivable_php, 2)
         }

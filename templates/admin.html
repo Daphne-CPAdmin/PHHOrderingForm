@@ -1042,30 +1042,38 @@
                     Overview of all customers showing unique orders, total vials, and grand totals (including PepHaul Admin fee) for {{ current_tab|default('PepHaul Entry') }}.
                 </p>
 
-                <div class="stats-grid" style="margin-bottom: 1rem;">
-                    <div class="stat-card">
-                        <div class="stat-value" id="customer-summary-unique-orders">0</div>
-                        <div class="stat-label">Unique Orders</div>
+                <div style="display: grid; grid-template-columns: repeat(8, 1fr); gap: 0.65rem; margin-bottom: 1rem;">
+                    <div class="stat-card" style="padding: 1rem 0.5rem;">
+                        <div class="stat-value" id="customer-summary-unique-orders" style="font-size: 1.6rem;">0</div>
+                        <div class="stat-label" style="font-size: 0.7rem;">Unique Orders</div>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-value" id="customer-summary-paid-orders">0</div>
-                        <div class="stat-label">Paid Orders</div>
+                    <div class="stat-card" style="padding: 1rem 0.5rem;">
+                        <div class="stat-value" id="customer-summary-paid-orders" style="font-size: 1.6rem;">0</div>
+                        <div class="stat-label" style="font-size: 0.7rem;">Paid Orders</div>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-value" id="customer-summary-unpaid-orders">0</div>
-                        <div class="stat-label">Unpaid Orders</div>
+                    <div class="stat-card" style="padding: 1rem 0.5rem;">
+                        <div class="stat-value" id="customer-summary-unpaid-orders" style="font-size: 1.6rem;">0</div>
+                        <div class="stat-label" style="font-size: 0.7rem;">Unpaid Orders</div>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-value" id="customer-summary-total-php">₱0.00</div>
-                        <div class="stat-label">Total (PHP)</div>
+                    <div class="stat-card" style="padding: 1rem 0.5rem; border-color: #a78bfa;">
+                        <div class="stat-value" id="customer-summary-total-php" style="font-size: 1.1rem;">₱0.00</div>
+                        <div class="stat-label" style="font-size: 0.7rem;">Grand Total (PHP)</div>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-value" id="customer-summary-amount-received-php">₱0.00</div>
-                        <div class="stat-label">Amount Received (Paid)</div>
+                    <div class="stat-card" style="padding: 1rem 0.5rem; border-color: #6ee7b7;">
+                        <div class="stat-value" id="customer-summary-product-subtotal-php" style="font-size: 1.1rem; color: #10b981;">₱0.00</div>
+                        <div class="stat-label" style="font-size: 0.7rem;">Product Total (PHP)</div>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-value" id="customer-summary-amount-receivable-php">₱0.00</div>
-                        <div class="stat-label">Amount Receivable (Unpaid)</div>
+                    <div class="stat-card" style="padding: 1rem 0.5rem; border-color: #fcd34d;">
+                        <div class="stat-value" id="customer-summary-admin-fee-php" style="font-size: 1.1rem; color: #f59e0b;">₱0.00</div>
+                        <div class="stat-label" style="font-size: 0.7rem;">Admin Fee Collectibles</div>
+                    </div>
+                    <div class="stat-card" style="padding: 1rem 0.5rem;">
+                        <div class="stat-value" id="customer-summary-amount-received-php" style="font-size: 1.1rem;">₱0.00</div>
+                        <div class="stat-label" style="font-size: 0.7rem;">Amount Received (Paid)</div>
+                    </div>
+                    <div class="stat-card" style="padding: 1rem 0.5rem; border-color: #fca5a5;">
+                        <div class="stat-value" id="customer-summary-amount-receivable-php" style="font-size: 1.1rem; color: #ef4444;">₱0.00</div>
+                        <div class="stat-label" style="font-size: 0.7rem;">Amount Receivable (Unpaid)</div>
                     </div>
                 </div>
 
@@ -2506,26 +2514,34 @@
                 }
 
                 // Update summary cards
-                const uniqueOrdersEl = document.getElementById('customer-summary-unique-orders');
-                const paidOrdersEl = document.getElementById('customer-summary-paid-orders');
-                const unpaidOrdersEl = document.getElementById('customer-summary-unpaid-orders');
-                const totalPhpEl = document.getElementById('customer-summary-total-php');
-                const amountReceivedEl = document.getElementById('customer-summary-amount-received-php');
-                const amountReceivableEl = document.getElementById('customer-summary-amount-receivable-php');
+                const uniqueOrdersEl          = document.getElementById('customer-summary-unique-orders');
+                const paidOrdersEl            = document.getElementById('customer-summary-paid-orders');
+                const unpaidOrdersEl          = document.getElementById('customer-summary-unpaid-orders');
+                const totalPhpEl              = document.getElementById('customer-summary-total-php');
+                const productSubtotalEl       = document.getElementById('customer-summary-product-subtotal-php');
+                const adminFeeEl              = document.getElementById('customer-summary-admin-fee-php');
+                const amountReceivedEl        = document.getElementById('customer-summary-amount-received-php');
+                const amountReceivableEl      = document.getElementById('customer-summary-amount-receivable-php');
 
-                const uniqueOrders = Number(summaryStats.unique_orders || 0);
-                const paidOrders = Number(summaryStats.paid_orders || 0);
-                const unpaidOrders = Number(summaryStats.unpaid_orders || 0);
-                const totalPhp = Number(summaryStats.total_php || 0);
-                const amountReceivedPhp = Number(summaryStats.amount_received_php || 0);
-                const amountReceivablePhp = Number(summaryStats.amount_receivable_php || 0);
+                const fmt = n => `₱${Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-                if (uniqueOrdersEl) uniqueOrdersEl.textContent = uniqueOrders.toLocaleString('en-PH');
-                if (paidOrdersEl) paidOrdersEl.textContent = paidOrders.toLocaleString('en-PH');
-                if (unpaidOrdersEl) unpaidOrdersEl.textContent = unpaidOrders.toLocaleString('en-PH');
-                if (totalPhpEl) totalPhpEl.textContent = `₱${totalPhp.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-                if (amountReceivedEl) amountReceivedEl.textContent = `₱${amountReceivedPhp.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-                if (amountReceivableEl) amountReceivableEl.textContent = `₱${amountReceivablePhp.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                const uniqueOrders            = Number(summaryStats.unique_orders || 0);
+                const paidOrders              = Number(summaryStats.paid_orders || 0);
+                const unpaidOrders            = Number(summaryStats.unpaid_orders || 0);
+                const totalPhp                = Number(summaryStats.total_php || 0);
+                const productSubtotalPhp      = Number(summaryStats.total_product_subtotal_php || 0);
+                const adminFeePhp             = Number(summaryStats.total_admin_fee_php || 0);
+                const amountReceivedPhp       = Number(summaryStats.amount_received_php || 0);
+                const amountReceivablePhp     = Number(summaryStats.amount_receivable_php || 0);
+
+                if (uniqueOrdersEl)     uniqueOrdersEl.textContent     = uniqueOrders.toLocaleString('en-PH');
+                if (paidOrdersEl)       paidOrdersEl.textContent       = paidOrders.toLocaleString('en-PH');
+                if (unpaidOrdersEl)     unpaidOrdersEl.textContent     = unpaidOrders.toLocaleString('en-PH');
+                if (totalPhpEl)         totalPhpEl.textContent         = fmt(totalPhp);
+                if (productSubtotalEl)  productSubtotalEl.textContent  = fmt(productSubtotalPhp);
+                if (adminFeeEl)         adminFeeEl.textContent         = fmt(adminFeePhp);
+                if (amountReceivedEl)   amountReceivedEl.textContent   = fmt(amountReceivedPhp);
+                if (amountReceivableEl) amountReceivableEl.textContent = fmt(amountReceivablePhp);
                 
                 if (!customers || customers.length === 0) {
                     tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 2rem; color: var(--text-muted);">No customers found for ${CURRENT_PEPHAUL_TAB}</td></tr>`;
