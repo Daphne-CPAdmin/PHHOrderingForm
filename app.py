@@ -131,6 +131,10 @@ def _normalize_order_sheet_headers(headers):
             return 'Link to Payment'
         if k in ('payment date',):
             return 'Payment Date'
+        if k in ('amount paid php', 'amount paid', 'paid amount', 'paid amount php'):
+            return 'Amount Paid PHP'
+        if k in ('remaining balance php', 'remaining balance', 'balance php', 'remaining'):
+            return 'Remaining Balance PHP'
         if k in ('contact number', 'phone', 'phone number'):
             return 'Contact Number'
         if k in ('mailing address', 'address', 'shipping address'):
@@ -249,6 +253,20 @@ def _format_php(amount):
     except Exception:
         return "₱0.00"
 
+def _to_float(value, default=0.0):
+    """Safely cast arbitrary numeric-ish values to float."""
+    try:
+        if value is None:
+            return float(default)
+        if isinstance(value, str):
+            cleaned = value.replace('₱', '').replace(',', '').strip()
+            if not cleaned:
+                return float(default)
+            return float(cleaned)
+        return float(value)
+    except Exception:
+        return float(default)
+
 def _safe_invoice_filename(order_id):
     """Return filesystem-safe invoice filename based on order ID."""
     raw = str(order_id or 'order').strip() or 'order'
@@ -357,6 +375,39 @@ def build_invoice_html(order):
   </div>
 </body>
 </html>"""
+
+def derive_payment_amounts(grand_total_php, payment_status, amount_paid_php=None, remaining_balance_php=None):
+    """
+    Derive consistent paid/remaining values using stored values when present.
+    Falls back to status-based inference for backward compatibility with old rows.
+    """
+    grand_total = max(_to_float(grand_total_php, 0.0), 0.0)
+    status = str(payment_status or '').strip().lower()
+
+    paid = _to_float(amount_paid_php, 0.0)
+    remaining = _to_float(remaining_balance_php, grand_total if grand_total > 0 else 0.0)
+
+    # If explicit values are missing/zeroed on legacy rows, infer from status.
+    if paid <= 0 and remaining <= 0:
+        if status == 'paid':
+            paid = grand_total
+            remaining = 0.0
+        else:
+            paid = 0.0
+            remaining = grand_total
+    elif remaining <= 0 and grand_total > 0:
+        remaining = max(grand_total - paid, 0.0)
+
+    # Keep values mathematically aligned with grand total.
+    if grand_total > 0:
+        if paid > grand_total:
+            paid = grand_total
+        remaining = max(grand_total - paid, 0.0)
+    else:
+        paid = max(paid, 0.0)
+        remaining = max(remaining, 0.0)
+
+    return round(paid, 2), round(remaining, 2)
 
 def _fetch_pephaulers_chat_map():
     """
@@ -2032,6 +2083,17 @@ def get_order_by_id(order_id):
     # Get tracking number from column X (24)
     tracking_number = first_item.get('Tracking Number', '')
     
+    payment_status_value = first_item.get('Payment Status', first_item.get('Confirmed Paid?', 'Unpaid'))
+    grand_total_value = float(first_item.get('Grand Total PHP', 0) or 0)
+    amount_paid_value = first_item.get('Amount Paid PHP', first_item.get('Amount Paid', ''))
+    remaining_balance_value = first_item.get('Remaining Balance PHP', first_item.get('Remaining Balance', ''))
+    amount_paid_php, remaining_balance_php = derive_payment_amounts(
+        grand_total_value,
+        payment_status_value,
+        amount_paid_value,
+        remaining_balance_value
+    )
+
     order = {
         'order_id': order_id,
         'order_date': first_item.get('Order Date', ''),
@@ -2040,10 +2102,12 @@ def get_order_by_id(order_id):
         'telegram': telegram_value,
         'exchange_rate': normalize_exchange_rate(first_item.get('Exchange Rate', FALLBACK_EXCHANGE_RATE)),
         'admin_fee_php': float(first_item.get('Admin Fee PHP', ADMIN_FEE_PHP) or 0),
-        'grand_total_php': float(first_item.get('Grand Total PHP', 0) or 0),
+        'grand_total_php': grand_total_value,
         'status': first_item.get('Order Status', 'Pending'),
         'locked': str(first_item.get('Locked', 'No')).lower() == 'yes',
-        'payment_status': first_item.get('Payment Status', first_item.get('Confirmed Paid?', 'Unpaid')),
+        'payment_status': payment_status_value,
+        'amount_paid_php': amount_paid_php,
+        'remaining_balance_php': remaining_balance_php,
         'payment_screenshot': first_item.get('Link to Payment', first_item.get('Payment Screenshot Link', first_item.get('Payment Screenshot', ''))),
         'contact_number': mailing_phone if mailing_address else '',  # Use mailing phone if shipping details exist
         'mailing_address': mailing_address,
@@ -2175,7 +2239,15 @@ def save_order_to_sheets(order_data, order_id=None):
         print(f"Error saving order: {e}")
         return None
 
-def update_order_status(order_id, status=None, locked=None, payment_status=None, payment_screenshot=None):
+def update_order_status(
+    order_id,
+    status=None,
+    locked=None,
+    payment_status=None,
+    payment_screenshot=None,
+    amount_paid_php=None,
+    remaining_balance_php=None
+):
     """Update order status in Google Sheets"""
     if not sheets_client:
         return False
@@ -2198,12 +2270,22 @@ def update_order_status(order_id, status=None, locked=None, payment_status=None,
         if headers and (not headers[0] or headers[0].strip() == ''):
             headers[0] = 'Order ID'
         
+        # Ensure extended payment columns exist for partial-payment tracking.
+        required_dynamic_headers = ['Amount Paid PHP', 'Remaining Balance PHP']
+        for req_header in required_dynamic_headers:
+            if req_header not in headers:
+                next_col = len(headers) + 1
+                worksheet.update_cell(1, next_col, req_header)
+                headers.append(req_header)
+
         # Find column indices dynamically
         col_order_status = headers.index('Order Status') if 'Order Status' in headers else None
         col_locked = headers.index('Locked') if 'Locked' in headers else None
         col_payment_status = headers.index('Payment Status') if 'Payment Status' in headers else None
         col_payment_link = headers.index('Link to Payment') if 'Link to Payment' in headers else None
         col_payment_date = headers.index('Payment Date') if 'Payment Date' in headers else None
+        col_amount_paid = headers.index('Amount Paid PHP') if 'Amount Paid PHP' in headers else None
+        col_remaining_balance = headers.index('Remaining Balance PHP') if 'Remaining Balance PHP' in headers else None
         
         # Find all rows with this order ID
         cells = worksheet.findall(order_id)
@@ -2228,13 +2310,20 @@ def update_order_status(order_id, status=None, locked=None, payment_status=None,
                 worksheet.update_cell(first_row, col_payment_link + 1, payment_screenshot)
             if col_payment_date is not None:
                 worksheet.update_cell(first_row, col_payment_date + 1, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+        if amount_paid_php is not None and col_amount_paid is not None:
+            worksheet.update_cell(first_row, col_amount_paid + 1, f"{_to_float(amount_paid_php, 0.0):.2f}")
+        if remaining_balance_php is not None and col_remaining_balance is not None:
+            worksheet.update_cell(first_row, col_remaining_balance + 1, f"{_to_float(remaining_balance_php, 0.0):.2f}")
         
         # Clear cache since orders changed (tab-scoped keys)
         clear_cache_prefix('orders_')
         clear_cache_prefix('inventory_')
         clear_cache_prefix('order_stats_')
         
-        print(f"✅ Updated order {order_id}: status={status}, locked={locked}, payment_status={payment_status}")
+        print(
+            f"✅ Updated order {order_id}: status={status}, locked={locked}, payment_status={payment_status}, "
+            f"amount_paid_php={amount_paid_php}, remaining_balance_php={remaining_balance_php}"
+        )
         return True
     except Exception as e:
         print(f"Error updating order: {e}")
@@ -5197,14 +5286,25 @@ def api_orders_lookup():
                 ''
             )
             
+            payment_status_value = order.get('Payment Status', order.get('Confirmed Paid?', 'Unpaid'))
+            grand_total_value = float(order.get('Grand Total PHP', 0) or 0)
+            amount_paid_php, remaining_balance_php = derive_payment_amounts(
+                grand_total_value,
+                payment_status_value,
+                order.get('Amount Paid PHP', order.get('Amount Paid', '')),
+                order.get('Remaining Balance PHP', order.get('Remaining Balance', ''))
+            )
+
             grouped[order_id] = {
                 'order_id': order_id,
                 'order_date': order.get('Order Date', ''),
                 'full_name': order.get('Name', order.get('Full Name', '')),
                 'telegram': telegram_value_for_result,
-                'grand_total_php': float(order.get('Grand Total PHP', 0) or 0),
+                'grand_total_php': grand_total_value,
                 'status': order.get('Order Status', 'Pending'),
-                'payment_status': order.get('Payment Status', order.get('Confirmed Paid?', 'Unpaid')),
+                'payment_status': payment_status_value,
+                'amount_paid_php': amount_paid_php,
+                'remaining_balance_php': remaining_balance_php,
                 'payment_screenshot': order.get('Link to Payment', order.get('Payment Screenshot Link', order.get('Payment Screenshot', ''))),
                 'contact_number': order.get('Contact Number', ''),
                 'mailing_address': order.get('Mailing Address', ''),
@@ -5300,14 +5400,25 @@ def api_orders_lookup():
                     ''
                 )
                 
+                payment_status_value = order.get('Payment Status', order.get('Confirmed Paid?', 'Unpaid'))
+                grand_total_value = float(order.get('Grand Total PHP', 0) or 0)
+                amount_paid_php, remaining_balance_php = derive_payment_amounts(
+                    grand_total_value,
+                    payment_status_value,
+                    order.get('Amount Paid PHP', order.get('Amount Paid', '')),
+                    order.get('Remaining Balance PHP', order.get('Remaining Balance', ''))
+                )
+
                 grouped[order_id] = {
                     'order_id': order_id,
                     'order_date': order.get('Order Date', ''),
                     'full_name': order.get('Name', order.get('Full Name', '')),
                     'telegram': telegram_value_for_result,
-                    'grand_total_php': float(order.get('Grand Total PHP', 0) or 0),
+                    'grand_total_php': grand_total_value,
                     'status': order.get('Order Status', 'Pending'),
-                    'payment_status': order.get('Payment Status', order.get('Confirmed Paid?', 'Unpaid')),
+                    'payment_status': payment_status_value,
+                    'amount_paid_php': amount_paid_php,
+                    'remaining_balance_php': remaining_balance_php,
                     'payment_screenshot': order.get('Link to Payment', order.get('Payment Screenshot Link', order.get('Payment Screenshot', ''))),
                     'contact_number': order.get('Contact Number', ''),
                     'mailing_address': order.get('Mailing Address', ''),
@@ -5343,15 +5454,25 @@ def api_orders():
             continue
             
         if order_id not in grouped:
+            payment_status_value = order.get('Payment Status', order.get('Confirmed Paid?', 'Unpaid'))
+            grand_total_value = float(order.get('Grand Total PHP', 0) or 0)
+            amount_paid_php, remaining_balance_php = derive_payment_amounts(
+                grand_total_value,
+                payment_status_value,
+                order.get('Amount Paid PHP', order.get('Amount Paid', '')),
+                order.get('Remaining Balance PHP', order.get('Remaining Balance', ''))
+            )
             grouped[order_id] = {
                 'order_id': order_id,
                 'order_date': order.get('Order Date', ''),
                 'full_name': order.get('Name', order.get('Full Name', '')),
                 'telegram': order.get('Telegram Username', ''),
-                'grand_total_php': float(order.get('Grand Total PHP', 0) or 0),
+                'grand_total_php': grand_total_value,
                 'status': order.get('Order Status', 'Pending'),
                 'locked': str(order.get('Locked', 'No')).lower() == 'yes',
-                'payment_status': order.get('Payment Status', order.get('Confirmed Paid?', 'Unpaid')),
+                'payment_status': payment_status_value,
+                'amount_paid_php': amount_paid_php,
+                'remaining_balance_php': remaining_balance_php,
                 'mailing_address': order.get('Mailing Address', ''),
                 'tracking_number': order.get('Tracking Number', ''),
                 'items': []
@@ -7513,15 +7634,25 @@ def api_admin_orders():
             print(f"  [{orders_processed}] Processing Order {order_id}: telegram_key='{telegram_key_found}', telegram='{telegram_value}'")
         
         if order_id not in grouped:
+            payment_status_value = order.get('Payment Status', order.get('Confirmed Paid?', 'Unpaid'))
+            grand_total_value = float(order.get('Grand Total PHP', 0) or 0)
+            amount_paid_php, remaining_balance_php = derive_payment_amounts(
+                grand_total_value,
+                payment_status_value,
+                order.get('Amount Paid PHP', order.get('Amount Paid', '')),
+                order.get('Remaining Balance PHP', order.get('Remaining Balance', ''))
+            )
             grouped[order_id] = {
                 'order_id': order_id,
                 'order_date': order.get('Order Date', ''),
                 'full_name': order.get('Name', order.get('Full Name', '')),
                 'telegram': telegram_value,
-                'grand_total_php': float(order.get('Grand Total PHP', 0) or 0),
+                'grand_total_php': grand_total_value,
                 'status': order.get('Order Status', 'Pending'),
                 'locked': str(order.get('Locked', 'No')).lower() == 'yes',
-                'payment_status': order.get('Payment Status', order.get('Confirmed Paid?', 'Unpaid')),
+                'payment_status': payment_status_value,
+                'amount_paid_php': amount_paid_php,
+                'remaining_balance_php': remaining_balance_php,
                 'payment_screenshot': order.get('Link to Payment', order.get('Payment Screenshot Link', order.get('Payment Screenshot', ''))),
                 'contact_number': order.get('Contact Number', ''),
                 'mailing_address': order.get('Mailing Address', ''),
@@ -7570,6 +7701,14 @@ def api_admin_orders():
             
             # Store admin fee for reference
             order_data['admin_fee_php'] = admin_fee
+            paid_php, remaining_php = derive_payment_amounts(
+                order_data.get('grand_total_php', 0),
+                order_data.get('payment_status', 'Unpaid'),
+                order_data.get('amount_paid_php', 0),
+                order_data.get('remaining_balance_php', 0)
+            )
+            order_data['amount_paid_php'] = paid_php
+            order_data['remaining_balance_php'] = remaining_php
     
     # Debug: Log ALL orders (not just samples) to see what's being returned
     if grouped:
@@ -7625,22 +7764,76 @@ def api_public_supplier_filter():
     supplier_filter = get_supplier_filter_for_tab(tab_name)
     return jsonify({'tab_name': tab_name, 'supplier_filter': supplier_filter})
 
+def apply_order_payment_update(order_id, payment_mode='full', payment_amount_php=None):
+    """
+    Update order payment state.
+    payment_mode: 'full' (mark paid) or 'partial' (add amount to paid and update remaining).
+    """
+    order = get_order_by_id(order_id)
+    if not order:
+        return False, 'Order not found', None
+
+    grand_total = _to_float(order.get('grand_total_php', 0), 0.0)
+    existing_paid = _to_float(order.get('amount_paid_php', 0), 0.0)
+
+    mode = str(payment_mode or 'full').strip().lower()
+    if mode == 'partial':
+        delta = _to_float(payment_amount_php, -1)
+        if delta <= 0:
+            return False, 'Partial payment amount must be greater than 0', None
+        new_paid = min(existing_paid + delta, grand_total) if grand_total > 0 else max(existing_paid + delta, 0.0)
+        remaining = max(grand_total - new_paid, 0.0)
+        new_status = 'Paid' if remaining <= 0.0001 else 'Partially Paid'
+        should_lock = new_status == 'Paid'
+    else:
+        new_paid = grand_total
+        remaining = 0.0
+        new_status = 'Paid'
+        should_lock = True
+
+    ok = update_order_status(
+        order_id,
+        payment_status=new_status,
+        locked=should_lock,
+        amount_paid_php=new_paid,
+        remaining_balance_php=remaining
+    )
+    if not ok:
+        return False, 'Failed to update payment status', None
+
+    refreshed = get_order_by_id(order_id) or order
+    refreshed['payment_status'] = new_status
+    refreshed['amount_paid_php'] = round(new_paid, 2)
+    refreshed['remaining_balance_php'] = round(remaining, 2)
+    return True, 'ok', refreshed
+
 @app.route('/api/admin/orders/<order_id>/confirm-payment', methods=['POST'])
 def api_admin_confirm_payment(order_id):
     """Admin: Confirm payment for an order"""
     if not session.get('is_admin'):
         return jsonify({'error': 'Unauthorized'}), 401
     
-    # Lock the order when payment is confirmed (paid orders cannot be modified)
-    if update_order_status(order_id, payment_status='Paid', locked=True):
+    data = request.json or {}
+    payment_mode = data.get('payment_mode', 'full')
+    payment_amount_php = data.get('amount_paid_php')
+
+    updated, error_message, updated_order = apply_order_payment_update(
+        order_id,
+        payment_mode=payment_mode,
+        payment_amount_php=payment_amount_php
+    )
+    if updated:
         # Get order details for notifications
-        order = get_order_by_id(order_id)
+        order = updated_order or get_order_by_id(order_id)
         if order:
             items_text = '\n'.join([f"• {item['product_name']} ({item['order_type']} x{item['qty']})" for item in order.get('items', [])])
             date_summary = build_order_date_summary(order)
+            payment_status = order.get('payment_status', 'Unpaid')
+            amount_paid = _to_float(order.get('amount_paid_php', 0), 0.0)
+            remaining = _to_float(order.get('remaining_balance_php', 0), 0.0)
             
             # Notify PepHaul Admin via Telegram
-            admin_msg = f"""✅ <b>Payment Confirmed!</b>
+            admin_msg = f"""✅ <b>Payment Updated</b>
 
 <b>Order ID:</b> {order_id}
 <b>Customer:</b> {order.get('full_name', '')}
@@ -7650,8 +7843,11 @@ def api_admin_confirm_payment(order_id):
 {items_text}
 
 <b>Grand Total:</b> ₱{order.get('grand_total_php', 0):,.2f}
+<b>Amount Paid:</b> ₱{amount_paid:,.2f}
+<b>Remaining Balance:</b> ₱{remaining:,.2f}
+<b>Payment Status:</b> {payment_status}
 
-Payment has been confirmed and order is ready for fulfillment.
+{"Payment has been confirmed and order is ready for fulfillment." if str(payment_status).lower() == "paid" else "Partial payment recorded. Awaiting remaining balance."}
 
 {date_summary}"""
             send_telegram_notification(admin_msg)
@@ -7665,7 +7861,7 @@ Payment has been confirmed and order is ready for fulfillment.
                 chat_id = telegram_customers.get(telegram_handle) or telegram_customers.get(f"@{telegram_handle}")
                 
                 if chat_id:
-                    customer_msg = f"""✅ <b>Payment Confirmed!</b> ✅
+                    customer_msg = f"""✅ <b>Payment Update Received</b> ✅
 
 <b>Order ID:</b> {order_id}
 <b>Name:</b> {order.get('full_name', '')}
@@ -7673,9 +7869,12 @@ Payment has been confirmed and order is ready for fulfillment.
 <b>Your Items:</b>
 {items_text}
 
-<b>Grand Total:</b> ₱{order.get('grand_total_php', 0):,.2f}
+<b>Total Amount:</b> ₱{order.get('grand_total_php', 0):,.2f}
+<b>Amount Paid:</b> ₱{amount_paid:,.2f}
+<b>Remaining Balance:</b> ₱{remaining:,.2f}
+<b>Status:</b> {payment_status}
 
-🎉 Your payment has been confirmed!
+{"🎉 Your payment has been fully confirmed!" if str(payment_status).lower() == "paid" else "🧾 We recorded your partial payment. Please settle the remaining balance when ready."}
 
 Thank you for being a responsible PepHauler! 💜 — Until our next PepHaul🫡"""
                     
@@ -7684,8 +7883,13 @@ Thank you for being a responsible PepHauler! 💜 — Until our next PepHaul🫡
                 else:
                     print(f"⚠️ Customer @{telegram_handle} hasn't messaged @{TELEGRAM_BOT_USERNAME} yet")
         
-        return jsonify({'success': True})
-    return jsonify({'error': 'Failed to confirm payment'}), 500
+        return jsonify({
+            'success': True,
+            'payment_status': order.get('payment_status', 'Unpaid') if order else 'Unpaid',
+            'amount_paid_php': _to_float(order.get('amount_paid_php', 0), 0.0) if order else 0,
+            'remaining_balance_php': _to_float(order.get('remaining_balance_php', 0), 0.0) if order else 0
+        })
+    return jsonify({'error': error_message}), 400
 
 @app.route('/api/admin/orders/<order_id>/notify-customer', methods=['POST'])
 def api_admin_notify_customer(order_id):
@@ -7697,6 +7901,10 @@ def api_admin_notify_customer(order_id):
     order = get_order_by_id(order_id)
     if not order:
         return jsonify({'error': 'Order not found'}), 404
+
+    payment_status = str(order.get('payment_status', 'Unpaid') or 'Unpaid').strip().lower()
+    if payment_status == 'paid':
+        return jsonify({'error': 'Order is already fully paid'}), 400
     
     # Check if payment is confirmed
     if order.get('payment_status') != 'Paid':
@@ -7778,14 +7986,24 @@ def api_admin_lock_order(order_id):
     # If unlocking, check if order has payment status that makes it non-editable
     # If so, reset payment status to 'Unpaid' to make it editable again
     payment_status_to_reset = None
+    amount_paid_to_reset = None
+    remaining_to_reset = None
     if not is_locked:
         order = get_order_by_id(order_id)
         if order:
             current_payment_status = order.get('payment_status', '').lower()
-            if current_payment_status in ['paid', 'waiting for confirmation']:
+            if current_payment_status in ['paid', 'waiting for confirmation', 'partially paid']:
                 payment_status_to_reset = 'Unpaid'
+                amount_paid_to_reset = 0.0
+                remaining_to_reset = _to_float(order.get('grand_total_php', 0), 0.0)
     
-    if update_order_status(order_id, locked=is_locked, payment_status=payment_status_to_reset):
+    if update_order_status(
+        order_id,
+        locked=is_locked,
+        payment_status=payment_status_to_reset,
+        amount_paid_php=amount_paid_to_reset,
+        remaining_balance_php=remaining_to_reset
+    ):
         action = 'locked' if is_locked else 'unlocked'
         if payment_status_to_reset:
             print(f"✅ Order {order_id} {action} and payment status reset to Unpaid")
@@ -7839,10 +8057,17 @@ def api_admin_confirm_payment_post():
     if not order_id:
         return jsonify({'error': 'Order ID required'}), 400
     
-    # Lock the order when payment is confirmed (paid orders cannot be modified)
-    if update_order_status(order_id, payment_status='Paid', locked=True):
+    payment_mode = data.get('payment_mode', 'full')
+    payment_amount_php = data.get('amount_paid_php')
+
+    updated, error_message, updated_order = apply_order_payment_update(
+        order_id,
+        payment_mode=payment_mode,
+        payment_amount_php=payment_amount_php
+    )
+    if updated:
         # Get order details for customer notification
-        order = get_order_by_id(order_id)
+        order = updated_order or get_order_by_id(order_id)
         if order:
             # Send notification to customer via Telegram
             telegram_handle = order.get('telegram', '').strip().lower()
@@ -7854,8 +8079,11 @@ def api_admin_confirm_payment_post():
                 
                 if chat_id:
                     items_text = '\n'.join([f"• {item['product_name']} ({item['order_type']} x{item['qty']})" for item in order.get('items', [])])
+                    amount_paid = _to_float(order.get('amount_paid_php', 0), 0.0)
+                    remaining = _to_float(order.get('remaining_balance_php', 0), 0.0)
+                    payment_status = order.get('payment_status', 'Unpaid')
                     
-                    customer_msg = f"""✅ <b>Payment Confirmed!</b> ✅
+                    customer_msg = f"""✅ <b>Payment Update</b> ✅
 
 <b>Order ID:</b> {order_id}
 <b>Name:</b> {order.get('full_name', '')}
@@ -7863,9 +8091,12 @@ def api_admin_confirm_payment_post():
 <b>Your Items:</b>
 {items_text}
 
-<b>Grand Total:</b> ₱{order.get('grand_total_php', 0):,.2f}
+<b>Total Amount:</b> ₱{order.get('grand_total_php', 0):,.2f}
+<b>Amount Paid:</b> ₱{amount_paid:,.2f}
+<b>Remaining Balance:</b> ₱{remaining:,.2f}
+<b>Status:</b> {payment_status}
 
-🎉 Your payment has been confirmed by admin! 
+{"🎉 Your payment has been fully confirmed by admin!" if str(payment_status).lower() == "paid" else "🧾 Partial payment recorded by admin. Please settle the remaining amount when ready."}
 
 Thank you for being a responsible PepHauler! 💜 — Until our next PepHaul🫡"""
                     
@@ -7874,8 +8105,13 @@ Thank you for being a responsible PepHauler! 💜 — Until our next PepHaul🫡
                 else:
                     print(f"⚠️ Customer @{telegram_handle} not registered for Telegram notifications")
         
-        return jsonify({'success': True})
-    return jsonify({'error': 'Failed to confirm payment'}), 500
+        return jsonify({
+            'success': True,
+            'payment_status': order.get('payment_status', 'Unpaid') if order else 'Unpaid',
+            'amount_paid_php': _to_float(order.get('amount_paid_php', 0), 0.0) if order else 0,
+            'remaining_balance_php': _to_float(order.get('remaining_balance_php', 0), 0.0) if order else 0
+        })
+    return jsonify({'error': error_message}), 400
 
 @app.route('/api/admin/orders/<order_id>/mark-unpaid', methods=['POST'])
 def api_admin_mark_unpaid(order_id):
@@ -7883,7 +8119,15 @@ def api_admin_mark_unpaid(order_id):
     if not session.get('is_admin'):
         return jsonify({'error': 'Unauthorized'}), 401
     
-    if update_order_status(order_id, payment_status='Unpaid'):
+    order = get_order_by_id(order_id)
+    grand_total = _to_float(order.get('grand_total_php', 0), 0.0) if order else 0.0
+
+    if update_order_status(
+        order_id,
+        payment_status='Unpaid',
+        amount_paid_php=0.0,
+        remaining_balance_php=grand_total
+    ):
         return jsonify({'success': True})
     return jsonify({'error': 'Failed to update payment status'}), 500
 
@@ -8270,7 +8514,13 @@ def api_admin_send_reminder(order_id):
         }), 400
     
     # Create reminder message
-    grand_total = order.get('grand_total_php', 0)
+    grand_total = _to_float(order.get('grand_total_php', 0), 0.0)
+    amount_paid, remaining_balance = derive_payment_amounts(
+        grand_total,
+        order.get('payment_status', 'Unpaid'),
+        order.get('amount_paid_php', 0),
+        order.get('remaining_balance_php', 0)
+    )
     items_text = '\n'.join([f"• {item['product_name']} ({item['order_type']} x{item['qty']})" for item in order.get('items', [])])
     
     message = f"""🔔 <b>Payment Reminder - PepHaul Order</b>
@@ -8282,6 +8532,8 @@ def api_admin_send_reminder(order_id):
 {items_text}
 
 <b>Total Amount:</b> ₱{grand_total:,.2f}
+<b>Amount Paid:</b> ₱{amount_paid:,.2f}
+<b>Remaining Balance:</b> ₱{remaining_balance:,.2f}
 
 Dear PepHauler, this is a friendly reminder that @pephauler hasn't received your payment yet.
 
@@ -8309,6 +8561,122 @@ Thank you! 💜"""
             error_message='Telegram API sendMessage failed.'
         )
         return jsonify({'error': 'Failed to send Telegram message'}), 500
+
+@app.route('/api/admin/send-reminders-unpaid', methods=['POST'])
+def api_admin_send_reminders_unpaid():
+    """Admin: Send one-click payment reminders to all unpaid customers who can receive Telegram messages."""
+    if not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    if not TELEGRAM_BOT_TOKEN:
+        return jsonify({'error': 'Telegram bot not configured'}), 500
+
+    orders_raw = get_orders_from_sheets()
+    order_ids = sorted({
+        str(o.get('Order ID', '')).strip()
+        for o in (orders_raw or [])
+        if str(o.get('Order ID', '')).strip()
+    })
+
+    # Group by reachable recipient so each customer receives one consolidated reminder.
+    recipients = {}
+    skipped_paid = 0
+    skipped_no_telegram = 0
+    skipped_unreachable = 0
+
+    for order_id in order_ids:
+        order = get_order_by_id(order_id)
+        if not order:
+            continue
+
+        payment_status = str(order.get('payment_status', 'Unpaid') or 'Unpaid').strip().lower()
+        if payment_status == 'paid':
+            skipped_paid += 1
+            continue
+
+        telegram_handle = str(order.get('telegram', '') or '').strip().lower().lstrip('@')
+        if not telegram_handle:
+            skipped_no_telegram += 1
+            continue
+
+        chat_id = resolve_telegram_recipient(telegram_handle)
+        if not chat_id:
+            skipped_unreachable += 1
+            continue
+
+        grand_total = _to_float(order.get('grand_total_php', 0), 0.0)
+        amount_paid, remaining_balance = derive_payment_amounts(
+            grand_total,
+            order.get('payment_status', 'Unpaid'),
+            order.get('amount_paid_php', 0),
+            order.get('remaining_balance_php', 0)
+        )
+
+        if remaining_balance <= 0:
+            skipped_paid += 1
+            continue
+
+        bucket = recipients.setdefault(chat_id, {
+            'telegram_handle': telegram_handle,
+            'full_name': order.get('full_name', '') or '',
+            'orders': []
+        })
+        bucket['orders'].append({
+            'order_id': order_id,
+            'payment_status': order.get('payment_status', 'Unpaid'),
+            'grand_total_php': grand_total,
+            'amount_paid_php': amount_paid,
+            'remaining_balance_php': remaining_balance
+        })
+
+    sent = 0
+    failed = 0
+    failed_handles = []
+
+    for chat_id, info in recipients.items():
+        orders = info.get('orders', [])
+        if not orders:
+            continue
+
+        lines = []
+        total_remaining = 0.0
+        for o in orders:
+            total_remaining += _to_float(o.get('remaining_balance_php', 0), 0.0)
+            lines.append(
+                f"• <b>{o.get('order_id')}</b> — Remaining: ₱{_to_float(o.get('remaining_balance_php', 0), 0.0):,.2f}"
+                f" (Paid: ₱{_to_float(o.get('amount_paid_php', 0), 0.0):,.2f})"
+            )
+
+        message = f"""🔔 <b>Payment Reminder - PepHaul Orders</b>
+
+Hi {info.get('full_name', 'PepHauler')},
+
+You still have pending balance on the following order(s):
+{chr(10).join(lines)}
+
+<b>Total Remaining Balance:</b> ₱{total_remaining:,.2f}
+
+Please send your payment and share screenshot to @pephauler.
+After sending, pull up your order in the form and tap "Payment sent to PepHaul Admin".
+
+Thank you! 💜"""
+
+        if send_customer_telegram(chat_id, message):
+            sent += 1
+        else:
+            failed += 1
+            failed_handles.append(f"@{info.get('telegram_handle', 'unknown')}")
+
+    return jsonify({
+        'success': True,
+        'messages_sent': sent,
+        'message_failures': failed,
+        'customers_targeted': len(recipients),
+        'orders_skipped_paid': skipped_paid,
+        'orders_skipped_no_telegram': skipped_no_telegram,
+        'orders_skipped_unreachable': skipped_unreachable,
+        'failed_handles': failed_handles[:20]
+    })
 
 @app.route('/api/admin/orders/<order_id>/update-supplier', methods=['POST'])
 def api_admin_update_supplier(order_id):

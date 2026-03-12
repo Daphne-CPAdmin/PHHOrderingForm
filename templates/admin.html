@@ -619,6 +619,9 @@
                     <button id="sync-telegram-users-btn" class="btn" style="padding: 0.75rem 1.5rem; background: #7c3aed; color: white; width: auto;">
                         🔄 Sync Telegram Users
                     </button>
+                    <button id="send-unpaid-reminders-btn" class="btn" style="padding: 0.75rem 1.5rem; background: #a855f7; color: white; width: auto;">
+                        🔔 Remind All Unpaid
+                    </button>
                     <button id="export-html-btn" class="btn" style="padding: 0.75rem 1.5rem; background: #10b981; color: white; width: auto;">
                         📄 Export Page as HTML
                     </button>
@@ -3167,6 +3170,8 @@
                 const paymentStatusKey = paymentStatus.toLowerCase().replace(/\s+/g, '-').replace('waiting-for-confirmation', 'waiting');
                 const isPaid = paymentStatus.toLowerCase() === 'paid';
                 const isWaitingForConfirmation = paymentStatus.toLowerCase() === 'waiting for confirmation';
+                const amountPaid = Number(order.amount_paid_php || 0);
+                const remainingBalance = Number(order.remaining_balance_php || Math.max(Number(order.grand_total_php || 0) - amountPaid, 0));
                 const isFulfilled = String(order.status || '').toLowerCase() === 'fulfilled';
                 const isLocked = order.locked === true;
                 const isNonEditableDueToPayment = isPaid || isWaitingForConfirmation;
@@ -3186,7 +3191,10 @@
                             <div style="font-size: 0.8rem; color: #c084fc; font-family: 'JetBrains Mono', monospace;">${order.telegram ? '@' + order.telegram.replace('@', '') : '—'}</div>
                         </td>
                         <td><div class="order-items-preview">${itemsPreview.length > 30 ? itemsPreview.substring(0, 30) + '...' : itemsPreview}</div></td>
-                        <td style="font-family: 'JetBrains Mono', monospace; font-weight: 600;">₱${order.grand_total_php.toLocaleString('en-PH', {minimumFractionDigits: 2})}</td>
+                        <td style="font-family: 'JetBrains Mono', monospace; font-weight: 600;">
+                            ₱${order.grand_total_php.toLocaleString('en-PH', {minimumFractionDigits: 2})}
+                            ${!isPaid ? `<div style="font-size: 0.75rem; color: #7c3aed; margin-top: 0.2rem;">Paid: ₱${amountPaid.toLocaleString('en-PH', {minimumFractionDigits: 2})} | Remaining: ₱${remainingBalance.toLocaleString('en-PH', {minimumFractionDigits: 2})}</div>` : ''}
+                        </td>
                         <td><span class="payment-badge ${paymentStatusKey}">${paymentStatus}</span></td>
                         <td>
                             ${isFulfilled
@@ -3204,7 +3212,7 @@
                                     ? `<button class="btn-sm" style="background: #a78bfa; color: white;" onclick="toggleOrderLock('${order.order_id}', false)">🔓 Unlock</button>`
                                     : `<button class="btn-sm" style="background: #f472b6; color: white;" onclick="toggleOrderLock('${order.order_id}', true)">🔒 Lock</button>`}
                                 ${!isPaid 
-                                    ? `<button class="btn-sm btn-confirm" onclick="confirmPayment('${order.order_id}')">✓ Confirm</button>
+                                    ? `<button class="btn-sm btn-confirm" onclick="confirmPayment('${order.order_id}', ${Number(order.grand_total_php || 0)}, ${amountPaid})">💸 Payment</button>
                                        <button class="btn-sm" style="background: #c084fc; color: white;" onclick="sendReminder('${order.order_id}')">📲 Remind</button>` 
                                     : `<button class="btn-sm" style="background: #a78bfa; color: white;" onclick="notifyCustomer('${order.order_id}')">📱 Notify</button>`}
                                 ${isPaid && !isFulfilled
@@ -3503,7 +3511,7 @@
             const footer = document.getElementById('order-modal-footer');
             footer.innerHTML = `
                 <button class="btn" style="padding: 0.75rem 1.5rem; background: #c084fc; color: white;" onclick="editOrder('${order.order_id}'); closeOrderModal();">✏️ Edit Order</button>
-                ${!isPaid ? `<button class="btn btn-violet" style="padding: 0.75rem 1.5rem;" onclick="confirmPayment('${order.order_id}'); closeOrderModal();">✓ Confirm Payment</button>` : 
+                ${!isPaid ? `<button class="btn btn-violet" style="padding: 0.75rem 1.5rem;" onclick="confirmPayment('${order.order_id}', ${Number(order.grand_total_php || 0)}, ${Number(order.amount_paid_php || 0)}); closeOrderModal();">💸 Update Payment</button>` :
                            `<button class="btn" style="padding: 0.75rem 1.5rem; background: #a78bfa; color: white;" onclick="notifyCustomer('${order.order_id}')">📱 Notify Customer</button>`}
                 <button class="btn" style="padding: 0.75rem 1.5rem; background: var(--bg-input); border: 1px solid var(--border); color: var(--text-primary);" onclick="closeOrderModal()">Close</button>
             `;
@@ -3723,15 +3731,40 @@
         }
 
         // Confirm payment
-        async function confirmPayment(orderId) {
-            if (!confirm(`Are you sure you want to mark order ${orderId} as PAID?`)) return;
+        async function confirmPayment(orderId, grandTotal = 0, currentPaid = 0) {
+            const modeInput = prompt(
+                `Payment update for ${orderId}\n\nType:\n- FULL (mark fully paid)\n- PARTIAL (record additional payment)\n\nCurrent paid: ₱${Number(currentPaid || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}\nTotal: ₱${Number(grandTotal || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`,
+                'FULL'
+            );
+            if (modeInput === null) return;
+
+            const mode = String(modeInput || '').trim().toUpperCase();
+            if (!['FULL', 'PARTIAL'].includes(mode)) {
+                showToast('⚠️ Invalid mode. Use FULL or PARTIAL.');
+                return;
+            }
+
+            let amountPaidPhp = null;
+            if (mode === 'PARTIAL') {
+                const amountInput = prompt('Enter ADDITIONAL payment amount received now (PHP):', '');
+                if (amountInput === null) return;
+                amountPaidPhp = Number(String(amountInput).replace(/,/g, '').trim());
+                if (!Number.isFinite(amountPaidPhp) || amountPaidPhp <= 0) {
+                    showToast('⚠️ Please enter a valid partial payment amount.');
+                    return;
+                }
+            }
             
             try {
                 const response = await fetch('/api/admin/confirm-payment', {
                     method: 'POST',
                     credentials: 'same-origin',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ order_id: orderId })
+                    body: JSON.stringify({
+                        order_id: orderId,
+                        payment_mode: mode.toLowerCase(),
+                        amount_paid_php: amountPaidPhp
+                    })
                 });
                 
                 if (!response.ok) {
@@ -3743,7 +3776,8 @@
                 
                 const result = await response.json();
                 if (result.success) {
-                    showToast('Payment confirmed! ✅');
+                    const statusText = result.payment_status || (mode === 'FULL' ? 'Paid' : 'Partially Paid');
+                    showToast(`✅ Payment updated: ${statusText}`);
                     loadOrders();
                     // Close modal if open
                     const orderModal = document.getElementById('order-modal');
@@ -3919,6 +3953,61 @@
             } catch (error) {
                 console.error('Error sending reminder:', error);
                 showToast('❌ Error sending reminder - check console');
+            }
+        }
+
+        async function sendBulkUnpaidReminders() {
+            if (!confirm('Send payment reminders to ALL customers with unpaid balances who have messaged @pephaul_bot?')) return;
+
+            const btn = document.getElementById('send-unpaid-reminders-btn');
+            try {
+                if (btn) {
+                    btn.disabled = true;
+                    btn.textContent = 'Sending...';
+                }
+
+                const response = await fetch('/api/admin/send-reminders-unpaid', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
+                });
+                const result = await response.json();
+
+                if (!response.ok || !result.success) {
+                    const msg = result.error || 'Failed to send bulk reminders';
+                    showToast(`❌ ${msg}`);
+                    alert(msg);
+                    return;
+                }
+
+                const sent = result.messages_sent || 0;
+                const failures = result.message_failures || 0;
+                const targeted = result.customers_targeted || 0;
+                const skippedPaid = result.orders_skipped_paid || 0;
+                const skippedNoTg = result.orders_skipped_no_telegram || 0;
+                const skippedUnreachable = result.orders_skipped_unreachable || 0;
+                const failedHandles = (result.failed_handles || []).join(', ');
+
+                showToast(`✅ Sent ${sent} reminder(s)`);
+                alert(
+                    `Bulk payment reminder complete.\n\n` +
+                    `Customers targeted: ${targeted}\n` +
+                    `Messages sent: ${sent}\n` +
+                    `Message failures: ${failures}\n` +
+                    `Skipped paid orders: ${skippedPaid}\n` +
+                    `Skipped missing telegram: ${skippedNoTg}\n` +
+                    `Skipped not messaged bot: ${skippedUnreachable}\n\n` +
+                    `${failedHandles ? `Failed recipients: ${failedHandles}` : ''}`
+                );
+            } catch (error) {
+                console.error('Error sending bulk reminders:', error);
+                showToast('❌ Failed to send bulk reminders');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = '🔔 Remind All Unpaid';
+                }
             }
         }
 
@@ -4724,6 +4813,12 @@
             if (syncTelegramBtn && !syncTelegramBtn.dataset.listenerAttached) {
                 syncTelegramBtn.addEventListener('click', syncTelegramUsers);
                 syncTelegramBtn.dataset.listenerAttached = 'true';
+            }
+
+            const bulkReminderBtn = document.getElementById('send-unpaid-reminders-btn');
+            if (bulkReminderBtn && !bulkReminderBtn.dataset.listenerAttached) {
+                bulkReminderBtn.addEventListener('click', sendBulkUnpaidReminders);
+                bulkReminderBtn.dataset.listenerAttached = 'true';
             }
             
             // Admin Tab Viewer Selector
