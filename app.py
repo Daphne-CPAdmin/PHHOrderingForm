@@ -131,10 +131,10 @@ def _normalize_order_sheet_headers(headers):
             return 'Link to Payment'
         if k in ('payment date',):
             return 'Payment Date'
-        if k in ('amount paid php', 'amount paid', 'paid amount', 'paid amount php'):
-            return 'Amount Paid PHP'
-        if k in ('remaining balance php', 'remaining balance', 'balance php', 'remaining'):
-            return 'Remaining Balance PHP'
+        if k in ('partial payment', 'amount paid php', 'amount paid', 'paid amount', 'paid amount php'):
+            return 'Partial Payment'
+        if k in ('remaining balance', 'remaining balance php', 'balance php', 'remaining'):
+            return 'Remaining Balance'
         if k in ('contact number', 'phone', 'phone number'):
             return 'Contact Number'
         if k in ('mailing address', 'address', 'shipping address'):
@@ -1063,15 +1063,16 @@ def ensure_worksheets_exist():
         
         # Create PepHaul Entry-01 if it doesn't exist
         if 'PepHaul Entry-01' not in existing_sheets:
-            worksheet = spreadsheet.add_worksheet(title='PepHaul Entry-01', rows=1000, cols=23)
+            worksheet = spreadsheet.add_worksheet(title='PepHaul Entry-01', rows=1000, cols=25)
             headers = [
                 'Order ID', 'Order Date', 'Name', 'Telegram Username', 'Supplier',
                 'Product Code', 'Product Name', 'Order Type', 'QTY', 'Unit Price USD',
                 'Line Total USD', 'Exchange Rate', 'Line Total PHP', 'Admin Fee PHP',
-                'Grand Total PHP', 'Order Status', 'Locked', 'Payment Status', 
-                'Remarks', 'Full Name', 'Contact Number', 'Mailing Address', 'Tracking Number'
+                'Grand Total PHP', 'Order Status', 'Locked', 'Payment Status',
+                'Partial Payment', 'Remaining Balance', 'Remarks',
+                'Full Name', 'Contact Number', 'Mailing Address', 'Tracking Number'
             ]
-            worksheet.update('A1:W1', [headers])
+            worksheet.update('A1:Y1', [headers])
         
         # Product Locks tab (for admin)
         if 'Product Locks' not in existing_sheets:
@@ -1866,7 +1867,8 @@ def _fetch_orders_from_sheets(tab_name=None):
             'Product Code', 'Product Name', 'Order Type', 'QTY', 'Unit Price USD',
             'Line Total USD', 'Exchange Rate', 'Line Total PHP', 'Admin Fee PHP',
             'Grand Total PHP', 'Order Status', 'Locked', 'Payment Status',
-            'Remarks', 'Full Name', 'Contact Number', 'Mailing Address', 'Tracking Number'
+            'Partial Payment', 'Remaining Balance', 'Remarks',
+            'Full Name', 'Contact Number', 'Mailing Address', 'Tracking Number'
         ]
         standard_headers = _normalize_order_sheet_headers(standard_headers)
         parse_headers = headers if header_looks_valid else standard_headers
@@ -2085,8 +2087,8 @@ def get_order_by_id(order_id):
     
     payment_status_value = first_item.get('Payment Status', first_item.get('Confirmed Paid?', 'Unpaid'))
     grand_total_value = float(first_item.get('Grand Total PHP', 0) or 0)
-    amount_paid_value = first_item.get('Amount Paid PHP', first_item.get('Amount Paid', ''))
-    remaining_balance_value = first_item.get('Remaining Balance PHP', first_item.get('Remaining Balance', ''))
+    amount_paid_value = first_item.get('Partial Payment', first_item.get('Amount Paid PHP', first_item.get('Amount Paid', '')))
+    remaining_balance_value = first_item.get('Remaining Balance', first_item.get('Remaining Balance PHP', first_item.get('Remaining Balance', '')))
     amount_paid_php, remaining_balance_php = derive_payment_amounts(
         grand_total_value,
         payment_status_value,
@@ -2216,17 +2218,19 @@ def save_order_to_sheets(order_data, order_id=None):
                 'Pending' if i == 0 else '',        # Column P: Order Status (only first row)
                 'No' if i == 0 else '',             # Column Q: Locked (only first row)
                 'Unpaid' if i == 0 else '',         # Column R: Payment Status (only first row)
-                '' if i == 0 else '',               # Column S: Remarks (only first row)
-                order_data.get('full_name', '') if i == 0 else '',         # Column T: Full Name (only first row)
-                order_data.get('contact_number', '') if i == 0 else '',    # Column U: Contact Number (only first row)
-                order_data.get('mailing_address', '') if i == 0 else '',   # Column V: Mailing Address (only first row)
-                ''                                  # Column W: Tracking Number (only first row)
+                '0.00' if i == 0 else '',          # Column S: Partial Payment (only first row)
+                f"{grand_total_php:.2f}" if i == 0 else '',  # Column T: Remaining Balance (only first row)
+                '' if i == 0 else '',               # Column U: Remarks (only first row)
+                order_data.get('full_name', '') if i == 0 else '',         # Column V: Full Name (only first row)
+                order_data.get('contact_number', '') if i == 0 else '',    # Column W: Contact Number (only first row)
+                order_data.get('mailing_address', '') if i == 0 else '',   # Column X: Mailing Address (only first row)
+                ''                                  # Column Y: Tracking Number (only first row)
             ]
             rows_to_add.append(row)
         
         if rows_to_add:
             end_row = next_row + len(rows_to_add) - 1
-            worksheet.update(f'A{next_row}:W{end_row}', rows_to_add)
+            worksheet.update(f'A{next_row}:Y{end_row}', rows_to_add)
         
         # Clear cache since orders changed (tab-scoped keys)
         clear_cache_prefix('orders_')
@@ -2271,7 +2275,7 @@ def update_order_status(
             headers[0] = 'Order ID'
         
         # Ensure extended payment columns exist for partial-payment tracking.
-        required_dynamic_headers = ['Amount Paid PHP', 'Remaining Balance PHP']
+        required_dynamic_headers = ['Partial Payment', 'Remaining Balance']
         for req_header in required_dynamic_headers:
             if req_header not in headers:
                 next_col = len(headers) + 1
@@ -2284,8 +2288,8 @@ def update_order_status(
         col_payment_status = headers.index('Payment Status') if 'Payment Status' in headers else None
         col_payment_link = headers.index('Link to Payment') if 'Link to Payment' in headers else None
         col_payment_date = headers.index('Payment Date') if 'Payment Date' in headers else None
-        col_amount_paid = headers.index('Amount Paid PHP') if 'Amount Paid PHP' in headers else None
-        col_remaining_balance = headers.index('Remaining Balance PHP') if 'Remaining Balance PHP' in headers else None
+        col_amount_paid = headers.index('Partial Payment') if 'Partial Payment' in headers else None
+        col_remaining_balance = headers.index('Remaining Balance') if 'Remaining Balance' in headers else None
         
         # Find all rows with this order ID
         cells = worksheet.findall(order_id)
@@ -2475,7 +2479,7 @@ def add_items_to_order(order_id, new_items, exchange_rate, telegram_username=Non
             # Insert position is after the last row of existing order
             insert_row = last_order_row + 1
             
-            # Create new first row for the additional order (23 columns A-W)
+            # Create new first row for the additional order (25 columns A-Y)
             new_first_row = [
                 new_order_id,                        # Column A: New Order ID
                 new_order_date,                      # Column B: New Order Date
@@ -2495,18 +2499,20 @@ def add_items_to_order(order_id, new_items, exchange_rate, telegram_username=Non
                 'Pending',                          # Column P: Order Status - Pending (unpaid)
                 'No',                               # Column Q: Locked - No
                 'Unpaid',                           # Column R: Payment Status - Unpaid
-                f'Additional items for {order_id}', # Column S: Remarks - link to original order
-                order_info['full_name'],            # Column T: Full Name
-                order_info['contact_number'],        # Column U: Contact Number
-                order_info['mailing_address'],       # Column V: Mailing Address
-                ''                                  # Column W: Tracking Number
+                '0.00',                             # Column S: Partial Payment
+                f"{grand_total_php:.2f}",           # Column T: Remaining Balance
+                f'Additional items for {order_id}', # Column U: Remarks - link to original order
+                order_info['full_name'],            # Column V: Full Name
+                order_info['contact_number'],        # Column W: Contact Number
+                order_info['mailing_address'],       # Column X: Mailing Address
+                ''                                  # Column Y: Tracking Number
             ]
             
             # Insert the new first row
             worksheet.insert_rows([new_first_row], insert_row)
             insert_row += 1
             
-            # Add all new items as separate rows below the new first row (23 columns A-W)
+            # Add all new items as separate rows below the new first row (25 columns A-Y)
             rows_to_add = []
             for item in items_to_add:
                 row = [
@@ -2528,11 +2534,13 @@ def add_items_to_order(order_id, new_items, exchange_rate, telegram_username=Non
                     '',                               # Column P: Order Status - only on first row
                     '',                               # Column Q: Locked - only on first row
                     '',                               # Column R: Payment Status - only on first row
-                    f'Additional items for {order_id}', # Column S: Remarks
-                    '',                               # Column T: Full Name - only on first row
-                    '',                               # Column U: Contact Number - only on first row
-                    '',                               # Column V: Mailing Address - only on first row
-                    ''                                # Column W: Tracking Number - only on first row
+                    '',                               # Column S: Partial Payment - only on first row
+                    '',                               # Column T: Remaining Balance - only on first row
+                    f'Additional items for {order_id}', # Column U: Remarks
+                    '',                               # Column V: Full Name - only on first row
+                    '',                               # Column W: Contact Number - only on first row
+                    '',                               # Column X: Mailing Address - only on first row
+                    ''                                # Column Y: Tracking Number - only on first row
                 ]
                 rows_to_add.append(row)
             
@@ -2589,11 +2597,13 @@ def add_items_to_order(order_id, new_items, exchange_rate, telegram_username=Non
                 order_info['order_status'],          # Column P: Order Status
                 order_info['locked'],                # Column Q: Locked
                 order_info['payment_status'],        # Column R: Payment Status
-                '',                                  # Column S: Remarks
-                order_info['full_name'],            # Column T: Full Name
-                order_info['contact_number'],        # Column U: Contact Number
-                order_info['mailing_address'],       # Column V: Mailing Address
-                ''                                   # Column W: Tracking Number
+                f"{_to_float(order_info.get('amount_paid_php', 0), 0.0):.2f}",  # Column S: Partial Payment
+                f"{_to_float(order_info.get('remaining_balance_php', grand_total_php), grand_total_php):.2f}",  # Column T: Remaining Balance
+                '',                                  # Column U: Remarks
+                order_info['full_name'],            # Column V: Full Name
+                order_info['contact_number'],        # Column W: Contact Number
+                order_info['mailing_address'],       # Column X: Mailing Address
+                ''                                   # Column Y: Tracking Number
             ]
             
             # Insert the new first row
@@ -2623,11 +2633,13 @@ def add_items_to_order(order_id, new_items, exchange_rate, telegram_username=Non
                         '',                          # Column P: Order Status - only on first row
                         '',                          # Column Q: Locked - only on first row
                         '',                          # Column R: Payment Status - only on first row
-                        f'Updated {order_id}',       # Column S: Remarks
-                        '',                          # Column T: Full Name - only on first row
-                        '',                          # Column U: Contact Number - only on first row
-                        '',                          # Column V: Mailing Address - only on first row
-                        ''                           # Column W: Tracking Number - only on first row
+                        '',                          # Column S: Partial Payment - only on first row
+                        '',                          # Column T: Remaining Balance - only on first row
+                        f'Updated {order_id}',       # Column U: Remarks
+                        '',                          # Column V: Full Name - only on first row
+                        '',                          # Column W: Contact Number - only on first row
+                        '',                          # Column X: Mailing Address - only on first row
+                        ''                           # Column Y: Tracking Number - only on first row
                     ]
                     rows_to_add.append(row)
                 
@@ -5291,8 +5303,8 @@ def api_orders_lookup():
             amount_paid_php, remaining_balance_php = derive_payment_amounts(
                 grand_total_value,
                 payment_status_value,
-                order.get('Amount Paid PHP', order.get('Amount Paid', '')),
-                order.get('Remaining Balance PHP', order.get('Remaining Balance', ''))
+                order.get('Partial Payment', order.get('Amount Paid PHP', order.get('Amount Paid', ''))),
+                order.get('Remaining Balance', order.get('Remaining Balance PHP', order.get('Remaining Balance', '')))
             )
 
             grouped[order_id] = {
@@ -5405,8 +5417,8 @@ def api_orders_lookup():
                 amount_paid_php, remaining_balance_php = derive_payment_amounts(
                     grand_total_value,
                     payment_status_value,
-                    order.get('Amount Paid PHP', order.get('Amount Paid', '')),
-                    order.get('Remaining Balance PHP', order.get('Remaining Balance', ''))
+                    order.get('Partial Payment', order.get('Amount Paid PHP', order.get('Amount Paid', ''))),
+                    order.get('Remaining Balance', order.get('Remaining Balance PHP', order.get('Remaining Balance', '')))
                 )
 
                 grouped[order_id] = {
@@ -5459,8 +5471,8 @@ def api_orders():
             amount_paid_php, remaining_balance_php = derive_payment_amounts(
                 grand_total_value,
                 payment_status_value,
-                order.get('Amount Paid PHP', order.get('Amount Paid', '')),
-                order.get('Remaining Balance PHP', order.get('Remaining Balance', ''))
+                order.get('Partial Payment', order.get('Amount Paid PHP', order.get('Amount Paid', ''))),
+                order.get('Remaining Balance', order.get('Remaining Balance PHP', order.get('Remaining Balance', '')))
             )
             grouped[order_id] = {
                 'order_id': order_id,
@@ -7153,26 +7165,25 @@ def api_save_mailing_address(order_id):
         if not cell:
             return jsonify({'error': 'Order not found'}), 404
         
-        # Ensure headers exist in columns T, U, V (20, 21, 22) - 1-indexed in gspread
-        headers = worksheet.row_values(1)
-        if len(headers) < 20:
-            # Extend headers if needed
-            while len(headers) < 23:
-                headers.append('')
-            worksheet.update('A1:W1', [headers])
+        # Resolve mailing columns dynamically across old/new schemas.
+        headers = [str(h or '').strip() for h in worksheet.row_values(1)]
+        def ensure_col(header_name):
+            nonlocal headers
+            if header_name in headers:
+                return headers.index(header_name) + 1
+            col = len(headers) + 1
+            worksheet.update_cell(1, col, header_name)
+            headers.append(header_name)
+            return col
+
+        col_full_name = ensure_col('Full Name')
+        col_contact = ensure_col('Contact Number')
+        col_mailing = ensure_col('Mailing Address')
         
-        # Set headers for columns T, U, V if not already set
-        if len(headers) < 20 or headers[19] != 'Full Name':
-            worksheet.update_cell(1, 20, 'Full Name')  # Column T
-        if len(headers) < 21 or headers[20] != 'Contact Number':
-            worksheet.update_cell(1, 21, 'Contact Number')  # Column U
-        if len(headers) < 22 or headers[21] != 'Mailing Address':
-            worksheet.update_cell(1, 22, 'Mailing Address')  # Column V
-        
-        # Update the order row with mailing info in columns T (20), U (21), V (22)
-        worksheet.update_cell(cell.row, 20, mailing_name)  # Column T: Full Name
-        worksheet.update_cell(cell.row, 21, mailing_phone)  # Column U: Contact Number
-        worksheet.update_cell(cell.row, 22, mailing_address)  # Column V: Mailing Address
+        # Update the order row with mailing info
+        worksheet.update_cell(cell.row, col_full_name, mailing_name)
+        worksheet.update_cell(cell.row, col_contact, mailing_phone)
+        worksheet.update_cell(cell.row, col_mailing, mailing_address)
         
         # Lock the order (Column Q = 17) when shipping details are added
         # Ensure header exists
@@ -7264,20 +7275,16 @@ def api_save_tracking_number(order_id):
         if not cell:
             return jsonify({'error': 'Order not found in sheets'}), 404
         
-        # Ensure headers exist - column W (23) for Tracking Number - 1-indexed in gspread
-        headers = worksheet.row_values(1)
-        if len(headers) < 23:
-            # Extend headers if needed
-            while len(headers) < 23:
-                headers.append('')
-            worksheet.update('A1:W1', [headers])
-        
-        # Set header for column W if not already set
-        if len(headers) < 23 or headers[22] != 'Tracking Number':
-            worksheet.update_cell(1, 23, 'Tracking Number')  # Column W
-        
-        # Update the order row with tracking number in column W (23)
-        worksheet.update_cell(cell.row, 23, tracking_number)  # Column W: Tracking Number
+        # Resolve tracking-number column dynamically so it works across old/new schemas.
+        headers = [str(h or '').strip() for h in worksheet.row_values(1)]
+        if 'Tracking Number' in headers:
+            tracking_col = headers.index('Tracking Number') + 1  # 1-indexed
+        else:
+            tracking_col = len(headers) + 1
+            worksheet.update_cell(1, tracking_col, 'Tracking Number')
+
+        # Update the order row with tracking number
+        worksheet.update_cell(cell.row, tracking_col, tracking_number)
         
         # Clear cache since orders changed
         clear_cache_prefix('orders_')
@@ -7639,8 +7646,8 @@ def api_admin_orders():
             amount_paid_php, remaining_balance_php = derive_payment_amounts(
                 grand_total_value,
                 payment_status_value,
-                order.get('Amount Paid PHP', order.get('Amount Paid', '')),
-                order.get('Remaining Balance PHP', order.get('Remaining Balance', ''))
+                order.get('Partial Payment', order.get('Amount Paid PHP', order.get('Amount Paid', ''))),
+                order.get('Remaining Balance', order.get('Remaining Balance PHP', order.get('Remaining Balance', '')))
             )
             grouped[order_id] = {
                 'order_id': order_id,
@@ -8950,16 +8957,17 @@ def api_admin_create_pephaul_tab():
         # Create new tab name (e.g., "PepHaul Entry-01")
         new_tab_name = f"PepHaul Entry-{next_num:02d}"
         
-        # Create new worksheet with headers (Supplier in column E) - 23 columns (A-W)
-        worksheet = spreadsheet.add_worksheet(title=new_tab_name, rows=1000, cols=23)
+        # Create new worksheet with headers (Supplier in column E) - 25 columns (A-Y)
+        worksheet = spreadsheet.add_worksheet(title=new_tab_name, rows=1000, cols=25)
         headers = [
             'Order ID', 'Order Date', 'Name', 'Telegram Username', 'Supplier',
             'Product Code', 'Product Name', 'Order Type', 'QTY', 'Unit Price USD',
             'Line Total USD', 'Exchange Rate', 'Line Total PHP', 'Admin Fee PHP',
-            'Grand Total PHP', 'Order Status', 'Locked', 'Payment Status', 
-            'Remarks', 'Full Name', 'Contact Number', 'Mailing Address', 'Tracking Number'
+            'Grand Total PHP', 'Order Status', 'Locked', 'Payment Status',
+            'Partial Payment', 'Remaining Balance', 'Remarks',
+            'Full Name', 'Contact Number', 'Mailing Address', 'Tracking Number'
         ]
-        worksheet.update('A1:W1', [headers])
+        worksheet.update('A1:Y1', [headers])
         
         print(f"✅ Created new PepHaul Entry tab: {new_tab_name}")
         
@@ -8999,24 +9007,25 @@ def api_admin_fix_pephaul_tab_headers():
         except Exception:
             return jsonify({'error': f'Tab "{tab_name}" not found'}), 404
         
-        # Standard 23-column header structure (A-W)
+        # Standard 25-column header structure (A-Y)
         headers = [
             'Order ID', 'Order Date', 'Name', 'Telegram Username', 'Supplier',
             'Product Code', 'Product Name', 'Order Type', 'QTY', 'Unit Price USD',
             'Line Total USD', 'Exchange Rate', 'Line Total PHP', 'Admin Fee PHP',
-            'Grand Total PHP', 'Order Status', 'Locked', 'Payment Status', 
-            'Remarks', 'Full Name', 'Contact Number', 'Mailing Address', 'Tracking Number'
+            'Grand Total PHP', 'Order Status', 'Locked', 'Payment Status',
+            'Partial Payment', 'Remaining Balance', 'Remarks',
+            'Full Name', 'Contact Number', 'Mailing Address', 'Tracking Number'
         ]
         
-        # Update header row (A1:W1 = 23 columns)
-        worksheet.update('A1:W1', [headers])
+        # Update header row (A1:Y1 = 25 columns)
+        worksheet.update('A1:Y1', [headers])
         
         print(f"✅ Fixed headers for tab: {tab_name}")
         
         return jsonify({
             'success': True,
             'tab_name': tab_name,
-            'message': f'Updated headers for {tab_name} to standard 23-column structure',
+            'message': f'Updated headers for {tab_name} to standard 25-column structure',
             'headers': headers
         })
     except Exception as e:
