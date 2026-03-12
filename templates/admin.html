@@ -359,9 +359,11 @@
             color: #7c3aed;
         }
 
-        .payment-badge.partial {
+        .payment-badge.partial,
+        .payment-badge.partially-paid {
             background: rgba(251, 191, 36, 0.2);
-            color: #f59e0b;
+            color: #d97706;
+            border: 1px solid rgba(251, 191, 36, 0.4);
         }
 
         .btn-sm {
@@ -1100,6 +1102,7 @@
                     <select class="form-input payment-filter" data-supplier="{{ supplier }}" style="width: auto; padding: 0.75rem 1rem;">
                         <option value="all">All Orders</option>
                         <option value="unpaid">Unpaid Only</option>
+                        <option value="partial">Partially Paid</option>
                         <option value="paid">Paid Only</option>
                         <option value="waiting">Waiting for Confirmation</option>
                     </select>
@@ -1274,6 +1277,69 @@
             </div>
             <div class="modal-footer" id="order-modal-footer">
                 <!-- Populated by JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Payment Confirmation Modal -->
+    <div class="modal" id="payment-modal">
+        <div class="modal-content" style="max-width: 480px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #1a7a4a 0%, #22a05b 100%); border-radius: 12px 12px 0 0; padding: 1.25rem 1.5rem;">
+                <h3 class="modal-title" style="color: #fff; margin: 0; font-size: 1.1rem; display: flex; align-items: center; gap: 0.5rem;">
+                    💸 Confirm Payment
+                </h3>
+                <button class="modal-close" onclick="closePaymentModal()" style="color: rgba(255,255,255,0.8); font-size: 1.4rem; background: none; border: none; cursor: pointer; line-height: 1;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem;">
+                <!-- Order summary pill row -->
+                <div id="pm-summary" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem; margin-bottom: 1.5rem;">
+                    <div style="background: var(--bg-secondary, #f5f5f5); border-radius: 10px; padding: 0.75rem 0.5rem; text-align: center;">
+                        <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.25rem;">Grand Total</div>
+                        <div id="pm-grand-total" style="font-weight: 700; font-size: 1rem; color: var(--text-primary);">₱0.00</div>
+                    </div>
+                    <div style="background: var(--bg-secondary, #f5f5f5); border-radius: 10px; padding: 0.75rem 0.5rem; text-align: center;">
+                        <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.25rem;">Already Paid</div>
+                        <div id="pm-already-paid" style="font-weight: 700; font-size: 1rem; color: #1a7a4a;">₱0.00</div>
+                    </div>
+                    <div style="background: var(--bg-secondary, #f5f5f5); border-radius: 10px; padding: 0.75rem 0.5rem; text-align: center;">
+                        <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.25rem;">Remaining</div>
+                        <div id="pm-remaining" style="font-weight: 700; font-size: 1rem; color: #c0392b;">₱0.00</div>
+                    </div>
+                </div>
+
+                <!-- Payment type dropdown -->
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label class="form-label" style="margin-bottom: 0.4rem; display: block; font-size: 0.85rem; font-weight: 600;">Payment Type</label>
+                    <select id="pm-type-select" class="form-input" onchange="onPaymentTypeChange()" style="width: 100%; font-size: 0.95rem; padding: 0.6rem 0.75rem; border-radius: 8px;">
+                        <option value="FULL">✅ Full Payment — mark as fully paid</option>
+                        <option value="PARTIAL">💰 Partial Payment — record additional payment</option>
+                    </select>
+                </div>
+
+                <!-- Partial amount input (hidden unless PARTIAL selected) -->
+                <div id="pm-partial-row" style="display: none; margin-bottom: 1rem;">
+                    <label class="form-label" style="margin-bottom: 0.4rem; display: block; font-size: 0.85rem; font-weight: 600;">Amount Received Now (PHP)</label>
+                    <div style="position: relative;">
+                        <span style="position: absolute; left: 0.75rem; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-weight: 600; pointer-events: none;">₱</span>
+                        <input type="number" id="pm-amount-input" class="form-input" min="0.01" step="0.01"
+                               placeholder="0.00"
+                               oninput="onPartialAmountInput()"
+                               style="width: 100%; padding: 0.6rem 0.75rem 0.6rem 1.75rem; border-radius: 8px; font-size: 0.95rem; box-sizing: border-box;">
+                    </div>
+                    <!-- Live balance preview -->
+                    <div id="pm-balance-preview" style="margin-top: 0.6rem; padding: 0.5rem 0.75rem; border-radius: 8px; background: #fff8e1; border: 1px solid #ffe082; font-size: 0.82rem; color: #795548; display: none;">
+                        After this payment → Remaining: <strong id="pm-preview-remaining">₱0.00</strong>
+                    </div>
+                </div>
+
+                <div id="pm-error" style="display: none; color: #c0392b; font-size: 0.82rem; margin-top: 0.5rem; padding: 0.4rem 0.6rem; background: #fdecea; border-radius: 6px;"></div>
+            </div>
+            <div class="modal-footer" style="gap: 0.75rem;">
+                <button class="btn btn-secondary" onclick="closePaymentModal()">Cancel</button>
+                <button class="btn btn-primary" id="pm-confirm-btn" onclick="submitPaymentModal()"
+                        style="background: linear-gradient(135deg, #1a7a4a, #22a05b); border: none; min-width: 140px;">
+                    💸 Confirm Payment
+                </button>
             </div>
         </div>
     </div>
@@ -3438,13 +3504,15 @@
                     (order.telegram && order.telegram.toLowerCase().includes(query));
                 
                 const paymentStatus = String(order.payment_status || '').toLowerCase().trim();
-                const isPaid = paymentStatus === 'paid';
-                const isWaiting = paymentStatus === 'waiting for confirmation';
-                const isUnpaid = !isPaid && !isWaiting;
+                const isPaid            = paymentStatus === 'paid';
+                const isWaiting         = paymentStatus === 'waiting for confirmation';
+                const isPartiallyPaid   = paymentStatus === 'partially paid';
+                const isUnpaid          = !isPaid && !isWaiting && !isPartiallyPaid;
                 const matchesPayment = 
                     paymentFilter === 'all' ||
-                    (paymentFilter === 'paid' && isPaid) ||
-                    (paymentFilter === 'unpaid' && isUnpaid) ||
+                    (paymentFilter === 'paid'    && isPaid) ||
+                    (paymentFilter === 'unpaid'  && isUnpaid) ||
+                    (paymentFilter === 'partial' && isPartiallyPaid) ||
                     (paymentFilter === 'waiting' && isWaiting);
                 
                 return matchesSearch && matchesPayment;
@@ -3731,69 +3799,132 @@
         }
 
         // Confirm payment
-        async function confirmPayment(orderId, grandTotal = 0, currentPaid = 0) {
-            const modeInput = prompt(
-                `Payment update for ${orderId}\n\nType:\n- FULL (mark fully paid)\n- PARTIAL (record additional payment)\n\nCurrent paid: ₱${Number(currentPaid || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}\nTotal: ₱${Number(grandTotal || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`,
-                'FULL'
-            );
-            if (modeInput === null) return;
+        // ===== PAYMENT MODAL =====
+        let _pmOrderId = null, _pmGrandTotal = 0, _pmCurrentPaid = 0;
 
-            const mode = String(modeInput || '').trim().toUpperCase();
-            if (!['FULL', 'PARTIAL'].includes(mode)) {
-                showToast('⚠️ Invalid mode. Use FULL or PARTIAL.');
-                return;
+        function _php(n) {
+            return '₱' + Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        function confirmPayment(orderId, grandTotal = 0, currentPaid = 0) {
+            _pmOrderId    = orderId;
+            _pmGrandTotal = Number(grandTotal  || 0);
+            _pmCurrentPaid= Number(currentPaid || 0);
+
+            // Populate summary pills
+            document.getElementById('pm-grand-total').textContent   = _php(_pmGrandTotal);
+            document.getElementById('pm-already-paid').textContent  = _php(_pmCurrentPaid);
+            document.getElementById('pm-remaining').textContent     = _php(Math.max(0, _pmGrandTotal - _pmCurrentPaid));
+
+            // Reset controls
+            document.getElementById('pm-type-select').value = 'FULL';
+            document.getElementById('pm-amount-input').value = '';
+            document.getElementById('pm-partial-row').style.display    = 'none';
+            document.getElementById('pm-balance-preview').style.display= 'none';
+            document.getElementById('pm-error').style.display          = 'none';
+            document.getElementById('pm-confirm-btn').disabled         = false;
+
+            document.getElementById('payment-modal').classList.add('show');
+        }
+
+        function closePaymentModal() {
+            document.getElementById('payment-modal').classList.remove('show');
+        }
+
+        function onPaymentTypeChange() {
+            const isPartial = document.getElementById('pm-type-select').value === 'PARTIAL';
+            document.getElementById('pm-partial-row').style.display     = isPartial ? 'block' : 'none';
+            document.getElementById('pm-balance-preview').style.display = 'none';
+            document.getElementById('pm-error').style.display           = 'none';
+            if (isPartial) {
+                document.getElementById('pm-amount-input').focus();
             }
+        }
+
+        function onPartialAmountInput() {
+            const raw = parseFloat(String(document.getElementById('pm-amount-input').value).replace(/,/g, ''));
+            const preview = document.getElementById('pm-balance-preview');
+            if (Number.isFinite(raw) && raw > 0) {
+                const newRemaining = Math.max(0, _pmGrandTotal - _pmCurrentPaid - raw);
+                document.getElementById('pm-preview-remaining').textContent = _php(newRemaining);
+                preview.style.display = 'block';
+            } else {
+                preview.style.display = 'none';
+            }
+        }
+
+        async function submitPaymentModal() {
+            const mode = document.getElementById('pm-type-select').value;
+            const errEl = document.getElementById('pm-error');
+            errEl.style.display = 'none';
 
             let amountPaidPhp = null;
             if (mode === 'PARTIAL') {
-                const amountInput = prompt('Enter ADDITIONAL payment amount received now (PHP):', '');
-                if (amountInput === null) return;
-                amountPaidPhp = Number(String(amountInput).replace(/,/g, '').trim());
-                if (!Number.isFinite(amountPaidPhp) || amountPaidPhp <= 0) {
-                    showToast('⚠️ Please enter a valid partial payment amount.');
+                const raw = parseFloat(String(document.getElementById('pm-amount-input').value).replace(/,/g, ''));
+                if (!Number.isFinite(raw) || raw <= 0) {
+                    errEl.textContent   = 'Please enter a valid payment amount greater than zero.';
+                    errEl.style.display = 'block';
+                    document.getElementById('pm-amount-input').focus();
                     return;
                 }
+                amountPaidPhp = raw;
             }
-            
+
+            const btn = document.getElementById('pm-confirm-btn');
+            btn.disabled     = true;
+            btn.textContent  = 'Processing…';
+
             try {
                 const response = await fetch('/api/admin/confirm-payment', {
                     method: 'POST',
                     credentials: 'same-origin',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        order_id: orderId,
-                        payment_mode: mode.toLowerCase(),
+                        order_id:        _pmOrderId,
+                        payment_mode:    mode.toLowerCase(),
                         amount_paid_php: amountPaidPhp
                     })
                 });
-                
+
                 if (!response.ok) {
                     const errorText = await response.text();
                     console.error('Payment confirmation failed:', response.status, errorText);
-                    showToast(`Failed to confirm payment (${response.status})`);
+                    errEl.textContent   = `Server error (${response.status}). Please try again.`;
+                    errEl.style.display = 'block';
+                    btn.disabled    = false;
+                    btn.textContent = '💸 Confirm Payment';
                     return;
                 }
-                
+
                 const result = await response.json();
                 if (result.success) {
                     const statusText = result.payment_status || (mode === 'FULL' ? 'Paid' : 'Partially Paid');
+                    closePaymentModal();
                     showToast(`✅ Payment updated: ${statusText}`);
                     loadOrders();
-                    // Close modal if open
                     const orderModal = document.getElementById('order-modal');
-                    if (orderModal && orderModal.classList.contains('show')) {
-                        closeOrderModal();
-                    }
+                    if (orderModal && orderModal.classList.contains('show')) closeOrderModal();
                 } else {
-                    showToast(result.error || 'Failed to confirm payment');
+                    errEl.textContent   = result.error || 'Failed to confirm payment.';
+                    errEl.style.display = 'block';
+                    btn.disabled    = false;
+                    btn.textContent = '💸 Confirm Payment';
                 }
             } catch (error) {
                 console.error('Error confirming payment:', error);
-                showToast('Error confirming payment. Please try again.');
+                errEl.textContent   = 'Network error. Please try again.';
+                errEl.style.display = 'block';
+                btn.disabled    = false;
+                btn.textContent = '💸 Confirm Payment';
             }
         }
-        
-        // Expose confirmPayment to global scope
+
+        // Close payment modal on backdrop click
+        document.getElementById('payment-modal').addEventListener('click', function(e) {
+            if (e.target === this) closePaymentModal();
+        });
+
+        // Expose to global scope
         window.confirmPayment = confirmPayment;
 
         // ===== ORDER LOCKING FUNCTIONS =====
