@@ -4356,12 +4356,14 @@
                 const tabsTouched = (result.tabs_touched || []).join('\n  • ') || 'None';
 
                 showToast(`✅ Shipping sync complete — ${rowsUpdated} row(s) updated.`);
+                const diagLines = (result.diagnostics || []).join('\n  • ');
                 alert(
                     `Shipping Details sync complete.\n\n` +
                     `Shipping entries loaded: ${entriesLoaded}\n` +
                     `PepHaul Entry tabs scanned: ${tabsScanned}\n` +
                     `Rows updated: ${rowsUpdated}\n\n` +
-                    (rowsUpdated > 0 ? `Tabs updated:\n  • ${tabsTouched}` : 'No rows needed updating (all already filled or no username matches).')
+                    (rowsUpdated > 0 ? `Tabs updated:\n  • ${tabsTouched}` : 'No rows updated.') +
+                    (diagLines ? `\n\nDiagnostics:\n  • ${diagLines}` : '')
                 );
             } catch (error) {
                 console.error('Error syncing shipping details:', error);

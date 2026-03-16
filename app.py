@@ -4158,13 +4158,99 @@ def api_admin_sync_telegram_users():
         if webhook_temporarily_disabled and not webhook_restored:
             _restore_webhook_if_needed()
 
+def _get_shipping_details_worksheet(spreadsheet):
+    """Return the Shipping Details worksheet (matched by title or gid)."""
+    SHIPPING_DETAILS_GID = '690002042'
+    for ws in spreadsheet.worksheets():
+        if ws.title.lower() == 'shipping details' or str(ws.id) == SHIPPING_DETAILS_GID:
+            return ws
+    return None
+
+
+def _find_col_exact(headers, *candidates):
+    """Return the first index in headers that case-insensitively matches one of the candidates.
+    Unlike the old version, it does NOT fall back to 'name' when searching for 'full name' —
+    callers must be explicit about which fallbacks are acceptable.
+    """
+    for cand in candidates:
+        for i, h in enumerate(headers):
+            if h.lower().strip() == cand.lower():
+                return i
+    return None
+
+
+def _upsert_shipping_details_tab(telegram_username, full_name, contact_number, mailing_address):
+    """Upsert a row in the Shipping Details tab for this telegram username.
+
+    - If the username already exists: skip (do not overwrite their existing entry).
+    - If the username does NOT exist: append a new row.
+    Called automatically when a customer saves shipping details via the order form.
+    """
+    if not sheets_client or not telegram_username:
+        return False
+    try:
+        spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
+        shipping_ws = _get_shipping_details_worksheet(spreadsheet)
+        if shipping_ws is None:
+            print("⚠️ _upsert_shipping_details_tab: Shipping Details tab not found")
+            return False
+
+        all_values = shipping_ws.get_all_values()
+
+        # Ensure header row exists with required columns
+        expected_headers = ['Telegram Username', 'Full Name', 'Contact Number', 'Mailing Address']
+        if not all_values:
+            shipping_ws.append_row(expected_headers)
+            all_values = [expected_headers]
+
+        headers = [h.strip() for h in all_values[0]]
+        # Ensure all expected columns exist (add missing ones)
+        for col_name in expected_headers:
+            if col_name not in headers:
+                next_col = len(headers) + 1
+                shipping_ws.update_cell(1, next_col, col_name)
+                headers.append(col_name)
+
+        col_tg   = headers.index('Telegram Username') if 'Telegram Username' in headers else 0
+        col_fn   = headers.index('Full Name')         if 'Full Name'         in headers else 1
+        col_cn   = headers.index('Contact Number')    if 'Contact Number'    in headers else 2
+        col_ma   = headers.index('Mailing Address')   if 'Mailing Address'   in headers else 3
+
+        tg_key = normalize_telegram_username(telegram_username)
+
+        # Check if this username already exists
+        for data_row in all_values[1:]:
+            raw = data_row[col_tg].strip() if len(data_row) > col_tg else ''
+            if normalize_telegram_username(raw) == tg_key:
+                print(f"  ℹ️ Shipping Details: @{tg_key} already exists, skipping upsert")
+                return True  # already there — do not overwrite
+
+        # Not found → append new row
+        new_row = [''] * len(headers)
+        display_tg = f'@{tg_key}' if tg_key else telegram_username
+        new_row[col_tg] = display_tg
+        new_row[col_fn] = full_name
+        new_row[col_cn] = contact_number
+        new_row[col_ma] = mailing_address
+        shipping_ws.append_row(new_row)
+        print(f"  ✅ Shipping Details: added new row for @{tg_key}")
+        return True
+
+    except Exception as e:
+        print(f"⚠️ _upsert_shipping_details_tab error: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
 @app.route('/api/admin/sync-shipping-details', methods=['POST'])
 def api_admin_sync_shipping_details():
     """Admin: sync shipping details from the Shipping Details tab into all PepHaul Entry tabs.
 
     Matches rows by Telegram Username (case-insensitive, strips @).
-    Only fills in Full Name / Contact Number / Mailing Address when those cells are currently empty,
-    so existing manually-entered data is never overwritten.
+    Propagates shipping details to ALL rows of each matching order (not just the first row),
+    so multi-item orders (e.g. rows 20 and 21 for the same order) all get the address filled.
+    Only fills empty cells — never overwrites existing data.
     """
     if not session.get('is_admin'):
         return jsonify({'error': 'Unauthorized'}), 401
@@ -4172,52 +4258,40 @@ def api_admin_sync_shipping_details():
     if not sheets_client:
         return jsonify({'success': False, 'error': 'Google Sheets not connected'}), 500
 
-    SHIPPING_DETAILS_GID = '690002042'
-
     try:
         spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
 
         # ── 1. Load the Shipping Details tab ────────────────────────────────
-        shipping_ws = None
-        for ws in spreadsheet.worksheets():
-            if ws.title.lower() == 'shipping details' or str(ws.id) == SHIPPING_DETAILS_GID:
-                shipping_ws = ws
-                break
-
+        shipping_ws = _get_shipping_details_worksheet(spreadsheet)
         if shipping_ws is None:
             return jsonify({'success': False, 'error': 'Shipping Details tab not found in the spreadsheet'}), 404
 
         shipping_values = shipping_ws.get_all_values()
         if not shipping_values or len(shipping_values) < 2:
-            return jsonify({'success': False, 'error': 'Shipping Details tab is empty'}), 400
+            return jsonify({'success': False, 'error': 'Shipping Details tab is empty or only has a header row'}), 400
 
         shipping_headers = [h.strip() for h in shipping_values[0]]
 
-        # Find column indices in Shipping Details tab (flexible header matching)
-        def _find_col(headers, *candidates):
-            for cand in candidates:
-                for i, h in enumerate(headers):
-                    if h.lower().strip() == cand.lower():
-                        return i
-            return None
+        sh_col_telegram = _find_col_exact(shipping_headers, 'telegram username', 'telegram', 'tg username', 'username')
+        sh_col_full_name = _find_col_exact(shipping_headers, 'full name', 'receiver name', 'recipient name', 'name')
+        sh_col_contact   = _find_col_exact(shipping_headers, 'contact number', 'contact', 'phone', 'mobile', 'phone number')
+        sh_col_address   = _find_col_exact(shipping_headers, 'mailing address', 'address', 'shipping address', 'delivery address')
 
-        sh_col_telegram = _find_col(shipping_headers, 'telegram username', 'telegram', 'tg username', 'username')
-        sh_col_full_name = _find_col(shipping_headers, 'full name', 'name', 'receiver name', 'recipient name')
-        sh_col_contact   = _find_col(shipping_headers, 'contact number', 'contact', 'phone', 'mobile', 'phone number')
-        sh_col_address   = _find_col(shipping_headers, 'mailing address', 'address', 'shipping address', 'delivery address')
+        print(f"📦 Shipping Details columns → telegram:{sh_col_telegram}, full_name:{sh_col_full_name}, contact:{sh_col_contact}, address:{sh_col_address}")
+        print(f"📦 Shipping Details headers: {shipping_headers}")
 
         if sh_col_telegram is None:
             return jsonify({
                 'success': False,
-                'error': f'Could not find Telegram Username column in Shipping Details tab. Found columns: {shipping_headers}'
+                'error': f'Could not find Telegram Username column in Shipping Details tab. Columns found: {shipping_headers}'
             }), 400
 
-        # Build lookup: normalized_telegram → {full_name, contact_number, mailing_address}
+        # Build lookup: normalized_telegram → shipping info
         shipping_map = {}
         for row in shipping_values[1:]:
             if not row or not any(cell.strip() for cell in row):
                 continue
-            raw_tg = row[sh_col_telegram].strip() if sh_col_telegram is not None and len(row) > sh_col_telegram else ''
+            raw_tg = row[sh_col_telegram].strip() if len(row) > sh_col_telegram else ''
             if not raw_tg:
                 continue
             tg_key = normalize_telegram_username(raw_tg)
@@ -4227,27 +4301,25 @@ def api_admin_sync_shipping_details():
             address   = row[sh_col_address].strip()   if sh_col_address   is not None and len(row) > sh_col_address   else ''
 
             if tg_key and (full_name or contact or address):
-                shipping_map[tg_key] = {
-                    'full_name': full_name,
-                    'contact_number': contact,
-                    'mailing_address': address,
-                }
+                shipping_map[tg_key] = {'full_name': full_name, 'contact_number': contact, 'mailing_address': address}
 
-        print(f"📦 Shipping Details: loaded {len(shipping_map)} entries → {list(shipping_map.keys())[:10]}")
+        print(f"📦 Loaded {len(shipping_map)} shipping entries: {list(shipping_map.keys())[:15]}")
 
         if not shipping_map:
-            return jsonify({'success': False, 'error': 'No usable shipping entries found (check Telegram Username column)'}), 400
+            return jsonify({'success': False, 'error': 'No usable shipping entries found (Telegram Username column found but all entries are empty)'}), 400
 
-        # ── 2. Iterate every PepHaul Entry tab and patch matching rows ───────
+        # ── 2. Iterate every PepHaul Entry tab ──────────────────────────────
         pephaul_tabs = list_pephaul_tabs()
         total_updated = 0
         tabs_touched = []
+        diagnostics = []
 
         for tab_name in pephaul_tabs:
             try:
                 ws = spreadsheet.worksheet(tab_name)
                 all_values = ws.get_all_values()
                 if not all_values or len(all_values) < 2:
+                    diagnostics.append(f"{tab_name}: empty/no data rows")
                     continue
 
                 raw_headers = all_values[0]
@@ -4255,43 +4327,82 @@ def api_admin_sync_shipping_details():
                 if headers and not headers[0]:
                     headers[0] = 'Order ID'
 
-                # Locate relevant columns in this tab
-                col_telegram = _find_col(headers, 'telegram username', 'telegram', 'tg', 'username')
-                col_full_name = _find_col(headers, 'full name', 'name')
-                col_contact   = _find_col(headers, 'contact number')
-                col_mailing   = _find_col(headers, 'mailing address')
+                # Find columns — use EXACT names only (no 'name' fallback for full_name,
+                # since 'Name' is the customer name column, not the mailing receiver column)
+                col_order_id  = _find_col_exact(headers, 'order id')
+                col_telegram  = _find_col_exact(headers, 'telegram username', 'telegram')
+                col_full_name = _find_col_exact(headers, 'full name')          # mailing receiver ONLY
+                col_contact   = _find_col_exact(headers, 'contact number')
+                col_mailing   = _find_col_exact(headers, 'mailing address')
+
+                diag = (f"{tab_name}: order_id_col={col_order_id}, tg_col={col_telegram}, "
+                        f"full_name_col={col_full_name}, contact_col={col_contact}, mailing_col={col_mailing} | "
+                        f"headers={headers[:8]}")
+                diagnostics.append(diag)
+                print(f"  🔍 {diag}")
 
                 if col_telegram is None:
-                    print(f"  ⚠️ {tab_name}: no Telegram Username column, skipping")
+                    print(f"  ⚠️ {tab_name}: Telegram Username column not found, skipping")
                     continue
 
-                tab_updated = 0
-
+                # ── Pass 1: build order_id → {tg_key, shipping_info} ────────
+                # Tracks which orders have a matching telegram username in the shipping map.
+                # This allows us to propagate the address to ALL rows of the same order
+                # (e.g. rows 20 and 21 for a 2-product order), not just the first row.
+                order_shipping = {}  # order_id → {info, first_row_idx}
                 for row_idx, row in enumerate(all_values[1:], start=2):
-                    # Only process rows that have a Telegram Username (first row of each order)
                     raw_tg = row[col_telegram].strip() if len(row) > col_telegram else ''
                     if not raw_tg:
                         continue
-
                     tg_key = normalize_telegram_username(raw_tg)
                     if tg_key not in shipping_map:
                         continue
+                    # Only need the first occurrence per order — identify by order_id if available
+                    if col_order_id is not None and len(row) > col_order_id:
+                        oid = row[col_order_id].strip()
+                    else:
+                        oid = f"_row_{row_idx}"  # fallback key when no order_id column
+                    if oid and oid not in order_shipping:
+                        order_shipping[oid] = {'info': shipping_map[tg_key], 'tg': tg_key}
 
-                    info = shipping_map[tg_key]
+                print(f"  📋 {tab_name}: {len(order_shipping)} matching order(s) found: {list(order_shipping.keys())[:10]}")
 
-                    # Only fill empty cells – never overwrite existing data
-                    current_full_name = row[col_full_name].strip() if col_full_name is not None and len(row) > col_full_name else ''
-                    current_contact   = row[col_contact].strip()   if col_contact   is not None and len(row) > col_contact   else ''
-                    current_mailing   = row[col_mailing].strip()   if col_mailing   is not None and len(row) > col_mailing   else ''
+                if not order_shipping:
+                    diagnostics.append(f"{tab_name}: 0 telegram username matches")
+                    continue
 
+                # ── Pass 2: update ALL rows of each matching order ───────────
+                tab_updated = 0
+                for row_idx, row in enumerate(all_values[1:], start=2):
+                    # Determine the order_id for this row
+                    if col_order_id is not None and len(row) > col_order_id:
+                        oid = row[col_order_id].strip()
+                    else:
+                        # No order_id column: only update rows that directly have the username
+                        raw_tg = row[col_telegram].strip() if len(row) > col_telegram else ''
+                        oid = f"_row_{row_idx}" if raw_tg else ''
+
+                    if not oid or oid not in order_shipping:
+                        continue
+
+                    info = order_shipping[oid]['info']
                     changed = False
-                    if col_full_name is not None and not current_full_name and info['full_name']:
+
+                    # Full Name (mailing receiver)
+                    current_fn = row[col_full_name].strip() if col_full_name is not None and len(row) > col_full_name else ''
+                    if col_full_name is not None and not current_fn and info['full_name']:
                         ws.update_cell(row_idx, col_full_name + 1, info['full_name'])
                         changed = True
-                    if col_contact is not None and not current_contact and info['contact_number']:
+
+                    # Contact Number
+                    current_cn = row[col_contact].strip() if col_contact is not None and len(row) > col_contact else ''
+                    if col_contact is not None and not current_cn and info['contact_number']:
                         ws.update_cell(row_idx, col_contact + 1, info['contact_number'])
                         changed = True
-                    if col_mailing is not None and not current_mailing and info['mailing_address']:
+
+                    # Mailing Address
+                    current_ma = row[col_mailing].strip() if col_mailing is not None and len(row) > col_mailing else ''
+                    if col_mailing is not None and not current_ma and info['mailing_address']:
                         ws.update_cell(row_idx, col_mailing + 1, info['mailing_address'])
                         changed = True
 
@@ -4303,14 +4414,16 @@ def api_admin_sync_shipping_details():
                     total_updated += tab_updated
                     tabs_touched.append(f"{tab_name} ({tab_updated} rows)")
                 else:
-                    print(f"  ℹ️ {tab_name}: nothing to update")
+                    print(f"  ℹ️ {tab_name}: {len(order_shipping)} match(es) found but all cells already filled")
+                    diagnostics.append(f"{tab_name}: matches found but all cells already filled")
 
             except Exception as tab_err:
-                print(f"  ❌ Error processing tab {tab_name}: {tab_err}")
+                msg = f"Error in {tab_name}: {tab_err}"
+                print(f"  ❌ {msg}")
+                diagnostics.append(msg)
                 import traceback
                 traceback.print_exc()
 
-        # Clear orders cache since data changed
         if total_updated > 0:
             clear_cache_prefix('orders_')
 
@@ -4319,7 +4432,8 @@ def api_admin_sync_shipping_details():
             'shipping_entries_loaded': len(shipping_map),
             'tabs_scanned': len(pephaul_tabs),
             'rows_updated': total_updated,
-            'tabs_touched': tabs_touched
+            'tabs_touched': tabs_touched,
+            'diagnostics': diagnostics
         })
 
     except Exception as e:
@@ -7355,7 +7469,21 @@ def api_save_mailing_address(order_id):
         worksheet.update_cell(cell.row, col_full_name, mailing_name)
         worksheet.update_cell(cell.row, col_contact, mailing_phone)
         worksheet.update_cell(cell.row, col_mailing, mailing_address)
-        
+
+        # Auto-populate Shipping Details tab with this customer's info (new rows only)
+        try:
+            order_telegram = ''
+            row_data = worksheet.row_values(cell.row)
+            # Telegram Username is column D (index 3) in the standard schema
+            tg_headers = [str(h or '').strip() for h in worksheet.row_values(1)]
+            tg_col_idx = tg_headers.index('Telegram Username') if 'Telegram Username' in tg_headers else 3
+            if len(row_data) > tg_col_idx:
+                order_telegram = row_data[tg_col_idx].strip()
+            if order_telegram:
+                _upsert_shipping_details_tab(order_telegram, mailing_name, mailing_phone, mailing_address)
+        except Exception as upsert_err:
+            print(f"⚠️ Could not upsert Shipping Details tab: {upsert_err}")
+
         # Lock the order (Column Q = 17) when shipping details are added
         # Ensure header exists
         if len(headers) < 17 or headers[16] != 'Locked':
