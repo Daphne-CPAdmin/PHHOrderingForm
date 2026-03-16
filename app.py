@@ -4372,6 +4372,11 @@ def api_admin_sync_shipping_details():
                     continue
 
                 # ── Pass 2: update ALL rows of each matching order ───────────
+                # Rule: only fill Contact Number and Mailing Address on rows that
+                # already have a Full Name present. Full Name is the human-verified
+                # anchor — we never write it from the sync, the admin/customer must
+                # have entered it first. This prevents ghost-populating rows for the
+                # wrong person.
                 tab_updated = 0
                 for row_idx, row in enumerate(all_values[1:], start=2):
                     # Determine the order_id for this row
@@ -4385,22 +4390,21 @@ def api_admin_sync_shipping_details():
                     if not oid or oid not in order_shipping:
                         continue
 
+                    # Full Name must already be present — skip if it's empty
+                    current_fn = row[col_full_name].strip() if col_full_name is not None and len(row) > col_full_name else ''
+                    if not current_fn:
+                        continue  # anchor not yet set; admin must enter Full Name first
+
                     info = order_shipping[oid]['info']
                     changed = False
 
-                    # Full Name (mailing receiver)
-                    current_fn = row[col_full_name].strip() if col_full_name is not None and len(row) > col_full_name else ''
-                    if col_full_name is not None and not current_fn and info['full_name']:
-                        ws.update_cell(row_idx, col_full_name + 1, info['full_name'])
-                        changed = True
-
-                    # Contact Number
+                    # Contact Number — only fill if empty
                     current_cn = row[col_contact].strip() if col_contact is not None and len(row) > col_contact else ''
                     if col_contact is not None and not current_cn and info['contact_number']:
                         ws.update_cell(row_idx, col_contact + 1, info['contact_number'])
                         changed = True
 
-                    # Mailing Address
+                    # Mailing Address — only fill if empty
                     current_ma = row[col_mailing].strip() if col_mailing is not None and len(row) > col_mailing else ''
                     if col_mailing is not None and not current_ma and info['mailing_address']:
                         ws.update_cell(row_idx, col_mailing + 1, info['mailing_address'])
