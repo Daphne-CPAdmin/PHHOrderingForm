@@ -621,6 +621,9 @@
                     <button id="sync-telegram-users-btn" class="btn" style="padding: 0.75rem 1.5rem; background: #7c3aed; color: white; width: auto;">
                         🔄 Sync Telegram Users
                     </button>
+                    <button id="sync-shipping-details-btn" class="btn" style="padding: 0.75rem 1.5rem; background: #0ea5e9; color: white; width: auto;">
+                        📦 Sync Shipping Details
+                    </button>
                     <button id="send-unpaid-reminders-btn" class="btn" style="padding: 0.75rem 1.5rem; background: #a855f7; color: white; width: auto;">
                         🔔 Remind All Unpaid
                     </button>
@@ -4324,6 +4327,54 @@
             }
         }
 
+        async function syncShippingDetails() {
+            const btn = document.getElementById('sync-shipping-details-btn');
+            try {
+                if (btn) {
+                    btn.disabled = true;
+                    btn.textContent = 'Syncing...';
+                }
+
+                const response = await fetch('/api/admin/sync-shipping-details', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({})
+                });
+
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    const errorMsg = result.error || 'Failed to sync shipping details';
+                    showToast(`❌ ${errorMsg}`, 5000);
+                    alert(errorMsg);
+                    return;
+                }
+
+                const rowsUpdated = result.rows_updated || 0;
+                const tabsScanned = result.tabs_scanned || 0;
+                const entriesLoaded = result.shipping_entries_loaded || 0;
+                const tabsTouched = (result.tabs_touched || []).join('\n  • ') || 'None';
+
+                showToast(`✅ Shipping sync complete — ${rowsUpdated} row(s) updated.`);
+                alert(
+                    `Shipping Details sync complete.\n\n` +
+                    `Shipping entries loaded: ${entriesLoaded}\n` +
+                    `PepHaul Entry tabs scanned: ${tabsScanned}\n` +
+                    `Rows updated: ${rowsUpdated}\n\n` +
+                    (rowsUpdated > 0 ? `Tabs updated:\n  • ${tabsTouched}` : 'No rows needed updating (all already filled or no username matches).')
+                );
+            } catch (error) {
+                console.error('Error syncing shipping details:', error);
+                showToast('❌ Shipping sync failed');
+                alert('Failed to sync shipping details. Check console for details.');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = '📦 Sync Shipping Details';
+                }
+            }
+        }
+
         // Load available PepHaul Entry tabs for admin tab viewer selector
         async function loadAdminTabViewer() {
             try {
@@ -4960,6 +5011,12 @@
             if (syncTelegramBtn && !syncTelegramBtn.dataset.listenerAttached) {
                 syncTelegramBtn.addEventListener('click', syncTelegramUsers);
                 syncTelegramBtn.dataset.listenerAttached = 'true';
+            }
+
+            const syncShippingBtn = document.getElementById('sync-shipping-details-btn');
+            if (syncShippingBtn && !syncShippingBtn.dataset.listenerAttached) {
+                syncShippingBtn.addEventListener('click', syncShippingDetails);
+                syncShippingBtn.dataset.listenerAttached = 'true';
             }
 
             const bulkReminderBtn = document.getElementById('send-unpaid-reminders-btn');

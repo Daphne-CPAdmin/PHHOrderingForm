@@ -4158,6 +4158,177 @@ def api_admin_sync_telegram_users():
         if webhook_temporarily_disabled and not webhook_restored:
             _restore_webhook_if_needed()
 
+@app.route('/api/admin/sync-shipping-details', methods=['POST'])
+def api_admin_sync_shipping_details():
+    """Admin: sync shipping details from the Shipping Details tab into all PepHaul Entry tabs.
+
+    Matches rows by Telegram Username (case-insensitive, strips @).
+    Only fills in Full Name / Contact Number / Mailing Address when those cells are currently empty,
+    so existing manually-entered data is never overwritten.
+    """
+    if not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    if not sheets_client:
+        return jsonify({'success': False, 'error': 'Google Sheets not connected'}), 500
+
+    SHIPPING_DETAILS_GID = '690002042'
+
+    try:
+        spreadsheet = sheets_client.open_by_key(GOOGLE_SHEETS_ID)
+
+        # ── 1. Load the Shipping Details tab ────────────────────────────────
+        shipping_ws = None
+        for ws in spreadsheet.worksheets():
+            if ws.title.lower() == 'shipping details' or str(ws.id) == SHIPPING_DETAILS_GID:
+                shipping_ws = ws
+                break
+
+        if shipping_ws is None:
+            return jsonify({'success': False, 'error': 'Shipping Details tab not found in the spreadsheet'}), 404
+
+        shipping_values = shipping_ws.get_all_values()
+        if not shipping_values or len(shipping_values) < 2:
+            return jsonify({'success': False, 'error': 'Shipping Details tab is empty'}), 400
+
+        shipping_headers = [h.strip() for h in shipping_values[0]]
+
+        # Find column indices in Shipping Details tab (flexible header matching)
+        def _find_col(headers, *candidates):
+            for cand in candidates:
+                for i, h in enumerate(headers):
+                    if h.lower().strip() == cand.lower():
+                        return i
+            return None
+
+        sh_col_telegram = _find_col(shipping_headers, 'telegram username', 'telegram', 'tg username', 'username')
+        sh_col_full_name = _find_col(shipping_headers, 'full name', 'name', 'receiver name', 'recipient name')
+        sh_col_contact   = _find_col(shipping_headers, 'contact number', 'contact', 'phone', 'mobile', 'phone number')
+        sh_col_address   = _find_col(shipping_headers, 'mailing address', 'address', 'shipping address', 'delivery address')
+
+        if sh_col_telegram is None:
+            return jsonify({
+                'success': False,
+                'error': f'Could not find Telegram Username column in Shipping Details tab. Found columns: {shipping_headers}'
+            }), 400
+
+        # Build lookup: normalized_telegram → {full_name, contact_number, mailing_address}
+        shipping_map = {}
+        for row in shipping_values[1:]:
+            if not row or not any(cell.strip() for cell in row):
+                continue
+            raw_tg = row[sh_col_telegram].strip() if sh_col_telegram is not None and len(row) > sh_col_telegram else ''
+            if not raw_tg:
+                continue
+            tg_key = normalize_telegram_username(raw_tg)
+
+            full_name = row[sh_col_full_name].strip() if sh_col_full_name is not None and len(row) > sh_col_full_name else ''
+            contact   = row[sh_col_contact].strip()   if sh_col_contact   is not None and len(row) > sh_col_contact   else ''
+            address   = row[sh_col_address].strip()   if sh_col_address   is not None and len(row) > sh_col_address   else ''
+
+            if tg_key and (full_name or contact or address):
+                shipping_map[tg_key] = {
+                    'full_name': full_name,
+                    'contact_number': contact,
+                    'mailing_address': address,
+                }
+
+        print(f"📦 Shipping Details: loaded {len(shipping_map)} entries → {list(shipping_map.keys())[:10]}")
+
+        if not shipping_map:
+            return jsonify({'success': False, 'error': 'No usable shipping entries found (check Telegram Username column)'}), 400
+
+        # ── 2. Iterate every PepHaul Entry tab and patch matching rows ───────
+        pephaul_tabs = list_pephaul_tabs()
+        total_updated = 0
+        tabs_touched = []
+
+        for tab_name in pephaul_tabs:
+            try:
+                ws = spreadsheet.worksheet(tab_name)
+                all_values = ws.get_all_values()
+                if not all_values or len(all_values) < 2:
+                    continue
+
+                raw_headers = all_values[0]
+                headers = [h.strip() for h in raw_headers]
+                if headers and not headers[0]:
+                    headers[0] = 'Order ID'
+
+                # Locate relevant columns in this tab
+                col_telegram = _find_col(headers, 'telegram username', 'telegram', 'tg', 'username')
+                col_full_name = _find_col(headers, 'full name', 'name')
+                col_contact   = _find_col(headers, 'contact number')
+                col_mailing   = _find_col(headers, 'mailing address')
+
+                if col_telegram is None:
+                    print(f"  ⚠️ {tab_name}: no Telegram Username column, skipping")
+                    continue
+
+                tab_updated = 0
+
+                for row_idx, row in enumerate(all_values[1:], start=2):
+                    # Only process rows that have a Telegram Username (first row of each order)
+                    raw_tg = row[col_telegram].strip() if len(row) > col_telegram else ''
+                    if not raw_tg:
+                        continue
+
+                    tg_key = normalize_telegram_username(raw_tg)
+                    if tg_key not in shipping_map:
+                        continue
+
+                    info = shipping_map[tg_key]
+
+                    # Only fill empty cells – never overwrite existing data
+                    current_full_name = row[col_full_name].strip() if col_full_name is not None and len(row) > col_full_name else ''
+                    current_contact   = row[col_contact].strip()   if col_contact   is not None and len(row) > col_contact   else ''
+                    current_mailing   = row[col_mailing].strip()   if col_mailing   is not None and len(row) > col_mailing   else ''
+
+                    changed = False
+                    if col_full_name is not None and not current_full_name and info['full_name']:
+                        ws.update_cell(row_idx, col_full_name + 1, info['full_name'])
+                        changed = True
+                    if col_contact is not None and not current_contact and info['contact_number']:
+                        ws.update_cell(row_idx, col_contact + 1, info['contact_number'])
+                        changed = True
+                    if col_mailing is not None and not current_mailing and info['mailing_address']:
+                        ws.update_cell(row_idx, col_mailing + 1, info['mailing_address'])
+                        changed = True
+
+                    if changed:
+                        tab_updated += 1
+
+                if tab_updated > 0:
+                    print(f"  ✅ {tab_name}: updated {tab_updated} row(s)")
+                    total_updated += tab_updated
+                    tabs_touched.append(f"{tab_name} ({tab_updated} rows)")
+                else:
+                    print(f"  ℹ️ {tab_name}: nothing to update")
+
+            except Exception as tab_err:
+                print(f"  ❌ Error processing tab {tab_name}: {tab_err}")
+                import traceback
+                traceback.print_exc()
+
+        # Clear orders cache since data changed
+        if total_updated > 0:
+            clear_cache_prefix('orders_')
+
+        return jsonify({
+            'success': True,
+            'shipping_entries_loaded': len(shipping_map),
+            'tabs_scanned': len(pephaul_tabs),
+            'rows_updated': total_updated,
+            'tabs_touched': tabs_touched
+        })
+
+    except Exception as e:
+        print(f"❌ sync-shipping-details error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @app.route('/api/admin/debug/orders')
 def api_admin_debug_orders():
     """
